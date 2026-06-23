@@ -2,4 +2,4 @@
 # Then fill in YOUR local MySQL password. Keep port 3306 + db name identical across the team.
 db.url=jdbc:mysql://localhost:3306/madibets?useSSL=false&serverTimezone=UTC
 db.user=root
-db.password=Siwa@0810!
+db.password=CHANGE_ME
