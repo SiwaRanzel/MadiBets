@@ -1,0 +1,11 @@
+# Build output
+target/
+*.class
+
+# Local DB credentials — never commit
+src/main/resources/db.properties
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
