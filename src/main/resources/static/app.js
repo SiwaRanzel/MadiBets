@@ -81,16 +81,48 @@ function switchPanel(panelId) {
 }
 
 // Feedback form stub
-function submitFeedback() {
+async function submitFeedback() {
     const title = document.getElementById('feedback-title').value.trim();
     const body  = document.getElementById('feedback-body').value.trim();
+
     if (!title || !body) {
         showToast('Please fill in both fields.', 'error');
         return;
     }
-    showToast('Feedback submitted! Thank you.', 'success');
-    document.getElementById('feedback-title').value = '';
-    document.getElementById('feedback-body').value = '';
+
+    const savedUser = sessionStorage.getItem('user');
+    if (!savedUser) {
+        showToast('You must be logged in to submit feedback.', 'error');
+        return;
+    }
+
+    const user = JSON.parse(savedUser);
+    const payload = {
+        title,
+        description: body,
+        userID: user.userID,
+        resolvedStatus: 'OPEN'
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/queries`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Feedback submitted! Thank you.', 'success');
+            document.getElementById('feedback-title').value = '';
+            document.getElementById('feedback-body').value = '';
+        } else {
+            showToast(data.error || 'Unable to submit feedback.', 'error');
+        }
+    } catch (error) {
+        showToast('Server error while submitting feedback.', 'error');
+        console.error(error);
+    }
 }
 
 // Navigate from landing page to Auth View
