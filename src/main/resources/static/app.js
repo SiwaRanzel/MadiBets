@@ -1,6 +1,101 @@
 // Base API URL config
 const API_BASE = 'http://localhost:8081/api';
 
+// ── About Us Modal ──
+function openAboutModal() {
+    document.getElementById('about-modal').classList.remove('hidden');
+}
+function closeAboutModal() {
+    document.getElementById('about-modal').classList.add('hidden');
+}
+
+// ── Inline Registration Validation ──
+function validateRegField(input) {
+    const id = input.id;
+    const val = input.value.trim();
+    const errSpan = document.getElementById('err-' + id);
+    let msg = '';
+
+    // Clear previous state
+    input.classList.remove('input-error');
+    if (errSpan) errSpan.textContent = '';
+
+    // Skip validation if field is empty and not yet touched (optional fields)
+    // But validate if the field has content or is required
+
+    switch (id) {
+        case 'reg-name':
+            if (val.length === 0) {
+                msg = 'Name is required.';
+            } else if (val.length < 2) {
+                msg = 'Name must be at least 2 characters.';
+            }
+            break;
+
+        case 'reg-surname':
+            if (val.length === 0) {
+                msg = 'Surname is required.';
+            } else if (val.length < 2) {
+                msg = 'Surname must be at least 2 characters.';
+            }
+            break;
+
+        case 'reg-student-no':
+            if (val.length === 0 && document.getElementById('reg-usertype').value === 'STUDENT') {
+                msg = 'Student number is required.';
+            } else if (val.length > 0 && !/^\d{9}$/.test(val)) {
+                if (!/^\d+$/.test(val)) {
+                    msg = 'Student number must contain only digits.';
+                } else {
+                    msg = 'Student number must be exactly 9 digits (currently ' + val.length + ').';
+                }
+            }
+            break;
+
+        case 'reg-staff-no':
+            if (val.length === 0 && document.getElementById('reg-usertype').value === 'LECTURER') {
+                msg = 'Staff number is required.';
+            }
+            break;
+
+        case 'reg-email':
+            if (val.length === 0) {
+                msg = 'Email is required.';
+            } else if (!/^[a-zA-Z0-9._%+\-]+@mandela\.ac\.za$/.test(val)) {
+                msg = 'Only @mandela.ac.za email addresses are allowed.';
+            }
+            break;
+
+        case 'reg-password':
+            if (val.length === 0) {
+                msg = 'Password is required.';
+            } else if (val.length < 6) {
+                msg = 'Password must be at least 6 characters.';
+            }
+            // Also re-validate confirm if it has a value
+            const confirmInput = document.getElementById('reg-confirm-password');
+            if (confirmInput && confirmInput.value.trim().length > 0) {
+                validateRegField(confirmInput);
+            }
+            break;
+
+        case 'reg-confirm-password':
+            if (val.length === 0) {
+                msg = 'Please confirm your password.';
+            } else if (val !== document.getElementById('reg-password').value) {
+                msg = 'Passwords do not match.';
+            }
+            break;
+    }
+
+    if (msg) {
+        input.classList.add('input-error');
+        if (errSpan) errSpan.textContent = '⚠ ' + msg;
+    }
+
+    return msg === '';
+}
+
 // ── Sidebar Toggle ──
 function toggleSidebar() {
     const sidebar = document.querySelector('.app-navigation-sidebar');
@@ -127,6 +222,14 @@ function setUserRole(role) {
     } else {
         document.getElementById('type-teacher').classList.add('active');
     }
+
+    // Update email placeholders based on role
+    const loginEmail = document.getElementById('login-email');
+    const regEmail = document.getElementById('reg-email');
+    const emailPlaceholder = role === 'STUDENT' ? 'e.g. s221234567@mandela.ac.za' : 'e.g. Kie.Whi@mandela.ac.za';
+    
+    if (loginEmail) loginEmail.placeholder = emailPlaceholder;
+    if (regEmail) regEmail.placeholder = emailPlaceholder;
 
     toggleSubtypeFields();
 }
