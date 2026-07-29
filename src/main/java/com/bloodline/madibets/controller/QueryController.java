@@ -5,6 +5,7 @@ import com.bloodline.madibets.model.Query;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -13,6 +14,33 @@ import java.util.Map;
 public class QueryController {
 
     private final QueryDAO queryDAO = new QueryDAO();
+
+    @GetMapping
+    public ResponseEntity<?> getAllQueries() {
+        try {
+            List<Map<String, Object>> queries = queryDAO.findAllWithUser();
+            return ResponseEntity.ok(queries);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<?> updateQueryStatus(@PathVariable int id, @RequestBody Map<String, String> body) {
+        String status = body.get("status");
+        if (status == null || status.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Status is required."));
+        }
+        try {
+            boolean updated = queryDAO.updateStatus(id, status);
+            if (updated) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
 
     @PostMapping
     public ResponseEntity<?> submitQuery(@RequestBody Query query) {

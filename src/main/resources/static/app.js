@@ -382,6 +382,7 @@ function loadDashboardData(user, balance) {
     // Default panel on login
     if (isAdmin) {
         switchPanel('panel-dashboard-admin');
+        loadAdminQueries();
     } else if (isLecturer) {
         switchPanel('panel-dashboard-lecturer');
     } else {
@@ -470,4 +471,98 @@ function logout() {
     showView('auth-view');
     document.getElementById('login-form').reset();
     switchTab('login');
+}
+
+// ── Admin Query Management ──
+
+async function loadAdminQueries() {
+    try {
+        const response = await fetch(`${API_BASE}/queries`);
+        const queries = await response.json();
+        
+        if (response.ok) {
+            renderQueryTable(queries);
+        } else {
+            console.error('Failed to load queries');
+        }
+    } catch (error) {
+        console.error('Error loading queries:', error);
+    }
+}
+
+function renderQueryTable(queries) {
+    const list = document.getElementById('admin-query-list');
+    const paginationInfo = document.getElementById('query-pagination-info');
+    if (!list) return;
+
+    list.innerHTML = '';
+    
+    queries.forEach(q => {
+        const date = new Date(q.queryDate);
+        const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="query-row-date">${dateStr}</td>
+            <td class="query-row-title">${q.title}</td>
+            <td class="query-row-email">${q.email}</td>
+            <td><span class="status-pill ${q.resolvedStatus.toLowerCase()}">${q.resolvedStatus}</span></td>
+            <td><button class="admin-view-query-btn" onclick="alert('${q.description.replace(/'/g, "\\'")}')">View</button></td>
+            <td>
+                <div class="admin-option-dropdown">
+                    <button class="admin-option-trigger" onclick="toggleQueryOptions(event, ${q.queryID})">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    </button>
+                    <div id="query-options-${q.queryID}" class="admin-dropdown-menu">
+                        <div class="admin-dropdown-item" onclick="resolveQuery(${q.queryID})">Resolved</div>
+                    </div>
+                </div>
+            </td>
+        `;
+        list.appendChild(row);
+    });
+
+    if (paginationInfo) {
+        paginationInfo.textContent = `1 - ${queries.length} of ${queries.length}`;
+    }
+}
+
+function toggleQueryOptions(event, queryID) {
+    event.stopPropagation();
+    // Close all other dropdowns
+    document.querySelectorAll('.admin-dropdown-menu').forEach(menu => {
+        if (menu.id !== `query-options-${queryID}`) {
+            menu.classList.remove('show');
+        }
+    });
+    const menu = document.getElementById(`query-options-${queryID}`);
+    if (menu) menu.classList.toggle('show');
+}
+
+// Close dropdowns when clicking elsewhere
+document.addEventListener('click', () => {
+    document.querySelectorAll('.admin-dropdown-menu').forEach(menu => {
+        menu.classList.remove('show');
+    });
+});
+
+async function resolveQuery(queryID) {
+    try {
+        const response = await fetch(`${API_BASE}/queries/${queryID}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'RESOLVED' })
+        });
+
+        if (response.ok) {
+            showToast('Query marked as resolved', 'success');
+            loadAdminQueries();
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Failed to update query status', 'error');
+        }
+    } catch (error) {
+        showToast('Error updating query status', 'error');
+        console.error(error);
+    }
 }
