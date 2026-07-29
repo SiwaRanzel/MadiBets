@@ -5,7 +5,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
+import java.util.List;
+import java.util.ArrayList;
 import com.bloodline.madibets.config.DatabaseConnection;
 import com.bloodline.madibets.model.User;
 
@@ -99,7 +100,7 @@ public class UserDAO {
 
     /** A200 Login (READ). Returns the matching user, or null. */
     public User findByEmail(String email) throws SQLException {
-        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, "
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
                    + "s.studentNo, l.staffNo "
                    + "FROM User u "
                    + "LEFT JOIN Student s ON u.userID = s.userID "
@@ -116,7 +117,7 @@ public class UserDAO {
 
     /** A300 View Profile (READ). */
     public User findById(int userID) throws SQLException {
-        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, "
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
                    + "s.studentNo, l.staffNo "
                    + "FROM User u "
                    + "LEFT JOIN Student s ON u.userID = s.userID "
@@ -129,6 +130,24 @@ public class UserDAO {
                 return rs.next() ? map(rs) : null;
             }
         }
+    }
+
+    /** View All Users (READ). */
+    public List<User> getAllUsers() throws SQLException {
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
+                   + "s.studentNo, l.staffNo "
+                   + "FROM User u "
+                   + "LEFT JOIN Student s ON u.userID = s.userID "
+                   + "LEFT JOIN Lecturer l ON u.userID = l.userID";
+        List<User> users = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                users.add(map(rs));
+            }
+        }
+        return users;
     }
 
     /** A400 Update Profile (UPDATE). */
@@ -144,6 +163,15 @@ public class UserDAO {
         }
     }
 
+    public boolean updateAvatar(int userID, String avatarPath) throws SQLException {
+        String sql = "UPDATE User SET avatarPath=? WHERE userID=?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, avatarPath);
+            ps.setInt(2, userID);
+            return ps.executeUpdate() > 0;
+        }
+    }
     /** A600 Delete User (DELETE). */
     public boolean delete(int userID) throws SQLException {
         String sql = "DELETE FROM User WHERE userID=?";
@@ -175,6 +203,7 @@ public class UserDAO {
         u.setUserType(rs.getString("userType"));
         u.setStudentNo(rs.getString("studentNo"));
         u.setStaffNo(rs.getString("staffNo"));
+        u.setAvatarPath(rs.getString("avatarPath"));
         return u;
     }
 }

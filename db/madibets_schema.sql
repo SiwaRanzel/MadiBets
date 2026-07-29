@@ -21,7 +21,8 @@ CREATE TABLE User (
   surname   VARCHAR(100) NOT NULL,
   email     VARCHAR(255) NOT NULL UNIQUE,
   password  VARCHAR(255) NOT NULL,                 -- store a HASH, never plaintext (see notes)
-  userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL
+  userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
+  avatarPath VARCHAR(255)
 ) ENGINE=InnoDB;
 
 CREATE TABLE Student (

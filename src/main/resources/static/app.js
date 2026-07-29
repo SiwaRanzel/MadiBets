@@ -137,7 +137,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -165,6 +165,7 @@ function switchPanel(panelId) {
         'panel-settings':           'nav-settings',
         'panel-query':              'nav-query',
         'panel-help':               ['nav-help-student', 'nav-help-lecturer'],
+        'panel-account':            ['nav-account-student', 'nav-account-lecturer'],
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -172,6 +173,13 @@ function switchPanel(panelId) {
     } else if (mapped) {
         const activeNav = document.getElementById(mapped);
         if (activeNav) activeNav.classList.add('item-active');
+    }
+
+    // Load specific data when switching to certain panels
+    if (panelId === 'panel-account') {
+        loadAccountData();
+    } else if (panelId === 'panel-user-management') {
+        loadUserManagementData();
     }
 }
 
@@ -212,7 +220,7 @@ function switchTab(tab) {
 function setUserRole(role) {
     // Update active button
     document.getElementById('type-student').classList.remove('active');
-    document.getElementById('type-teacher').classList.remove('active');
+    document.getElementById('type-lecturer').classList.remove('active');
 
     const hiddenRoleInput = document.getElementById('reg-usertype');
     if (hiddenRoleInput) hiddenRoleInput.value = role;
@@ -220,7 +228,7 @@ function setUserRole(role) {
     if (role === 'STUDENT') {
         document.getElementById('type-student').classList.add('active');
     } else {
-        document.getElementById('type-teacher').classList.add('active');
+        document.getElementById('type-lecturer').classList.add('active');
     }
 
     // Update email placeholders based on role
@@ -389,7 +397,7 @@ function loadDashboardData(user, balance) {
     // Header Greeting
     setElText('user-display-name', `${user.name} ${user.surname}`);
     setElText('header-greeting-name', user.name);
-    setElText('user-role-display', user.userType === 'LECTURER' ? 'Teacher' : (user.userType === 'ADMIN' ? 'Administrator' : 'Student'));
+    setElText('user-role-display', user.userType === 'LECTURER' ? 'Lecturer' : (user.userType === 'ADMIN' ? 'Administrator' : 'Student'));
 
     // Wallet display
     setElText('wallet-balance', `${parseFloat(balance).toFixed(2)} MB`);
@@ -400,6 +408,28 @@ function loadDashboardData(user, balance) {
     setElText('profile-fullname', `${user.name} ${user.surname}`);
     setElText('profile-email', user.email);
     setElText('profile-usertype', user.userType);
+
+    // Update avatars
+    const headerAvatar = document.getElementById('header-avatar');
+    const sidebarImg = document.getElementById('sidebar-avatar-img');
+    const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+
+    if (user.avatarPath) {
+        const imgUrl = `http://localhost:8081${user.avatarPath}`;
+        if (headerAvatar) headerAvatar.src = imgUrl;
+        
+        if (sidebarImg && sidebarSvg) {
+            sidebarImg.src = imgUrl;
+            sidebarImg.style.display = 'block';
+            sidebarSvg.style.display = 'none';
+        }
+    } else {
+        if (headerAvatar) headerAvatar.src = 'logo.png';
+        if (sidebarImg && sidebarSvg) {
+            sidebarImg.style.display = 'none';
+            sidebarSvg.style.display = 'block';
+        }
+    }
 
     const subtypeRow = document.getElementById('profile-subtype-row');
     const subtypeLabel = document.getElementById('profile-subtype-label');
@@ -541,4 +571,308 @@ function logout() {
     showView('auth-view');
     document.getElementById('login-form').reset();
     switchTab('login');
+}
+
+// ── Account Page Logic ──
+async function loadAccountData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const u = data.user;
+            
+            // Update avatars if they exist, otherwise clear them
+            const headerAvatar = document.getElementById('header-avatar');
+            const sidebarImg = document.getElementById('sidebar-avatar-img');
+            const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+
+            if (u.avatarPath) {
+                const imgUrl = `http://localhost:8081${u.avatarPath}`;
+                if (headerAvatar) headerAvatar.src = imgUrl;
+                
+                if (sidebarImg && sidebarSvg) {
+                    sidebarImg.src = imgUrl;
+                    sidebarImg.style.display = 'block';
+                    sidebarSvg.style.display = 'none';
+                }
+            } else {
+                if (headerAvatar) headerAvatar.src = 'logo.png';
+                if (sidebarImg && sidebarSvg) {
+                    sidebarImg.style.display = 'none';
+                    sidebarSvg.style.display = 'block';
+                }
+            }
+
+            // Populate table conditionally based on role
+            const tbody = document.getElementById('account-table-body');
+            const tableTitle = document.getElementById('account-table-title');
+            const stat2 = document.getElementById('account-stat-2');
+            const stat1Label = document.getElementById('account-stat-1-label');
+            const tableHeaderRow = document.getElementById('account-table-header');
+            
+            tbody.innerHTML = '';
+            
+            if (u.userType === 'LECTURER') {
+                tableTitle.textContent = 'Task';
+                stat1Label.textContent = 'Total Students';
+                if (stat2) stat2.style.display = 'none'; // Hide Pos for lecturer
+                
+                tableHeaderRow.innerHTML = `
+                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                `;
+
+                // Dummy data matching screenshot
+                const tasks = [
+                    { type: 'Academics', bucks: '150', task: 'Quiz 2', status: 'Over', statusColor: '#E0F2E9', textColor: '#28A745' },
+                    { type: 'Academics', bucks: '200', task: 'Quiz 5', status: 'Active', statusColor: '#E2E8F0', textColor: '#6C7D93' }
+                ];
+                
+                tasks.forEach(t => {
+                    tbody.innerHTML += `
+                        <tr style="border-bottom: 1px solid #F0F2F5;">
+                            <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${t.type}</td>
+                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${t.bucks}</td>
+                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${t.task}</td>
+                            <td style="text-align: center; padding: 15px 10px;">
+                                <span style="background: ${t.statusColor}; color: ${t.textColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.status}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tableTitle.textContent = 'Bets Placed';
+                stat1Label.textContent = 'Total Users';
+                if (stat2) stat2.style.display = 'flex'; // Show Pos for student
+
+                tableHeaderRow.innerHTML = `
+                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">placed bet</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">condition</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                `;
+
+                // Dummy data matching screenshot
+                const bets = [
+                    { type: 'Sports', bucks: '150', bet: 'Wits', cond: 'Rugby: Madibaz vs Wits', status: 'won', statusColor: '#E0F2E9', textColor: '#28A745' },
+                    { type: 'Academics', bucks: '200', bet: 'Yes', cond: 'WRPV pass rate over 50%', status: 'Active', statusColor: '#E2E8F0', textColor: '#6C7D93' },
+                    { type: 'Class Room', bucks: '300', bet: 'Yes', cond: 'Will the WRRP project stay the same as last year', status: 'Lost', statusColor: '#FEE2E2', textColor: '#DC3545' }
+                ];
+                
+                bets.forEach(b => {
+                    tbody.innerHTML += `
+                        <tr style="border-bottom: 1px solid #F0F2F5;">
+                            <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.type}</td>
+                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${b.bucks}</td>
+                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.bet}</td>
+                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.cond}</td>
+                            <td style="text-align: center; padding: 15px 10px;">
+                                <span style="background: ${b.statusColor}; color: ${b.textColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${b.status}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Error loading account data:", err);
+    }
+}
+
+async function uploadSelectedAvatar() {
+    const input = document.getElementById('avatar-upload-input');
+    if (!input || !input.files || input.files.length === 0) {
+        showToast('Please select an image file first.', 'error');
+        return;
+    }
+    
+    const file = input.files[0];
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/avatar`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.avatarUrl) {
+            showToast('Avatar updated successfully!', 'success');
+            const imgUrl = `http://localhost:8081${data.avatarUrl}`;
+            
+            // Update UI
+            const headerAvatar = document.getElementById('header-avatar');
+            if (headerAvatar) headerAvatar.src = imgUrl;
+            
+            const sidebarImg = document.getElementById('sidebar-avatar-img');
+            const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+            if (sidebarImg && sidebarSvg) {
+                sidebarImg.src = imgUrl;
+                sidebarImg.style.display = 'block';
+                sidebarSvg.style.display = 'none';
+            }
+            
+            // Update session storage
+            user.avatarPath = data.avatarUrl;
+            sessionStorage.setItem('user', JSON.stringify(user));
+
+            // Clear file input
+            input.value = '';
+        } else {
+            showToast(data.error || 'Failed to upload avatar', 'error');
+        }
+    } catch (err) {
+        showToast('Network error while uploading.', 'error');
+        console.error(err);
+    }
+}
+
+async function updateAccountPassword() {
+    const p1 = document.getElementById('account-new-password').value;
+    const p2 = document.getElementById('account-confirm-password').value;
+    
+    if (!p1 || !p2) {
+        showToast('Please fill in both password fields', 'error');
+        return;
+    }
+    
+    if (p1 !== p2) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: p1 })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Password updated successfully!', 'success');
+            document.getElementById('account-new-password').value = '';
+            document.getElementById('account-confirm-password').value = '';
+        } else {
+            showToast(data.error || 'Failed to update password', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// ── User Management Logic ──
+let umUsers = [];
+let umActiveTab = 'STUDENT';
+
+async function loadUserManagementData() {
+    try {
+        const response = await fetch(`${API_BASE}/users/all`);
+        if (response.ok) {
+            umUsers = await response.json();
+            renderUMTable();
+        } else {
+            let errMsg = 'Failed to load users';
+            try {
+                const errData = await response.json();
+                errMsg = errData.error || errMsg;
+            } catch(e) {
+                errMsg += ` (HTTP ${response.status})`;
+            }
+            console.error('User management API error:', response.status, errMsg);
+            showToast(errMsg, 'error');
+        }
+    } catch (err) {
+        showToast('Network error while fetching users', 'error');
+        console.error('User management fetch error:', err);
+    }
+}
+
+function switchUMTab(role, btnEl) {
+    umActiveTab = role;
+    
+    // Update active class on buttons
+    document.querySelectorAll('.um-tab-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    
+    // Update title
+    const titleEl = document.getElementById('um-tab-title');
+    const colNo = document.getElementById('um-col-no');
+    if (role === 'STUDENT') {
+        titleEl.textContent = 'Student';
+        colNo.textContent = 'Student No.';
+    } else if (role === 'LECTURER') {
+        titleEl.textContent = 'Lecturer';
+        colNo.textContent = 'Staff No.';
+    } else {
+        titleEl.textContent = 'Administrator';
+        colNo.textContent = 'User ID';
+    }
+
+    renderUMTable();
+}
+
+function filterUMTable() {
+    renderUMTable();
+}
+
+function renderUMTable() {
+    const tbody = document.getElementById('um-table-body');
+    const searchInput = document.getElementById('um-search-input');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Filter by role and search
+    let filteredUsers = umUsers.filter(u => u.userType === umActiveTab);
+    
+    if (searchTerm) {
+        filteredUsers = filteredUsers.filter(u => {
+            const fullName = `${u.name} ${u.surname}`.toLowerCase();
+            const email = u.email.toLowerCase();
+            const no = String(u.studentNo || u.staffNo || u.userID).toLowerCase();
+            return fullName.includes(searchTerm) || email.includes(searchTerm) || no.includes(searchTerm);
+        });
+    }
+
+    // Pagination info
+    const pageInfo = document.getElementById('um-pagination-info');
+    if (pageInfo) {
+        pageInfo.textContent = `1 - ${filteredUsers.length} of ${filteredUsers.length}`;
+    }
+
+    filteredUsers.forEach(u => {
+        const no = u.userType === 'STUDENT' ? (u.studentNo || 'N/A') : (u.userType === 'LECTURER' ? (u.staffNo || 'N/A') : u.userID);
+        const date = '17/03/2026'; // Placeholder as registration date isn't in the schema
+
+        tbody.innerHTML += `
+            <tr>
+                <td><input type="checkbox" style="width: 16px; height: 16px;"></td>
+                <td style="color: #A0B2D6;">#${no}</td>
+                <td style="color: #1B2F5E; font-weight: 600;">${u.name} ${u.surname}</td>
+                <td><a href="mailto:${u.email}" style="color: #6C7D93; text-decoration: underline;">${u.email}</a></td>
+                <td style="color: #1B2F5E; font-weight: 600;">${date}</td>
+                <td style="text-align: center;"><button class="um-action-btn">View</button></td>
+                <td style="text-align: center; color: #A0B2D6; font-size: 1.2rem; cursor: pointer;">⋮</td>
+            </tr>
+        `;
+    });
 }

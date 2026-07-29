@@ -9,6 +9,7 @@ public class User {
     private String userType;
     private String studentNo;
     private String staffNo;
+    private String avatarPath;
 
     public User() {}
 
@@ -37,4 +38,6 @@ public class User {
     public void setStudentNo(String v)  { this.studentNo = v; }
     public String getStaffNo()          { return staffNo; }
     public void setStaffNo(String v)    { this.staffNo = v; }
+    public String getAvatarPath()       { return avatarPath; }
+    public void setAvatarPath(String v) { this.avatarPath = v; }
 }

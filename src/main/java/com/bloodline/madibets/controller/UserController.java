@@ -5,8 +5,16 @@ import com.bloodline.madibets.model.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.web.multipart.MultipartFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+import org.mindrot.jbcrypt.BCrypt;
 
 @RestController
 @RequestMapping("/api/users")
@@ -15,7 +23,20 @@ public class UserController {
 
     private final UserDAO userDAO = new UserDAO();
 
-    @GetMapping("/{id}")
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllUsers() {
+        try {
+            List<User> users = userDAO.getAllUsers();
+            for (User u : users) {
+                u.setPassword(null); // hide passwords
+            }
+            return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<?> getUserProfile(@PathVariable int id) {
         try {
             User u = userDAO.findById(id);
@@ -34,7 +55,7 @@ public class UserController {
         }
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<?> updateUser(@PathVariable int id, @RequestBody User user) {
         try {
             user.setUserID(id);
@@ -49,7 +70,7 @@ public class UserController {
         }
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<?> deleteUser(@PathVariable int id) {
         try {
             boolean deleted = userDAO.delete(id);
@@ -58,6 +79,58 @@ public class UserController {
             } else {
                 return ResponseEntity.badRequest().body(Map.of("error", "Delete failed."));
             }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id:\\d+}/avatar")
+    public ResponseEntity<?> uploadAvatar(@PathVariable int id, @RequestParam("avatar") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
+            }
+            Path uploadDir = Paths.get("uploads", "avatars");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+            String filename = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            Path filePath = uploadDir.resolve(filename);
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            
+            String avatarUrl = "/uploads/avatars/" + filename;
+            boolean updated = userDAO.updateAvatar(id, avatarUrl);
+            
+            if (updated) {
+                return ResponseEntity.ok(Map.of("success", true, "avatarUrl", avatarUrl));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id:\\d+}/password")
+    public ResponseEntity<?> updatePassword(@PathVariable int id, @RequestBody Map<String, String> payload) {
+        try {
+            String newPassword = payload.get("password");
+            if (newPassword == null || newPassword.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Password is required"));
+            }
+            String hashed = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            // We need a DAO method to update password, let's implement it inline here for simplicity,
+            // but properly it should be in UserDAO.
+            String sql = "UPDATE User SET password=? WHERE userID=?";
+            try (java.sql.Connection con = com.bloodline.madibets.config.DatabaseConnection.getConnection();
+                 java.sql.PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setString(1, hashed);
+                ps.setInt(2, id);
+                if (ps.executeUpdate() > 0) {
+                    return ResponseEntity.ok(Map.of("success", true));
+                }
+            }
+            return ResponseEntity.badRequest().body(Map.of("error", "Update failed."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
