@@ -911,6 +911,42 @@ body {
     width: 100%;
 }
 
+/* ── Loading Spinner State for Buttons ── */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+.btn-loading .btn-text {
+    visibility: hidden;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    top: 50%;
+    left: 50%;
+    margin-top: -10px;
+    margin-left: -10px;
+    border: 2.5px solid rgba(27, 47, 94, 0.25);
+    border-top-color: var(--color-nmu-navy);
+    border-radius: 50%;
+    animation: btn-spin 0.6s linear infinite;
+}
+
+/* White spinner variant for dark-bg buttons */
+.btn-loading-light::after {
+    border-color: rgba(255, 255, 255, 0.3);
+    border-top-color: #FFFFFF;
+}
+
+@keyframes btn-spin {
+    to { transform: rotate(360deg); }
+}
+
 .card-form-actions,
 .form-actions-flex-row {
     display: flex;

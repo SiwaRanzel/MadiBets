@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,6 +33,20 @@ public class UserController {
                 u.setPassword(null); // hide passwords
             }
             return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<?> getUserCounts() {
+        try {
+            int totalUsers = userDAO.countAllUsers();
+            int totalStudents = userDAO.countStudents();
+            Map<String, Object> counts = new HashMap<>();
+            counts.put("totalUsers", totalUsers);
+            counts.put("totalStudents", totalStudents);
+            return ResponseEntity.ok(counts);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
@@ -90,11 +106,28 @@ public class UserController {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
             }
-            Path uploadDir = Paths.get("uploads", "avatars");
+            Path uploadDir = Paths.get("uploads", "avatars").toAbsolutePath();
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }
-            String filename = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+
+            // Delete ALL old avatar files for this user by scanning the directory
+            String prefix = id + "_avatar";
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(uploadDir, prefix + ".*")) {
+                for (Path oldFile : stream) {
+                    Files.deleteIfExists(oldFile);
+                }
+            } catch (IOException ignored) {
+                // Directory might not exist yet on first upload, that's fine
+            }
+
+            // Save new avatar as {userId}_avatar.{ext}
+            String originalName = file.getOriginalFilename();
+            String ext = "";
+            if (originalName != null && originalName.contains(".")) {
+                ext = originalName.substring(originalName.lastIndexOf('.'));
+            }
+            String filename = id + "_avatar" + ext;
             Path filePath = uploadDir.resolve(filename);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
             

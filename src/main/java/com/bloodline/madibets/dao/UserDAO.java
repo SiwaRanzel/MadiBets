@@ -172,6 +172,18 @@ public class UserDAO {
             return ps.executeUpdate() > 0;
         }
     }
+
+    /** Fetch only the current avatar path for a user (null if none set). */
+    public String getAvatarPath(int userID) throws SQLException {
+        String sql = "SELECT avatarPath FROM User WHERE userID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("avatarPath") : null;
+            }
+        }
+    }
     /** A600 Delete User (DELETE). */
     public boolean delete(int userID) throws SQLException {
         String sql = "DELETE FROM User WHERE userID=?";
@@ -190,6 +202,26 @@ public class UserDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getDouble("balance") : 0.0;
             }
+        }
+    }
+
+    /** Count all registered users. */
+    public int countAllUsers() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM User";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    /** Count users whose userType is STUDENT. */
+    public int countStudents() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM User WHERE userType = 'STUDENT'";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 

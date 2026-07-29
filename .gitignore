@@ -9,3 +9,5 @@ src/main/resources/db.properties
 .idea/
 *.iml
 .DS_Store
+*.properties
+*.png

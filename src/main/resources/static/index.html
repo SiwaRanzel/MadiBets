@@ -97,7 +97,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-gold-cta btn-block" style="margin-top: 10px;">LOG IN</button>
+                <button type="submit" id="btn-login" class="btn btn-gold-cta btn-block" style="margin-top: 10px;"><span class="btn-text">LOG IN</span></button>
             </form>
 
             <!-- Register Form -->
@@ -170,7 +170,7 @@
                     <span class="field-error" id="err-reg-confirm-password"></span>
                 </div>
 
-                <button type="submit" class="btn btn-gold-cta btn-block" style="margin-top: 10px;">Register</button>
+                <button type="submit" id="btn-register" class="btn btn-gold-cta btn-block" style="margin-top: 10px;"><span class="btn-text">Register</span></button>
             </form>
         </div>
     </main>
@@ -495,8 +495,8 @@
                         </div>
                         <div style="text-align: left;">
                             <p style="color: #A0B2D6; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px;">Total
-                                Users</p>
-                            <h3 style="font-size: 2.2rem; color: #1B2F5E; margin: 0 0 5px 0;">5,423</h3>
+                                Students</p>
+                            <h3 id="dashboard-total-students" style="font-size: 2.2rem; color: #1B2F5E; margin: 0 0 5px 0;">...</h3>
                             <p style="font-size: 0.8rem; color: #1B2F5E; font-weight: 500;"><span
                                     style="color: #28A745; font-weight: 700;">↑ 16%</span> this month</p>
                         </div>
@@ -816,7 +816,7 @@
                 <!-- Stat Cards -->
                 <div class="admin-stats-row">
                     <div class="admin-stat-card">
-                        <span class="admin-stat-number">5,200</span>
+                        <span id="admin-total-users" class="admin-stat-number">...</span>
                         <span class="admin-stat-label">Total Users</span>
                     </div>
                     <div class="admin-stat-card">
@@ -1221,8 +1221,8 @@
                             </svg>
                         </div>
                         <div style="text-align: left;">
-                            <p id="account-stat-1-label" style="color: #A0B2D6; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px;">Total Users</p>
-                            <h3 id="account-stat-1-value" style="font-size: 2rem; color: #1B2F5E; margin: 0;">5,423</h3>
+                            <p id="account-stat-1-label" style="color: #A0B2D6; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px;">Total Students</p>
+                            <h3 id="account-stat-1-value" style="font-size: 2rem; color: #1B2F5E; margin: 0;">...</h3>
                         </div>
                     </div>
                     <!-- Stat Card 2 (Student only) -->
@@ -1282,7 +1282,7 @@
                             <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;">Confirm Password</label>
                             <input type="password" id="account-confirm-password" placeholder="********" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E;">
                         </div>
-                        <button onclick="updateAccountPassword()" style="background: #1B2F5E; color: white; border: none; padding: 12px 40px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Confirm</button>
+                        <button id="btn-update-password" onclick="updateAccountPassword()" style="background: #1B2F5E; color: white; border: none; padding: 12px 40px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; position: relative;"><span class="btn-text">Confirm</span></button>
                     </div>
                 </div>
                 
@@ -1294,7 +1294,7 @@
                             <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;">Select New Avatar</label>
                             <input type="file" id="avatar-upload-input" accept="image/*" style="width: 100%; padding: 9px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; background: #F8FAFC;">
                         </div>
-                        <button onclick="uploadSelectedAvatar()" style="background: #1B2F5E; color: white; border: none; padding: 12px 40px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Upload</button>
+                        <button id="btn-upload-avatar" onclick="uploadSelectedAvatar()" style="background: #1B2F5E; color: white; border: none; padding: 12px 40px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; position: relative;"><span class="btn-text">Upload</span></button>
                     </div>
                 </div>
             </div>

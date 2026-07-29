@@ -1,6 +1,52 @@
 // Base API URL config
 const API_BASE = 'http://localhost:8081/api';
 
+// ── Button Loading Spinner Utility ──
+function setButtonLoading(buttonEl, isLoading) {
+    if (!buttonEl) return;
+    if (isLoading) {
+        buttonEl.classList.add('btn-loading');
+        // Use light spinner for dark-background buttons
+        const bgColor = getComputedStyle(buttonEl).backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            const rgb = bgColor.match(/\d+/g);
+            if (rgb && (parseInt(rgb[0]) + parseInt(rgb[1]) + parseInt(rgb[2])) / 3 < 128) {
+                buttonEl.classList.add('btn-loading-light');
+            }
+        }
+        buttonEl.disabled = true;
+    } else {
+        buttonEl.classList.remove('btn-loading', 'btn-loading-light');
+        buttonEl.disabled = false;
+    }
+}
+
+// ── Fetch & display live user / student counts ──
+async function fetchUserCounts() {
+    try {
+        const res  = await fetch(`${API_BASE}/users/count`);
+        const data = await res.json();
+        if (!res.ok) return;
+
+        const totalUsers    = Number(data.totalUsers).toLocaleString();
+        const totalStudents = Number(data.totalStudents).toLocaleString();
+
+        // Student dashboard stat card
+        const dashboardEl = document.getElementById('dashboard-total-students');
+        if (dashboardEl) dashboardEl.textContent = totalStudents;
+
+        // Account page stat card (students & lecturers both show student count)
+        const accountValue = document.getElementById('account-stat-1-value');
+        if (accountValue) accountValue.textContent = totalStudents;
+
+        // Admin dashboard stat card
+        const adminEl = document.getElementById('admin-total-users');
+        if (adminEl) adminEl.textContent = totalUsers;
+    } catch (err) {
+        console.error('Failed to load user counts:', err);
+    }
+}
+
 // ── About Us Modal ──
 function openAboutModal() {
     document.getElementById('about-modal').classList.remove('hidden');
@@ -295,6 +341,8 @@ async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    const btn = document.getElementById('btn-login');
+    setButtonLoading(btn, true);
 
     try {
         const response = await fetch(`${API_BASE}/auth/login`, {
@@ -315,6 +363,8 @@ async function handleLogin(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -342,6 +392,9 @@ async function handleRegister(event) {
         return;
     }
 
+    const btn = document.getElementById('btn-register');
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
@@ -364,6 +417,8 @@ async function handleRegister(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -415,8 +470,8 @@ function loadDashboardData(user, balance) {
     const sidebarSvg = document.getElementById('sidebar-avatar-svg');
 
     if (user.avatarPath) {
-        const imgUrl = `http://localhost:8081${user.avatarPath}`;
-        if (headerAvatar) headerAvatar.src = imgUrl;
+        const imgUrl = `http://localhost:8081${user.avatarPath}?t=${new Date().getTime()}`;
+        // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
         
         if (sidebarImg && sidebarSvg) {
             sidebarImg.src = imgUrl;
@@ -490,6 +545,9 @@ function loadDashboardData(user, balance) {
     }
 
     showView('dashboard-view');
+
+    // Populate live user/student counts across all stat cards
+    fetchUserCounts();
 }
 
 // Show/Hide Profile Editor Panel
@@ -517,6 +575,11 @@ async function handleUpdateProfile(event) {
     const surname = document.getElementById('edit-surname').value;
     const email = document.getElementById('edit-email').value;
 
+    // Find the submit button inside the edit profile form
+    const form = event.target;
+    const btn = form ? form.querySelector('button[type="submit"]') : null;
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}`, {
             method: 'PUT',
@@ -535,6 +598,8 @@ async function handleUpdateProfile(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -545,6 +610,10 @@ async function confirmDelete() {
 
     const confirmAction = confirm("Are you sure you want to permanently delete your MadiBets account? This cannot be undone.");
     if (!confirmAction) return;
+
+    // Find the delete button that triggered this
+    const btn = event && event.target ? event.target.closest('button') : null;
+    setButtonLoading(btn, true);
 
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}`, {
@@ -562,6 +631,8 @@ async function confirmDelete() {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -591,8 +662,8 @@ async function loadAccountData() {
             const sidebarSvg = document.getElementById('sidebar-avatar-svg');
 
             if (u.avatarPath) {
-                const imgUrl = `http://localhost:8081${u.avatarPath}`;
-                if (headerAvatar) headerAvatar.src = imgUrl;
+                const imgUrl = `http://localhost:8081${u.avatarPath}?t=${new Date().getTime()}`;
+                // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
                 
                 if (sidebarImg && sidebarSvg) {
                     sidebarImg.src = imgUrl;
@@ -648,7 +719,7 @@ async function loadAccountData() {
                 });
             } else {
                 tableTitle.textContent = 'Bets Placed';
-                stat1Label.textContent = 'Total Users';
+                stat1Label.textContent = 'Total Students';
                 if (stat2) stat2.style.display = 'flex'; // Show Pos for student
 
                 tableHeaderRow.innerHTML = `
@@ -684,6 +755,9 @@ async function loadAccountData() {
     } catch (err) {
         console.error("Error loading account data:", err);
     }
+
+    // Refresh live counts (label is already set for the correct role)
+    fetchUserCounts();
 }
 
 async function uploadSelectedAvatar() {
@@ -700,6 +774,9 @@ async function uploadSelectedAvatar() {
     const formData = new FormData();
     formData.append("avatar", file);
 
+    const btn = document.getElementById('btn-upload-avatar');
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}/avatar`, {
             method: 'POST',
@@ -710,11 +787,11 @@ async function uploadSelectedAvatar() {
         
         if (response.ok && data.avatarUrl) {
             showToast('Avatar updated successfully!', 'success');
-            const imgUrl = `http://localhost:8081${data.avatarUrl}`;
+            const imgUrl = `http://localhost:8081${data.avatarUrl}?t=${new Date().getTime()}`;
             
             // Update UI
             const headerAvatar = document.getElementById('header-avatar');
-            if (headerAvatar) headerAvatar.src = imgUrl;
+            // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
             
             const sidebarImg = document.getElementById('sidebar-avatar-img');
             const sidebarSvg = document.getElementById('sidebar-avatar-svg');
@@ -736,6 +813,8 @@ async function uploadSelectedAvatar() {
     } catch (err) {
         showToast('Network error while uploading.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -756,6 +835,9 @@ async function updateAccountPassword() {
     const user = JSON.parse(sessionStorage.getItem('user'));
     if (!user) return;
 
+    const btn = document.getElementById('btn-update-password');
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}/password`, {
             method: 'PUT',
@@ -774,6 +856,8 @@ async function updateAccountPassword() {
     } catch (err) {
         showToast('Network error.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
