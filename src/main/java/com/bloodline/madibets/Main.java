@@ -14,8 +14,11 @@ public class Main {
             System.out.println("Connected to : " + con.getMetaData().getURL());
             System.out.println("MySQL version: " + con.getMetaData().getDatabaseProductVersion());
             System.out.println("Success. You're ready to build.");
-        } catch (Exception e) {
-            System.err.println("Connection failed: " + e.getMessage());
+        } catch (Throwable t) {
+            // Throwable, not Exception: a bad/missing db.properties surfaces as
+            // ExceptionInInitializerError from DatabaseConnection's static block.
+            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+            System.err.println("Connection failed: " + cause.getMessage());
             System.err.println("Checklist: MySQL running? db.properties created? schema loaded?");
         }
     }
