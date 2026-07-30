@@ -79,7 +79,40 @@ public class BetDAO {
         }
     }
 
-    // B100 Place Bet (CREATE)      -> placeWager(...)
+    /** B300 Review Proposal (UPDATE, reject path). Same WHERE guard as activate(). */
+    public boolean reject(int betID) throws SQLException {
+        String sql = "UPDATE Bet SET status = ? WHERE betID = ? AND status = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, "DELETED");
+            ps.setInt(2, betID);
+            ps.setString(3, "PROPOSED");
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+    /**
+     * B100 Place Bet (UPDATE). Claims the ACTIVE market row for the wagering
+     * student — the wager lives on the same row as the market (team decision on
+     * design gap #1: update-in-place, one wager per bet). Takes the caller's
+     * Connection because the claim must commit together with the Account debit.
+     * The "placedDate IS NULL" guard makes the one-wager rule atomic: two
+     * simultaneous placements can never both match the row.
+     */
+    public boolean placeWager(Connection con, int betID, int userID,
+                              BigDecimal amountToBeWon, LocalDateTime placedDate) throws SQLException {
+        String sql = "UPDATE Bet SET userID = ?, amountToBeWon = ?, placedDate = ? "
+                   + "WHERE betID = ? AND status = ? AND placedDate IS NULL";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            ps.setBigDecimal(2, amountToBeWon);
+            ps.setObject(3, placedDate);
+            ps.setInt(4, betID);
+            ps.setString(5, "ACTIVE");
+            return ps.executeUpdate() == 1;
+        }
+    }
+
     // B400 Grade Bet (UPDATE)      -> grade(...)
     // B500 Delete Bet (DELETE)     -> delete(int betID)
 
