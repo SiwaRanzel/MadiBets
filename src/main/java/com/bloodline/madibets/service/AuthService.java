@@ -16,10 +16,7 @@ public class AuthService {
     /** A100: hash the password before it ever reaches the database (POPI). */
     public int register(User u, String plainPassword) throws SQLException {
         u.setPassword(BCrypt.hashpw(plainPassword, BCrypt.gensalt()));
-        int newId = userDAO.register(u);
-        // TODO: also insert the Student/Lecturer subtype row and a starting
-        //       Account (100 MadiBucks) — coordinate the Account insert with Kieran.
-        return newId;
+        return userDAO.register(u);
     }
 
     /** A200: returns the User on success, or null on bad credentials. */
