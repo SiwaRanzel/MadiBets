@@ -113,8 +113,42 @@ public class BetDAO {
         }
     }
 
-    // B400 Grade Bet (UPDATE)      -> grade(...)
-    // B500 Delete Bet (DELETE)     -> delete(int betID)
+    /**
+     * B400 Grade Bet (UPDATE). Records the real-world result and closes the bet.
+     * Takes the caller's Connection: grading commits together with the B600
+     * payout/refund. Guard: only an ACTIVE bet can be graded.
+     */
+    public boolean grade(Connection con, int betID, String outcome,
+                         int gradedBy, LocalDateTime gradedDate) throws SQLException {
+        String sql = "UPDATE Bet SET outcome = ?, status = ?, gradedDate = ?, gradedBy = ? "
+                   + "WHERE betID = ? AND status = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, outcome);
+            ps.setString(2, "GRADED");
+            ps.setObject(3, gradedDate);
+            ps.setInt(4, gradedBy);
+            ps.setInt(5, betID);
+            ps.setString(6, "ACTIVE");
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+    /**
+     * B500 Delete Bet — soft delete via status, keeping the row for the audit
+     * trail. Takes the caller's Connection: deleting a wagered ACTIVE bet
+     * refunds the stake in the same transaction. GRADED bets are settled
+     * history and never match the guard.
+     */
+    public boolean delete(Connection con, int betID) throws SQLException {
+        String sql = "UPDATE Bet SET status = ? WHERE betID = ? AND status IN (?, ?)";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, "DELETED");
+            ps.setInt(2, betID);
+            ps.setString(3, "PROPOSED");
+            ps.setString(4, "ACTIVE");
+            return ps.executeUpdate() == 1;
+        }
+    }
 
     private Bet map(ResultSet rs) throws SQLException {
         Bet b = new Bet();

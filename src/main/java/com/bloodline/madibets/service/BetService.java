@@ -75,10 +75,7 @@ public class BetService {
      * the stake, so they must be strictly greater.
      */
     public void approveProposal(int betID, BigDecimal odds, int adminUserID) throws SQLException {
-        User reviewer = userDAO.findById(adminUserID);
-        if (reviewer == null || !"ADMIN".equals(reviewer.getUserType())) {
-            throw new IllegalArgumentException("Only an ADMIN may review bet proposals.");
-        }
+        requireAdmin(adminUserID, "review bet proposals");
         if (odds == null || odds.compareTo(BigDecimal.ONE) <= 0 || odds.compareTo(MAX_ODDS) > 0) {
             throw new IllegalArgumentException("Odds must be between 1.01 and " + MAX_ODDS + ".");
         }
@@ -93,10 +90,7 @@ public class BetService {
      * DELETED — the terminal status B500 also uses.
      */
     public void rejectProposal(int betID, int adminUserID) throws SQLException {
-        User reviewer = userDAO.findById(adminUserID);
-        if (reviewer == null || !"ADMIN".equals(reviewer.getUserType())) {
-            throw new IllegalArgumentException("Only an ADMIN may review bet proposals.");
-        }
+        requireAdmin(adminUserID, "review bet proposals");
         if (!betDAO.reject(betID)) {
             throw notReviewable(betID);
         }
@@ -145,6 +139,114 @@ public class BetService {
             } finally {
                 con.setAutoCommit(true);
             }
+        }
+    }
+
+    /**
+     * B400 + B600: an admin records the real-world outcome, and any winnings or
+     * refund land in the holder's Account in the same DB transaction.
+     * YES        -> the wager (implicitly on the YES side) won: credit amountToBeWon.
+     * NO         -> wager lost: the stake left the account at placement; nothing moves.
+     * CANCELLED  -> stake refunded. The schema stores no stake column, so the
+     *               refund is derived as amountToBeWon / odds (see stakeOf).
+     * A never-wagered bet can still be graded — the market simply closes.
+     */
+    public void gradeBet(int betID, String outcome, int adminUserID) throws SQLException {
+        requireAdmin(adminUserID, "grade bets");
+        if (!"YES".equals(outcome) && !"NO".equals(outcome) && !"CANCELLED".equals(outcome)) {
+            throw new IllegalArgumentException("Outcome must be YES, NO or CANCELLED.");
+        }
+        Bet b = betDAO.findById(betID);
+        if (b == null) {
+            throw new IllegalArgumentException("Bet " + betID + " does not exist.");
+        }
+        if (!"ACTIVE".equals(b.getStatus())) {
+            throw new IllegalArgumentException(
+                    "Bet " + betID + " is " + b.getStatus() + " — only an ACTIVE bet can be graded.");
+        }
+
+        try (Connection con = DatabaseConnection.getConnection()) {
+            con.setAutoCommit(false);
+            try {
+                if (!betDAO.grade(con, betID, outcome, adminUserID, LocalDateTime.now())) {
+                    throw new IllegalArgumentException("Bet " + betID + " was graded or closed in the meantime.");
+                }
+                if (b.getPlacedDate() != null) {   // someone holds a wager on this bet
+                    if ("YES".equals(outcome)) {
+                        payOut(con, b.getUserID(), b.getAmountToBeWon(),
+                                "B600: bet " + betID + " won, paid user " + b.getUserID());
+                    } else if ("CANCELLED".equals(outcome)) {
+                        payOut(con, b.getUserID(), stakeOf(b),
+                                "B600: bet " + betID + " cancelled, stake refunded to user " + b.getUserID());
+                    }
+                }
+                con.commit();
+            } catch (SQLException | RuntimeException e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
+        }
+    }
+
+    /**
+     * B500: an admin retires a bet. Soft delete — status DELETED keeps the row
+     * for the audit trail (simulated accounting must stay reconstructable), and
+     * B700 already filters it out. A live wager is refunded in the same
+     * transaction so an admin deletion never costs the student their stake.
+     * GRADED bets are settled history and cannot be deleted.
+     */
+    public void deleteBet(int betID, int adminUserID) throws SQLException {
+        requireAdmin(adminUserID, "delete bets");
+        Bet b = betDAO.findById(betID);
+        if (b == null) {
+            throw new IllegalArgumentException("Bet " + betID + " does not exist.");
+        }
+        if (!"PROPOSED".equals(b.getStatus()) && !"ACTIVE".equals(b.getStatus())) {
+            throw new IllegalArgumentException(
+                    "Bet " + betID + " is " + b.getStatus() + " — only a PROPOSED or ACTIVE bet can be deleted.");
+        }
+
+        try (Connection con = DatabaseConnection.getConnection()) {
+            con.setAutoCommit(false);
+            try {
+                if (!betDAO.delete(con, betID)) {
+                    throw new IllegalArgumentException("Bet " + betID + " was closed in the meantime.");
+                }
+                if ("ACTIVE".equals(b.getStatus()) && b.getPlacedDate() != null) {
+                    payOut(con, b.getUserID(), stakeOf(b),
+                            "B500: bet " + betID + " deleted, stake refunded to user " + b.getUserID());
+                }
+                con.commit();
+            } catch (SQLException | RuntimeException e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
+        }
+    }
+
+    /** Credit within the caller's transaction + audit row. A positive credit only
+     *  fails when the Account row is missing — that is data corruption, not user error. */
+    private void payOut(Connection con, int userID, BigDecimal amount, String description) throws SQLException {
+        if (!accountDAO.adjustBalance(con, userID, amount)) {
+            throw new IllegalStateException("User " + userID + " has no Account row to receive " + amount + ".");
+        }
+        accountDAO.logTransaction(con, amount, description);
+    }
+
+    /** The stake is not stored (design gap #1) — derive it from payout / odds.
+     *  Rounding can drift the refund by a cent; flagged, accepted by the team. */
+    private BigDecimal stakeOf(Bet b) {
+        return b.getAmountToBeWon().divide(b.getOdds(), 2, RoundingMode.HALF_UP);
+    }
+
+    private void requireAdmin(int adminUserID, String action) throws SQLException {
+        User u = userDAO.findById(adminUserID);
+        if (u == null || !"ADMIN".equals(u.getUserType())) {
+            throw new IllegalArgumentException("Only an ADMIN may " + action + ".");
         }
     }
 
