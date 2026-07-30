@@ -81,6 +81,7 @@ CREATE TABLE Bet (
   odds          DECIMAL(6,2),
   amountToBeWon DECIMAL(12,2),
   outcome       ENUM('PENDING','YES','NO','CANCELLED') NOT NULL DEFAULT 'PENDING',
+  status        ENUM('PROPOSED','ACTIVE','GRADED','DELETED') NOT NULL DEFAULT 'PROPOSED',
   proposedDate  DATETIME,
   placedDate    DATETIME,
   gradedDate    DATETIME,
