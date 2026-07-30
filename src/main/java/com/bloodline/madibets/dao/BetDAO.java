@@ -29,6 +29,24 @@ public class BetDAO {
         }
     }
 
+    /** B300 list (READ): proposals waiting for admin review, oldest first. */
+    public List<Bet> findProposedBets() throws SQLException {
+        String sql = "SELECT betID, userID, eventID, description, odds, amountToBeWon, "
+                   + "outcome, status, proposedDate, placedDate, gradedDate, gradedBy "
+                   + "FROM Bet WHERE status = ? ORDER BY proposedDate ASC, betID ASC";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, "PROPOSED");
+            try (ResultSet rs = ps.executeQuery()) {
+                List<Bet> bets = new ArrayList<>();
+                while (rs.next()) {
+                    bets.add(map(rs));
+                }
+                return bets;
+            }
+        }
+    }
+
     /** B200 Propose Bet (CREATE). Inserts a PROPOSED bet; returns the generated betID, or -1. */
     public int propose(Bet b) throws SQLException {
         String sql = "INSERT INTO Bet (userID, eventID, description, outcome, status, proposedDate) "

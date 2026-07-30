@@ -39,6 +39,11 @@ public class BetService {
         return betDAO.findActiveBets();
     }
 
+    /** B300: the review queue for the admin "Accounting System" screen. */
+    public List<Bet> viewProposedBets() throws SQLException {
+        return betDAO.findProposedBets();
+    }
+
     /**
      * B200: a student proposes a bet. It stays PROPOSED (invisible to B700)
      * until an admin reviews it and assigns odds (B300). The event link is
