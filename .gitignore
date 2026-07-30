@@ -12,3 +12,4 @@ src/main/resources/db.properties
 *.properties
 *.png
 *.properties
+*.properties
