@@ -183,7 +183,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -212,6 +212,8 @@ function switchPanel(panelId) {
         'panel-query':              'nav-query',
         'panel-help':               ['nav-help-student', 'nav-help-lecturer'],
         'panel-account':            ['nav-account-student', 'nav-account-lecturer'],
+        'panel-friends':            'nav-friends',
+        'panel-leaderboard':        'nav-leaderboard',
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -226,6 +228,10 @@ function switchPanel(panelId) {
         loadAccountData();
     } else if (panelId === 'panel-user-management') {
         loadUserManagementData();
+    } else if (panelId === 'panel-friends') {
+        loadFriendsData();
+    } else if (panelId === 'panel-leaderboard') {
+        loadLeaderboardData();
     }
 }
 
@@ -959,4 +965,392 @@ function renderUMTable() {
             </tr>
         `;
     });
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ── Friends Panel Logic (Jason C-series: C100, C200, C300) ──
+// ══════════════════════════════════════════════════════════════
+
+async function loadFriendsData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    await Promise.all([
+        loadFriendsList(user.userID),
+        loadPendingRequests(user.userID)
+    ]);
+}
+
+// C100 — Load accepted friends list
+async function loadFriendsList(userID) {
+    const container = document.getElementById('friends-list-container');
+    const countEl = document.getElementById('friends-count');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${userID}`);
+        const friends = await response.json();
+
+        if (!response.ok) {
+            container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Failed to load friends.</p>`;
+            return;
+        }
+
+        if (friends.length === 0) {
+            container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">You haven't added any friends yet.</p>`;
+            if (countEl) countEl.textContent = '0 friends';
+            return;
+        }
+
+        if (countEl) countEl.textContent = `${friends.length} friend${friends.length !== 1 ? 's' : ''}`;
+
+        container.innerHTML = friends.map(f => {
+            // Show the OTHER person's name (not your own)
+            const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                            </svg>
+                        </div>
+                        <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${friendName}</span>
+                    </div>
+                    <button onclick="removeFriend(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Remove</button>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading friends.</p>`;
+        console.error(err);
+    }
+}
+
+// C100 — Load pending friend requests
+async function loadPendingRequests(userID) {
+    const container = document.getElementById('pending-requests-list');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${userID}/pending`);
+        const pending = await response.json();
+
+        if (!response.ok) {
+            container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Failed to load requests.</p>`;
+            return;
+        }
+
+        if (pending.length === 0) {
+            container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">No pending requests.</p>`;
+            return;
+        }
+
+        container.innerHTML = pending.map(f => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #FFF9E6; border-radius: 12px; border: 1px solid #F5A623;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: #F5A623; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                    </div>
+                    <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${f.requesterName}</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="acceptFriendRequest(${f.friendshipID})" style="background: #28A745; color: white; border: none; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Accept</button>
+                    <button onclick="rejectFriendRequest(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Reject</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading requests.</p>`;
+        console.error(err);
+    }
+}
+
+// C200 — Send friend request by email
+async function sendFriendRequest() {
+    const emailInput = document.getElementById('friend-email-input');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const btn = document.getElementById('btn-send-friend-request');
+
+    if (!email) {
+        showToast('Please enter an email address.', 'error');
+        return;
+    }
+
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    setButtonLoading(btn, true);
+
+    try {
+        // First, look up the user by email
+        const lookupRes = await fetch(`${API_BASE}/users/lookup?email=${encodeURIComponent(email)}`);
+
+        if (!lookupRes.ok) {
+            const errData = await lookupRes.json();
+            showToast(errData.error || 'User not found.', 'error');
+            return;
+        }
+
+        const targetUser = await lookupRes.json();
+
+        // Now send the friend request
+        const response = await fetch(`${API_BASE}/friends/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requesterID: user.userID, addresseID: targetUser.userID })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Friend request sent!', 'success');
+            emailInput.value = '';
+        } else {
+            showToast(data.error || 'Failed to send request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error. Please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// C200 — Accept friend request
+async function acceptFriendRequest(friendshipID) {
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}/accept`, {
+            method: 'PUT'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend request accepted!', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to accept request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// C200 — Reject friend request
+async function rejectFriendRequest(friendshipID) {
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}/reject`, {
+            method: 'PUT'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend request rejected.', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to reject request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// C300 — Remove friend
+async function removeFriend(friendshipID) {
+    const confirmed = await showConfirmModal('Remove Friend', 'Are you sure you want to remove this friend? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend removed.', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to remove friend.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// ── Custom Confirm Modal Logic ──
+let confirmResolve = null;
+
+function showConfirmModal(title, message) {
+    return new Promise(resolve => {
+        confirmResolve = resolve;
+        document.getElementById('confirm-modal-title').textContent = title;
+        document.getElementById('confirm-modal-message').textContent = message;
+        document.getElementById('confirm-modal').classList.remove('hidden');
+    });
+}
+
+function closeConfirmModal(result) {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    if (confirmResolve) {
+        confirmResolve(result);
+        confirmResolve = null;
+    }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ── Leaderboard Panel Logic (Jason C-series: C400, C500) ────
+// ══════════════════════════════════════════════════════════════
+
+async function loadLeaderboardData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    await Promise.all([
+        loadUserStats(user.userID),
+        loadRankings(),
+        loadBetHistory(user.userID)
+    ]);
+}
+
+// C500 — Load user's personal stats (rank, wins, losses, pending)
+async function loadUserStats(userID) {
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/stats/${userID}`);
+        const stats = await response.json();
+
+        if (response.ok) {
+            const rankEl = document.getElementById('lb-user-rank');
+            const winsEl = document.getElementById('lb-user-wins');
+            const lossesEl = document.getElementById('lb-user-losses');
+            const pendingEl = document.getElementById('lb-user-pending');
+
+            if (rankEl) rankEl.textContent = `#${stats.rank}`;
+            if (winsEl) winsEl.textContent = stats.wins || 0;
+            if (lossesEl) lossesEl.textContent = stats.losses || 0;
+            if (pendingEl) pendingEl.textContent = stats.pending || 0;
+        }
+    } catch (err) {
+        console.error('Failed to load user stats:', err);
+    }
+}
+
+// C500 — Load top rankings table
+let currentLeaderboardSort = 'balance';
+
+async function loadRankings(sortBy) {
+    if (sortBy) currentLeaderboardSort = sortBy;
+    const tbody = document.getElementById('leaderboard-table-body');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/rankings?limit=20&sortBy=${currentLeaderboardSort}`);
+        const rankings = await response.json();
+
+        if (!response.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load rankings.</td></tr>`;
+            return;
+        }
+
+        if (rankings.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No users ranked yet.</td></tr>`;
+            return;
+        }
+
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        const currentUserID = user ? user.userID : -1;
+
+        tbody.innerHTML = rankings.map(r => {
+            const isCurrentUser = r.userID === currentUserID;
+            const rowBg = isCurrentUser ? 'background: #FFF9E6;' : '';
+            const rankBadge = r.rank <= 3
+                ? `<span style="background: ${r.rank === 1 ? '#F5A623' : r.rank === 2 ? '#C0C0C0' : '#CD7F32'}; color: white; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem;">${r.rank}</span>`
+                : `<span style="color: #1B2F5E; font-weight: 600;">${r.rank}</span>`;
+
+            return `
+                <tr style="border-bottom: 1px solid #F0F2F5; ${rowBg}">
+                    <td style="padding: 14px 10px;">${rankBadge}</td>
+                    <td style="padding: 14px 10px; color: #1B2F5E; font-weight: ${isCurrentUser ? '700' : '500'};">${r.name}${isCurrentUser ? ' (You)' : ''}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${parseFloat(r.balance).toFixed(2)} MB</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${r.totalBets}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #28A745; font-weight: 600;">${r.betsWon}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Error loading rankings.</td></tr>`;
+        console.error(err);
+    }
+}
+
+// C400 — Load bet history table
+async function loadBetHistory(userID) {
+    const tbody = document.getElementById('bet-history-table-body');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/history/${userID}`);
+        const bets = await response.json();
+
+        if (!response.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load bet history.</td></tr>`;
+            return;
+        }
+
+        if (bets.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = bets.map(b => {
+            let statusColor, statusBg;
+            switch (b.outcome) {
+                case 'YES':
+                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
+                case 'NO':
+                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
+                case 'CANCELLED':
+                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
+                default:
+                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
+            }
+
+            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
+            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
+
+            return `
+                <tr style="border-bottom: 1px solid #F0F2F5;">
+                    <td style="padding: 14px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${dateStr}</td>
+                    <td style="text-align: center; padding: 14px 10px;">
+                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Error loading bet history.</td></tr>`;
+        console.error(err);
+    }
+}
+
+// Switch leaderboard sort criteria
+function changeLeaderboardSort(sortBy, btnEl) {
+    // Update active button
+    document.querySelectorAll('.lb-sort-btn').forEach(btn => btn.classList.remove('lb-sort-active'));
+    if (btnEl) btnEl.classList.add('lb-sort-active');
+
+    // Reload rankings with new sort
+    loadRankings(sortBy);
 }

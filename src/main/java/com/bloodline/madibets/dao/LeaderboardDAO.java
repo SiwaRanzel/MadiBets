@@ -1,8 +1,164 @@
 package com.bloodline.madibets.dao;
 
-/** Owner: Jason (C-series). Depends on Kieran's Account/Bet schema. */
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.bloodline.madibets.config.DatabaseConnection;
+
+/**
+ * Owner: Jason (C-series).
+ * Handles bet history retrieval (C400), leaderboard rankings (C500),
+ * and leaderboard recalculation (C600).
+ */
 public class LeaderboardDAO {
-    // C400 View Bet History (READ) -> findBetsByUser(int userID)
-    // C500 View Leaderboard (READ) -> rankUsers(String criterion)
-    // C600 Update Leaderboard      -> scheduled job (see "Time" actor)
+
+    // ------------------------------------------------------------------
+    // C400 — View Bet History for a user
+    // Returns all bets placed by a given user, newest first.
+    // ------------------------------------------------------------------
+    public List<Map<String, Object>> findBetsByUser(int userID) throws SQLException {
+        String sql = "SELECT b.betID, b.description, b.odds, b.amountToBeWon, b.outcome, "
+                   + "b.placedDate, b.gradedDate, e.eventDescription "
+                   + "FROM Bet b "
+                   + "LEFT JOIN Event e ON b.eventID = e.eventID "
+                   + "WHERE b.userID = ? "
+                   + "ORDER BY b.placedDate DESC";
+        List<Map<String, Object>> bets = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> bet = new HashMap<>();
+                    bet.put("betID", rs.getInt("betID"));
+                    bet.put("description", rs.getString("description"));
+                    bet.put("odds", rs.getDouble("odds"));
+                    bet.put("amountToBeWon", rs.getDouble("amountToBeWon"));
+                    bet.put("outcome", rs.getString("outcome"));
+                    bet.put("placedDate", rs.getString("placedDate"));
+                    bet.put("gradedDate", rs.getString("gradedDate"));
+                    bet.put("eventDescription", rs.getString("eventDescription"));
+                    bets.add(bet);
+                }
+            }
+        }
+        return bets;
+    }
+
+    // ------------------------------------------------------------------
+    // C500 — View Leaderboard / Rankings
+    // Ranks users by the given criterion: "balance", "wins", or "totalBets".
+    // Returns top N users with rank, name, balance, and bet stats.
+    // ------------------------------------------------------------------
+    public List<Map<String, Object>> getRankings(int limit, String sortBy) throws SQLException {
+        String orderClause;
+        switch (sortBy) {
+            case "wins":
+                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES') DESC";
+                break;
+            case "totalBets":
+                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) DESC";
+                break;
+            default: // "balance"
+                orderClause = "a.balance DESC";
+                break;
+        }
+
+        String sql = "SELECT u.userID, u.name, u.surname, u.userType, a.balance, "
+                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) AS totalBets, "
+                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES') AS betsWon "
+                   + "FROM User u "
+                   + "JOIN Account a ON u.userID = a.userID "
+                   + "WHERE u.userType != 'ADMIN' "
+                   + "ORDER BY " + orderClause + " "
+                   + "LIMIT ?";
+        List<Map<String, Object>> rankings = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                int rank = 1;
+                while (rs.next()) {
+                    Map<String, Object> entry = new HashMap<>();
+                    entry.put("rank", rank++);
+                    entry.put("userID", rs.getInt("userID"));
+                    entry.put("name", rs.getString("name") + " " + rs.getString("surname"));
+                    entry.put("userType", rs.getString("userType"));
+                    entry.put("balance", rs.getDouble("balance"));
+                    entry.put("totalBets", rs.getInt("totalBets"));
+                    entry.put("betsWon", rs.getInt("betsWon"));
+                    rankings.add(entry);
+                }
+            }
+        }
+        return rankings;
+    }
+
+    // ------------------------------------------------------------------
+    // C500 — Get a specific user's rank position
+    // ------------------------------------------------------------------
+    public int getUserRank(int userID) throws SQLException {
+        String sql = "SELECT COUNT(*) + 1 AS userRank "
+                   + "FROM Account "
+                   + "WHERE balance > (SELECT balance FROM Account WHERE userID = ?)";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("userRank") : 0;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // C500 — Get user's bet stats (wins, losses, pending)
+    // ------------------------------------------------------------------
+    public Map<String, Object> getUserBetStats(int userID) throws SQLException {
+        String sql = "SELECT "
+                   + "COUNT(*) AS totalBets, "
+                   + "SUM(CASE WHEN outcome = 'YES' THEN 1 ELSE 0 END) AS wins, "
+                   + "SUM(CASE WHEN outcome = 'NO' THEN 1 ELSE 0 END) AS losses, "
+                   + "SUM(CASE WHEN outcome = 'PENDING' THEN 1 ELSE 0 END) AS pending "
+                   + "FROM Bet WHERE userID = ?";
+        Map<String, Object> stats = new HashMap<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    stats.put("totalBets", rs.getInt("totalBets"));
+                    stats.put("wins", rs.getInt("wins"));
+                    stats.put("losses", rs.getInt("losses"));
+                    stats.put("pending", rs.getInt("pending"));
+                } else {
+                    stats.put("totalBets", 0);
+                    stats.put("wins", 0);
+                    stats.put("losses", 0);
+                    stats.put("pending", 0);
+                }
+            }
+        }
+        return stats;
+    }
+
+    // ------------------------------------------------------------------
+    // C600 — Scheduled Leaderboard Update
+    // This recalculates rankings. In the current schema, rankings are
+    // derived live from Account balance, so this method can be used
+    // for any periodic maintenance (e.g., monthly MadiBucks allowance).
+    // Awards 100 MadiBucks to all users (monthly reset/allowance).
+    // ------------------------------------------------------------------
+    public int grantMonthlyAllowance() throws SQLException {
+        String sql = "UPDATE Account SET balance = balance + 100.00";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            return ps.executeUpdate(); // returns number of accounts updated
+        }
+    }
 }

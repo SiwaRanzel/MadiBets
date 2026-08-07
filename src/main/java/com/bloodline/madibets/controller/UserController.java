@@ -38,6 +38,21 @@ public class UserController {
         }
     }
 
+    @GetMapping("/lookup")
+    public ResponseEntity<?> lookupByEmail(@RequestParam String email) {
+        try {
+            User u = userDAO.findByEmail(email);
+            if (u != null) {
+                u.setPassword(null);
+                return ResponseEntity.ok(u);
+            } else {
+                return ResponseEntity.status(404).body(Map.of("error", "No user found with that email."));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/count")
     public ResponseEntity<?> getUserCounts() {
         try {
