@@ -544,13 +544,13 @@
                         </div>
                     </div>
 
-                    <div style="width: 420px; background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
+                    <div style="flex: 1.6; background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
                         <div id="group-detail-placeholder" style="color:#6C7D93; text-align:center; padding:40px 10px;">
                             <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;">
                                 <circle cx="12" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
                             </svg>
                             <h4 style="margin-top:0; color:#1B2F5E;">Select a group to view details</h4>
-                            <p style="margin-top:6px;">Click a group on the left to see its name, description and join option.</p>
+                            <p style="margin-top:6px;">Click a group on the left to see its members, tasks and join option.</p>
                         </div>
                         <div id="group-detail" style="display:none;">
                             <!-- populated dynamically -->
@@ -578,6 +578,32 @@
                         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
                             <button type="button" class="btn" onclick="closeCreateGroupModal()">Cancel</button>
                             <button type="button" class="btn btn-gold-cta" onclick="createGroup()">Create</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Task Modal (lecturer only) -->
+                <div id="create-task-modal" class="modal hidden" onclick="closeCreateTaskModal(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <h3>Create Task</h3>
+                        <div class="form-field-group">
+                            <label>Question</label>
+                            <textarea id="new-task-question" rows="3" placeholder="Enter the True/False question"></textarea>
+                        </div>
+                        <div class="form-field-group">
+                            <label>Correct Answer</label>
+                            <div class="task-answer-toggle">
+                                <button type="button" id="task-answer-true" class="task-answer-btn" onclick="setTaskCorrectAnswer(true)">True</button>
+                                <button type="button" id="task-answer-false" class="task-answer-btn" onclick="setTaskCorrectAnswer(false)">False</button>
+                            </div>
+                        </div>
+                        <div class="form-field-group">
+                            <label>Reward (MadiBucks)</label>
+                            <input type="number" id="new-task-amount" value="0" min="0" step="0.01" />
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+                            <button type="button" class="btn" onclick="closeCreateTaskModal()">Cancel</button>
+                            <button type="button" class="btn btn-gold-cta" onclick="createTask()">Create</button>
                         </div>
                     </div>
                 </div>

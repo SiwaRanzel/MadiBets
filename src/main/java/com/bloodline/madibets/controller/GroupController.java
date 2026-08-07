@@ -117,7 +117,22 @@ public class GroupController {
 
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
-            return ResponseEntity.ok(g);
+
+            // Build a richer response: group + members + memberCount + isMember
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("groupID", g.getGroupID());
+            resp.put("groupName", g.getGroupName());
+            resp.put("description", g.getDescription());
+            resp.put("createdBy", g.getCreatedBy());
+            resp.put("createdDate", g.getCreatedDate());
+            resp.put("memberCount", groupDAO.getMemberCount(id));
+            resp.put("members", groupDAO.findMembers(id));
+            if (userId != null) {
+                resp.put("isMember", groupDAO.isMember(id, userId));
+            } else {
+                resp.put("isMember", false);
+            }
+            return ResponseEntity.ok(resp);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }

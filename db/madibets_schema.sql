@@ -126,14 +126,18 @@ CREATE TABLE GroupMember (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
--- Tasks (lecturer-set, reward MadiBucks)
+-- Tasks (lecturer-set, reward MadiBucks).
+-- Tasks belong to a specific Group and contain a True/False question.
 -- ------------------------------------------------------------
 CREATE TABLE Task (
-  taskID    INT AUTO_INCREMENT PRIMARY KEY,
-  userID    INT,                          -- assignee per 3.1; see DESIGN NOTES #3 (group linkage)
-  amount    DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
-  createdBy INT NOT NULL,                  -- lecturer userID
-  CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID),
+  taskID     INT AUTO_INCREMENT PRIMARY KEY,
+  groupID    INT NOT NULL,                       -- the group this task belongs to
+  question   VARCHAR(1000) NOT NULL,             -- body of text / question
+  correctAnswer TINYINT(1) NOT NULL,             -- 0 = False, 1 = True
+  amount     DECIMAL(12,2) NOT NULL DEFAULT 0,   -- MadiBucks reward for a correct answer
+  createdBy  INT NOT NULL,                       -- lecturer userID
+  createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_task_group   FOREIGN KEY (groupID) REFERENCES `Group`(groupID) ON DELETE CASCADE,
   CONSTRAINT fk_task_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
 ) ENGINE=InnoDB;
 
@@ -141,10 +145,12 @@ CREATE TABLE TaskCompletion (
   completionID     INT AUTO_INCREMENT PRIMARY KEY,
   taskID           INT NOT NULL,
   userID           INT NOT NULL,
-  completionStatus ENUM('PENDING','COMPLETED','REJECTED') NOT NULL DEFAULT 'PENDING',
-  completionDate   DATETIME,
+  answer           TINYINT(1) NULL,              -- the student's True/False answer (NULL = not answered yet)
+  completionStatus ENUM('PENDING','COMPLETED','REJECTED') NOT NULL DEFAULT 'COMPLETED',
+  completionDate   DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_tc_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE,
-  CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
+  CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE,
+  CONSTRAINT uq_tc UNIQUE (taskID, userID)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -171,8 +177,6 @@ CREATE TABLE Query (
 --    This affects B100, B400, B600, C400.
 -- 2. TRANSACTION has no owner in 3.1. B600/C400 need it. Uncomment the
 --    accountID FK above (or add userID) once the team agrees.
--- 3. TASK has no groupID, but D400's narrative says tasks belong to a
---    group. If tasks are group-scoped, add groupID + FK to `Group`.
 -- 4. BET TYPE (Academic/Sport/Social) appears in every bets UI but is not
 --    in 3.1. Add e.g. category ENUM('ACADEMIC','SPORT','SOCIAL') to Bet
 --    (or Event) if the demo needs the Type column.
