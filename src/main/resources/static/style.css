@@ -734,6 +734,29 @@ body {
     display: none !important;
 }
 
+/* Modal for create group */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 22, 40, 0.45);
+    z-index: 1500;
+}
+
+.modal .modal-content {
+    background: var(--color-pure-white);
+    border-radius: 12px;
+    padding: 20px;
+    width: 480px;
+    box-shadow: 0 20px 60px rgba(27, 47, 94, 0.12);
+}
+
+.group-row:hover {
+    background: #FBFDFF;
+}
+
 /* -------------------------------------------------------------
  * 5. HELP PAGE PANEL
  * ------------------------------------------------------------- */
