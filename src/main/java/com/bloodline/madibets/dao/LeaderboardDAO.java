@@ -116,6 +116,49 @@ public class LeaderboardDAO {
         }
     }
 
+    public int getTotalPlayers() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM User WHERE userType != 'ADMIN'";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    public double getWeeklyBalanceGrowth(int userID) throws SQLException {
+        // Find total payout from transactions in the last 7 days for this user's account
+        String sql = "SELECT SUM(t.payoutAmount) "
+                   + "FROM `Transaction` t "
+                   + "JOIN Account a ON t.accountID = a.accountID "
+                   + "WHERE a.userID = ? AND t.`date` >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+        
+        double recentGains = 0;
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) recentGains = rs.getDouble(1);
+            }
+        }
+        
+        // Find current balance
+        String balSql = "SELECT balance FROM Account WHERE userID = ?";
+        double currentBalance = 0;
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(balSql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) currentBalance = rs.getDouble(1);
+            }
+        }
+        
+        double oldBalance = currentBalance - recentGains;
+        if (oldBalance <= 0) {
+            return recentGains > 0 ? 100.0 : 0.0;
+        }
+        return (recentGains / oldBalance) * 100.0;
+    }
+
     // ------------------------------------------------------------------
     // C500 — Get user's bet stats (wins, losses, pending)
     // ------------------------------------------------------------------

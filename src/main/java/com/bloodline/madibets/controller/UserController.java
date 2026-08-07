@@ -58,10 +58,15 @@ public class UserController {
         try {
             int totalUsers = userDAO.countAllUsers();
             int totalStudents = userDAO.countStudents();
-            Map<String, Object> counts = new HashMap<>();
-            counts.put("totalUsers", totalUsers);
-            counts.put("totalStudents", totalStudents);
-            return ResponseEntity.ok(counts);
+            double userGrowth = userDAO.getWeeklyGrowth(false);
+            double studentGrowth = userDAO.getWeeklyGrowth(true);
+            
+            return ResponseEntity.ok(Map.of(
+                "totalUsers", totalUsers,
+                "totalStudents", totalStudents,
+                "userWeeklyGrowth", userGrowth,
+                "studentWeeklyGrowth", studentGrowth
+            ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
@@ -178,6 +183,41 @@ public class UserController {
                     return ResponseEntity.ok(Map.of("success", true));
                 }
             }
+            return ResponseEntity.badRequest().body(Map.of("error", "Update failed."));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id:\\d+}/delete-request")
+    public ResponseEntity<?> submitDeleteRequest(@PathVariable int id) {
+        try {
+            com.bloodline.madibets.dao.DeletionRequestDAO dao = new com.bloodline.madibets.dao.DeletionRequestDAO();
+            com.bloodline.madibets.model.AccountDeletionRequest req = dao.create(id);
+            if (req != null) {
+                return ResponseEntity.ok(Map.of("success", true, "requestID", req.getRequestID()));
+            }
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to create delete request"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/delete-requests")
+    public ResponseEntity<?> getAllDeleteRequests() {
+        try {
+            com.bloodline.madibets.dao.DeletionRequestDAO dao = new com.bloodline.madibets.dao.DeletionRequestDAO();
+            return ResponseEntity.ok(dao.getAll());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+    @PutMapping("/delete-requests/{reqId:\\d+}/reinstate")
+    public ResponseEntity<?> reinstateAccount(@PathVariable int reqId) {
+        try {
+            com.bloodline.madibets.dao.DeletionRequestDAO dao = new com.bloodline.madibets.dao.DeletionRequestDAO();
+            boolean ok = dao.updateStatus(reqId, "REJOIN");
+            if (ok) return ResponseEntity.ok(Map.of("success", true));
             return ResponseEntity.badRequest().body(Map.of("error", "Update failed."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));

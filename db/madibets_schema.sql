@@ -22,7 +22,8 @@ CREATE TABLE User (
   email     VARCHAR(255) NOT NULL UNIQUE,
   password  VARCHAR(255) NOT NULL,                 -- store a HASH, never plaintext (see notes)
   userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
-  avatarPath VARCHAR(255)
+  avatarPath VARCHAR(255),
+  createdDate DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE Student (
@@ -56,10 +57,10 @@ CREATE TABLE `Transaction` (                        -- backticked: TRANSACTION i
   transactionID INT AUTO_INCREMENT PRIMARY KEY,
   payoutAmount  DECIMAL(12,2) NOT NULL,
   description   VARCHAR(255),
-  `date`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `date`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- NOTE: 3.1 gives no link to an Account/User. See DESIGN NOTES #2.
-  -- , accountID INT NOT NULL,
-  -- , CONSTRAINT fk_txn_account FOREIGN KEY (accountID) REFERENCES Account(accountID)
+  accountID INT NOT NULL,
+  CONSTRAINT fk_txn_account FOREIGN KEY (accountID) REFERENCES Account(accountID)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -131,11 +132,15 @@ CREATE TABLE GroupMember (
 -- Tasks (lecturer-set, reward MadiBucks)
 -- ------------------------------------------------------------
 CREATE TABLE Task (
-  taskID    INT AUTO_INCREMENT PRIMARY KEY,
-  userID    INT,                          -- assignee per 3.1; see DESIGN NOTES #3 (group linkage)
-  amount    DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
-  createdBy INT NOT NULL,                  -- lecturer userID
-  CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID),
+  taskID      INT AUTO_INCREMENT PRIMARY KEY,
+  title       VARCHAR(255) NOT NULL,
+  description VARCHAR(1000),
+  groupID     INT NOT NULL,                  -- Tasks are scoped to groups (D400/D500)
+  userID      INT,                           -- Optional specific assignee
+  amount      DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
+  createdBy   INT NOT NULL,                  -- lecturer userID
+  CONSTRAINT fk_task_group   FOREIGN KEY (groupID)   REFERENCES `Group`(groupID) ON DELETE CASCADE,
+  CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID) ON DELETE SET NULL,
   CONSTRAINT fk_task_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
 ) ENGINE=InnoDB;
 
@@ -160,6 +165,14 @@ CREATE TABLE Query (
   userID         INT NOT NULL,
   resolvedStatus ENUM('OPEN','RESOLVED') NOT NULL DEFAULT 'OPEN',
   CONSTRAINT fk_query_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE AccountDeletionRequest (
+  requestID   INT AUTO_INCREMENT PRIMARY KEY,
+  userID      INT NOT NULL,
+  requestDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status      ENUM('NEW','DONE','REJOIN') NOT NULL DEFAULT 'NEW',
+  CONSTRAINT fk_delreq_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ============================================================

@@ -186,11 +186,48 @@ public class UserDAO {
     }
     /** A600 Delete User (DELETE). */
     public boolean delete(int userID) throws SQLException {
+        String updateGroups = "UPDATE `Group` SET createdBy=1 WHERE createdBy=?";
+        String updateTasks = "UPDATE Task SET createdBy=1 WHERE createdBy=?";
+        String updateGradedBets = "UPDATE Bet SET gradedBy=1 WHERE gradedBy=?";
+        String deleteBets = "DELETE FROM Bet WHERE userID=?";
+        String deleteTransactions = "DELETE FROM Transaction WHERE accountID IN (SELECT accountID FROM Account WHERE userID=?)";
         String sql = "DELETE FROM User WHERE userID=?";
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, userID);
-            return ps.executeUpdate() > 0;
+        
+        try (Connection con = DatabaseConnection.getConnection()) {
+            con.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps1 = con.prepareStatement(updateGroups)) {
+                    ps1.setInt(1, userID);
+                    ps1.executeUpdate();
+                }
+                try (PreparedStatement ps2 = con.prepareStatement(updateTasks)) {
+                    ps2.setInt(1, userID);
+                    ps2.executeUpdate();
+                }
+                try (PreparedStatement ps2b = con.prepareStatement(updateGradedBets)) {
+                    ps2b.setInt(1, userID);
+                    ps2b.executeUpdate();
+                }
+                try (PreparedStatement ps3 = con.prepareStatement(deleteBets)) {
+                    ps3.setInt(1, userID);
+                    ps3.executeUpdate();
+                }
+                try (PreparedStatement ps4 = con.prepareStatement(deleteTransactions)) {
+                    ps4.setInt(1, userID);
+                    ps4.executeUpdate();
+                }
+                try (PreparedStatement ps = con.prepareStatement(sql)) {
+                    ps.setInt(1, userID);
+                    int affected = ps.executeUpdate();
+                    con.commit();
+                    return affected > 0;
+                }
+            } catch (SQLException e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
         }
     }
 
@@ -207,7 +244,7 @@ public class UserDAO {
 
     /** Count all registered users. */
     public int countAllUsers() throws SQLException {
-        String sql = "SELECT COUNT(*) FROM User";
+        String sql = "SELECT COUNT(*) FROM User WHERE userType != 'ADMIN'";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -223,6 +260,32 @@ public class UserDAO {
              ResultSet rs = ps.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
         }
+    }
+
+    /** Calculate weekly growth percentage for users (or just students). */
+    public double getWeeklyGrowth(boolean onlyStudents) throws SQLException {
+        String filter = onlyStudents ? " AND userType = 'STUDENT'" : "";
+        String recentSql = "SELECT COUNT(*) FROM User WHERE createdDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)" + filter;
+        String pastSql = "SELECT COUNT(*) FROM User WHERE createdDate < DATE_SUB(NOW(), INTERVAL 7 DAY)" + filter;
+        
+        int recent = 0;
+        int past = 0;
+        
+        try (Connection con = DatabaseConnection.getConnection()) {
+            try (PreparedStatement ps = con.prepareStatement(recentSql);
+                 ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) recent = rs.getInt(1);
+            }
+            try (PreparedStatement ps = con.prepareStatement(pastSql);
+                 ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) past = rs.getInt(1);
+            }
+        }
+        
+        if (past == 0) {
+            return recent > 0 ? 100.0 : 0.0;
+        }
+        return ((double) recent / past) * 100.0;
     }
 
     private User map(ResultSet rs) throws SQLException {

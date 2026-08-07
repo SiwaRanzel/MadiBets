@@ -38,6 +38,8 @@ public class LeaderboardService {
         Map<String, Object> stats = leaderboardDAO.getUserBetStats(userID);
         int rank = leaderboardDAO.getUserRank(userID);
         stats.put("rank", rank);
+        stats.put("totalPlayers", leaderboardDAO.getTotalPlayers());
+        stats.put("weeklyGrowth", leaderboardDAO.getWeeklyBalanceGrowth(userID));
         return stats;
     }
 

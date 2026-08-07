@@ -42,8 +42,59 @@ async function fetchUserCounts() {
         // Admin dashboard stat card
         const adminEl = document.getElementById('admin-total-users');
         if (adminEl) adminEl.textContent = totalUsers;
+
+        // Dashboard student weekly trend
+        const studentTrendEl = document.getElementById('dashboard-total-students-trend');
+        if (studentTrendEl && data.studentWeeklyGrowth !== undefined) {
+            const growth = Math.round(data.studentWeeklyGrowth);
+            if (growth >= 0) {
+                studentTrendEl.textContent = `↑ ${growth}%`;
+                studentTrendEl.style.color = '#28A745'; // Green
+            } else {
+                studentTrendEl.textContent = `↓ ${Math.abs(growth)}%`;
+                studentTrendEl.style.color = '#D9534F'; // Red
+            }
+        }
     } catch (err) {
         console.error('Failed to load user counts:', err);
+    }
+}
+
+// ── Fetch & display live user rank ──
+async function fetchUserRank() {
+    const userStr = localStorage.getItem('madibets_user');
+    if (!userStr) return;
+    try {
+        const user = JSON.parse(userStr);
+        if (user.userType === 'ADMIN') return;
+
+        const res = await fetch(`${API_BASE}/leaderboard/stats/${user.userID}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const rankNum = Number(data.rank).toLocaleString();
+        const totalNum = data.totalPlayers ? Number(data.totalPlayers).toLocaleString() : '-';
+        const rankStr = `${rankNum} / ${totalNum}`;
+        
+        const dashboardPos = document.getElementById('dashboard-current-pos');
+        if (dashboardPos) dashboardPos.textContent = rankStr;
+
+        const accountPos = document.getElementById('account-current-pos');
+        if (accountPos) accountPos.textContent = rankStr;
+
+        const trendEl = document.getElementById('dashboard-current-pos-trend');
+        if (trendEl && data.weeklyGrowth !== undefined) {
+            const growth = Math.round(data.weeklyGrowth);
+            if (growth >= 0) {
+                trendEl.textContent = `↑ ${growth}%`;
+                trendEl.style.color = '#28A745'; // Green
+            } else {
+                trendEl.textContent = `↓ ${Math.abs(growth)}%`;
+                trendEl.style.color = '#D9534F'; // Red
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load user rank:', err);
     }
 }
 
@@ -441,6 +492,8 @@ function switchPanel(panelId) {
         searchGroups('');
     } else if (panelId === 'panel-query') {
         loadAdminQueries();
+    } else if (panelId === 'panel-delete-request') {
+        loadDeleteRequests();
     }
 }
 
@@ -786,6 +839,7 @@ function loadDashboardData(user, balance) {
     if (isAdmin) {
         switchPanel('panel-dashboard-admin');
         loadAdminQueries();
+        loadDeleteRequests();
     } else if (isLecturer) {
         switchPanel('panel-dashboard-lecturer');
     } else {
@@ -796,6 +850,7 @@ function loadDashboardData(user, balance) {
 
     // Populate live user/student counts across all stat cards
     fetchUserCounts();
+    fetchUserRank();
 }
 
 // Show/Hide Profile Editor Panel
@@ -973,33 +1028,51 @@ async function loadAccountData() {
                 if (stat2) stat2.style.display = 'flex'; // Show Pos for student
 
                 tableHeaderRow.innerHTML = `
-                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">placed bet</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">condition</th>
+                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Event</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Potential Win</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
                     <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
                 `;
 
-                // Dummy data matching screenshot
-                const bets = [
-                    { type: 'Sports', bucks: '150', bet: 'Wits', cond: 'Rugby: Madibaz vs Wits', status: 'won', statusColor: '#E0F2E9', textColor: '#28A745' },
-                    { type: 'Academics', bucks: '200', bet: 'Yes', cond: 'WRPV pass rate over 50%', status: 'Active', statusColor: '#E2E8F0', textColor: '#6C7D93' },
-                    { type: 'Class Room', bucks: '300', bet: 'Yes', cond: 'Will the WRRP project stay the same as last year', status: 'Lost', statusColor: '#FEE2E2', textColor: '#DC3545' }
-                ];
-                
-                bets.forEach(b => {
-                    tbody.innerHTML += `
-                        <tr style="border-bottom: 1px solid #F0F2F5;">
-                            <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.type}</td>
-                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${b.bucks}</td>
-                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.bet}</td>
-                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.cond}</td>
-                            <td style="text-align: center; padding: 15px 10px;">
-                                <span style="background: ${b.statusColor}; color: ${b.textColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${b.status}</span>
-                            </td>
-                        </tr>
-                    `;
-                });
+                // Fetch real bet history
+                const betsResponse = await fetch(`${API_BASE}/leaderboard/history/${user.userID}`);
+                if (betsResponse.ok) {
+                    const bets = await betsResponse.json();
+                    if (bets.length === 0) {
+                        tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
+                    } else {
+                        bets.forEach(b => {
+                            let statusColor, statusBg;
+                            switch (b.outcome) {
+                                case 'YES':
+                                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
+                                case 'NO':
+                                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
+                                case 'CANCELLED':
+                                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
+                                default:
+                                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
+                            }
+                            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
+                            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
+
+                            tbody.innerHTML += `
+                                <tr style="border-bottom: 1px solid #F0F2F5;">
+                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${dateStr}</td>
+                                    <td style="text-align: center; padding: 15px 10px;">
+                                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+                } else {
+                    tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load bets.</td></tr>`;
+                }
             }
         }
     } catch (err) {
@@ -1008,6 +1081,7 @@ async function loadAccountData() {
 
     // Refresh live counts (label is already set for the correct role)
     fetchUserCounts();
+    fetchUserRank();
 }
 
 async function uploadSelectedAvatar() {
@@ -1694,4 +1768,135 @@ async function resolveQuery(queryID) {
     }
 }
 
+// ── Account Deletion Request Logic ──
 
+function showDeleteModal() {
+    const modal = document.getElementById('delete-account-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('delete-account-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitDeleteRequest() {
+    const userStr = sessionStorage.getItem('user');
+    if (!userStr) return;
+    const user = JSON.parse(userStr);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/delete-request`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            closeDeleteModal();
+            showToast('account will be deleted by admin', 'success');
+            setTimeout(() => {
+                logout();
+            }, 1500);
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Failed to submit request', 'error');
+        }
+    } catch (err) {
+        showToast('Error submitting request', 'error');
+        console.error(err);
+    }
+}
+
+async function loadDeleteRequests() {
+    try {
+        const response = await fetch(`${API_BASE}/users/delete-requests`);
+        if (!response.ok) return;
+        const requests = await response.json();
+
+        const tbody = document.getElementById('delete-request-tbody');
+        if (!tbody) return;
+        
+        const newRequests = requests.filter(r => r.status === 'NEW');
+        
+        const uniqueRequests = [];
+        const seenUsers = new Set();
+        for (const req of newRequests) {
+            if (!seenUsers.has(req.userID)) {
+                seenUsers.add(req.userID);
+                uniqueRequests.push(req);
+            }
+        }
+        
+        const newCount = uniqueRequests.length;
+        const badge = document.getElementById('delete-request-badge');
+        if (badge) {
+            badge.textContent = newCount;
+            badge.style.display = newCount > 0 ? 'inline-flex' : 'none';
+        }
+        
+        const paginationInfo = document.getElementById('delete-request-pagination-info');
+        if (paginationInfo) {
+            if (newCount === 0) {
+                paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
+            } else {
+                paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of ${newCount}`;
+            }
+        }
+
+        tbody.innerHTML = '';
+        uniqueRequests.forEach(req => {
+            const dateStr = new Date(req.requestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding: 12px 15px; color: #6C7A9C; font-size: 0.9rem;">${dateStr}</td>
+                <td style="padding: 12px 15px; font-weight: 600; color: #1B2F5E; font-size: 0.95rem;">${req.userName}</td>
+                <td style="padding: 12px 15px;"><a href="mailto:${req.userEmail}" style="color: #6C7A9C; text-decoration: underline; font-size: 0.9rem;">${req.userEmail}</a></td>
+                <td style="padding: 12px 15px; text-align: center;">
+                    <div style="display: flex; gap: 8px; justify-content: center;">
+                        <button onclick="reinstateUser(${req.requestID})" style="background: white; border: 1px solid #1B2F5E; color: #1B2F5E; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Reinstate</button>
+                        <button onclick="deleteUserPermanently(${req.userID})" style="background: #D9534F; border: none; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Delete</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error('Failed to load delete requests:', err);
+    }
+}
+
+async function reinstateUser(reqId) {
+    try {
+        const response = await fetch(`${API_BASE}/users/delete-requests/${reqId}/reinstate`, {
+            method: 'PUT'
+        });
+        if (response.ok) {
+            showToast('User reinstated successfully', 'success');
+            loadDeleteRequests(); // Refresh table and badge
+        } else {
+            showToast('Failed to reinstate user', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error reinstating user', 'error');
+    }
+}
+
+async function deleteUserPermanently(userId) {
+    if (!confirm('Are you absolutely sure you want to permanently delete this user? This cannot be undone.')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/users/${userId}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            showToast('User deleted permanently', 'success');
+            loadDeleteRequests(); // Refresh table and badge
+        } else {
+            showToast('Failed to delete user', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error deleting user', 'error');
+    }
+}
