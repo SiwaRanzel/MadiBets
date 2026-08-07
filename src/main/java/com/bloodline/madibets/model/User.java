@@ -1,12 +1,13 @@
 package com.bloodline.madibets.model;
 
+/** Mirrors one row of the User table. Owner: Siwapiwe (A-series). */
 public class User {
     private int userID;
     private String name;
     private String surname;
     private String email;
-    private String password;
-    private String userType;
+    private String password;   // stored as a bcrypt hash
+    private String userType;   // STUDENT | LECTURER | ADMIN
     private String studentNo;
     private String staffNo;
     private String avatarPath;
