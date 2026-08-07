@@ -161,6 +161,211 @@ function toggleSidebar() {
     }
 }
 
+// -------------------- Groups UI / API Helpers --------------------
+let groupSearchTimeout = null;
+
+function debouncedSearchGroups() {
+    if (groupSearchTimeout) clearTimeout(groupSearchTimeout);
+    groupSearchTimeout = setTimeout(() => {
+        const q = document.getElementById('group-search').value.trim();
+        searchGroups(q);
+    }, 300);
+}
+
+async function searchGroups(q) {
+    const saved = sessionStorage.getItem('user');
+    const user = saved ? JSON.parse(saved) : null;
+    try {
+        let url = `${API_BASE}/groups`;
+        const params = new URLSearchParams();
+        if (q && q.length > 0) {
+            params.set('q', q);
+        }
+        if (user) {
+            params.set('userId', user.userID);
+        }
+        if ([...params].length > 0) {
+            url += `?${params.toString()}`;
+        }
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (resp.ok) {
+            renderGroupList(data);
+        } else {
+            showToast(data.error || 'Failed to load groups', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error loading groups', 'error');
+    }
+}
+
+function renderGroupList(items) {
+    const container = document.getElementById('groups-list');
+    container.innerHTML = '';
+    if (!items || items.length === 0) {
+        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:40px 8px;">No groups found.</p>';
+        return;
+    }
+
+    items.forEach(it => {
+        const groupID = it.groupID !== undefined ? it.groupID : it.groupId || 0;
+        const name = it.groupName || it.group_name || `Group ${groupID}`;
+        const desc = it.description || '';
+
+        const row = document.createElement('div');
+        row.className = 'group-row';
+        row.style = 'padding:12px; border-bottom:1px solid #F1F6FB; display:flex; justify-content:space-between; align-items:center; cursor:pointer;';
+        row.onclick = () => loadGroupDetail(groupID);
+        row.innerHTML = `<div style="flex:1;"><div style="font-weight:700; color:#1B2F5E;">${escapeHtml(name)}</div><div style="font-size:0.9rem; color:#6C7D93;">${escapeHtml(desc)}</div></div><div style="margin-left:12px; color:#9FB0D1; font-weight:700">${groupID > 0 ? 'Group' : 'Default'}</div>`;
+        container.appendChild(row);
+    });
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadGroupDetail(groupID) {
+    try {
+        const saved = sessionStorage.getItem('user');
+        const user = saved ? JSON.parse(saved) : null;
+        let url = `${API_BASE}/groups/${groupID}`;
+        if (user) url += `?userId=${user.userID}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!resp.ok) {
+            showToast(data.error || 'Failed to load group details', 'error');
+            return;
+        }
+
+        const detail = document.getElementById('group-detail');
+        const placeholder = document.getElementById('group-detail-placeholder');
+        placeholder.style.display = 'none';
+        detail.style.display = 'block';
+        detail.innerHTML = '';
+
+        const title = document.createElement('h3');
+        title.textContent = data.groupName || data.group_name || data.groupName || `Group ${groupID}`;
+        title.style.marginTop = '0';
+        detail.appendChild(title);
+
+        const p = document.createElement('p');
+        p.style.color = '#6C7D93';
+        p.textContent = data.description || data.description || '';
+        detail.appendChild(p);
+
+        const meta = document.createElement('div');
+        meta.style = 'margin-top:12px; color:#6C7D93; font-size:0.9rem;';
+        meta.textContent = `Members: ${data.memberCount !== undefined ? data.memberCount : '—'}`;
+        detail.appendChild(meta);
+
+        // Join button only for real groups (id>0)
+        if (groupID > 0) {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-gold-cta';
+            btn.style = 'margin-top:16px; padding:10px 16px;';
+            btn.textContent = 'Join Group';
+            btn.onclick = async () => {
+                await joinGroup(groupID);
+            };
+            detail.appendChild(btn);
+        } else {
+            const info = document.createElement('div');
+            info.style = 'margin-top:16px; color:#6C7D93;';
+            info.textContent = 'This is a default group. Joining is not required.';
+            detail.appendChild(info);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error loading group detail', 'error');
+    }
+}
+
+function openCreateGroupModal() {
+    document.getElementById('create-group-modal').classList.remove('hidden');
+}
+
+function closeCreateGroupModal(event) {
+    if (event && event.target && event.target.id !== 'create-group-modal') {
+        return;
+    }
+    const modal = document.getElementById('create-group-modal');
+    if (modal) modal.classList.add('hidden');
+    const nameInput = document.getElementById('new-group-name');
+    const descInput = document.getElementById('new-group-desc');
+    if (nameInput) nameInput.value = '';
+    if (descInput) descInput.value = '';
+}
+
+async function createGroup() {
+    const name = document.getElementById('new-group-name').value.trim();
+    const desc = document.getElementById('new-group-desc').value.trim();
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in to create groups.', 'error'); return; }
+    const user = JSON.parse(saved);
+    if (!name) { showToast('Please provide a group name.', 'error'); return; }
+
+    try {
+        const resp = await fetch(`${API_BASE}/groups`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupName: name, description: desc, createdBy: user.userID })
+        });
+        const data = await resp.json();
+        if (resp.status === 201) {
+            showToast('Group created successfully!', 'success');
+            closeCreateGroupModal();
+            searchGroups('');
+        } else {
+            showToast(data.error || 'Failed to create group', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error creating group', 'error');
+    }
+}
+
+async function joinGroup(groupID) {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in to join groups.', 'error'); return; }
+    const user = JSON.parse(saved);
+    try {
+        const resp = await fetch(`${API_BASE}/groups/${groupID}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showToast('Joined group successfully', 'success');
+            loadGroupDetail(groupID);
+            searchGroups('');
+        } else if (resp.status === 409) {
+            showToast('You are already a member of this group.', 'error');
+        } else {
+            showToast(data.error || 'Failed to join group', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error joining group', 'error');
+    }
+}
+
+// Initialize groups view when panel is shown via switchPanel
+document.addEventListener('click', (e) => {
+    // if the groups panel is visible, ensure its list is loaded
+    const pg = document.getElementById('panel-groups');
+    if (pg && !pg.classList.contains('hidden')) {
+        // load once
+        if (!pg.dataset.loaded) {
+            searchGroups('');
+            pg.dataset.loaded = '1';
+        }
+    }
+});
+
 // On page load: check if the user is already logged in
 document.addEventListener('DOMContentLoaded', () => {
     const savedUser = sessionStorage.getItem('user');
@@ -200,7 +405,7 @@ function switchPanel(panelId) {
     const navMap = {
         'panel-dashboard':          'nav-dashboard-student',
         'panel-dashboard-lecturer': 'nav-dashboard-lecturer',
-        'panel-groups':             'nav-groups',
+        'panel-groups':             ['nav-groups', 'nav-groups-student', 'nav-admin-groups'],
         'panel-dashboard-admin':    'nav-dashboard-admin',
         'panel-delete-request':     'nav-delete-request',
         'panel-user-management':    'nav-user-management',
@@ -232,20 +437,56 @@ function switchPanel(panelId) {
         loadFriendsData();
     } else if (panelId === 'panel-leaderboard') {
         loadLeaderboardData();
+    } else if (panelId === 'panel-groups') {
+        searchGroups('');
+    } else if (panelId === 'panel-query') {
+        loadAdminQueries();
     }
 }
 
 // Feedback form stub
-function submitFeedback() {
+async function submitFeedback() {
     const title = document.getElementById('feedback-title').value.trim();
     const body  = document.getElementById('feedback-body').value.trim();
+
     if (!title || !body) {
         showToast('Please fill in both fields.', 'error');
         return;
     }
-    showToast('Feedback submitted! Thank you.', 'success');
-    document.getElementById('feedback-title').value = '';
-    document.getElementById('feedback-body').value = '';
+
+    const savedUser = sessionStorage.getItem('user');
+    if (!savedUser) {
+        showToast('You must be logged in to submit feedback.', 'error');
+        return;
+    }
+
+    const user = JSON.parse(savedUser);
+    const payload = {
+        title,
+        description: body,
+        userID: user.userID,
+        resolvedStatus: 'OPEN'
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/queries`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Feedback submitted! Thank you.', 'success');
+            document.getElementById('feedback-title').value = '';
+            document.getElementById('feedback-body').value = '';
+        } else {
+            showToast(data.error || 'Unable to submit feedback.', 'error');
+        }
+    } catch (error) {
+        showToast('Server error while submitting feedback.', 'error');
+        console.error(error);
+    }
 }
 
 // Navigate from landing page to Auth View
@@ -544,6 +785,7 @@ function loadDashboardData(user, balance) {
     // Default panel on login
     if (isAdmin) {
         switchPanel('panel-dashboard-admin');
+        loadAdminQueries();
     } else if (isLecturer) {
         switchPanel('panel-dashboard-lecturer');
     } else {
@@ -649,6 +891,8 @@ function logout() {
     document.getElementById('login-form').reset();
     switchTab('login');
 }
+
+
 
 // ── Account Page Logic ──
 async function loadAccountData() {
@@ -1354,3 +1598,100 @@ function changeLeaderboardSort(sortBy, btnEl) {
     // Reload rankings with new sort
     loadRankings(sortBy);
 }
+
+
+// ── Admin Query Management ──
+
+async function loadAdminQueries() {
+    try {
+        const response = await fetch(`${API_BASE}/queries`);
+        const queries = await response.json();
+        
+        if (response.ok) {
+            renderQueryTable(queries);
+        } else {
+            console.error('Failed to load queries');
+        }
+    } catch (error) {
+        console.error('Error loading queries:', error);
+    }
+}
+
+function renderQueryTable(queries) {
+    const list = document.getElementById('admin-query-list');
+    const paginationInfo = document.getElementById('query-pagination-info');
+    if (!list) return;
+
+    list.innerHTML = '';
+    
+    queries.forEach(q => {
+        const date = new Date(q.queryDate);
+        const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="query-row-date">${dateStr}</td>
+            <td class="query-row-title">${q.title}</td>
+            <td class="query-row-email">${q.email}</td>
+            <td><span class="status-pill ${q.resolvedStatus.toLowerCase()}">${q.resolvedStatus}</span></td>
+            <td><button class="admin-view-query-btn" onclick="alert('${q.description.replace(/'/g, "\\'")}')">View</button></td>
+            <td>
+                <div class="admin-option-dropdown">
+                    <button class="admin-option-trigger" onclick="toggleQueryOptions(event, ${q.queryID})">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    </button>
+                    <div id="query-options-${q.queryID}" class="admin-dropdown-menu">
+                        <div class="admin-dropdown-item" onclick="resolveQuery(${q.queryID})">Resolved</div>
+                    </div>
+                </div>
+            </td>
+        `;
+        list.appendChild(row);
+    });
+
+    if (paginationInfo) {
+        paginationInfo.textContent = `1 - ${queries.length} of ${queries.length}`;
+    }
+}
+
+function toggleQueryOptions(event, queryID) {
+    event.stopPropagation();
+    // Close all other dropdowns
+    document.querySelectorAll('.admin-dropdown-menu').forEach(menu => {
+        if (menu.id !== `query-options-${queryID}`) {
+            menu.classList.remove('show');
+        }
+    });
+    const menu = document.getElementById(`query-options-${queryID}`);
+    if (menu) menu.classList.toggle('show');
+}
+
+// Close dropdowns when clicking elsewhere
+document.addEventListener('click', () => {
+    document.querySelectorAll('.admin-dropdown-menu').forEach(menu => {
+        menu.classList.remove('show');
+    });
+});
+
+async function resolveQuery(queryID) {
+    try {
+        const response = await fetch(`${API_BASE}/queries/${queryID}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'RESOLVED' })
+        });
+
+        if (response.ok) {
+            showToast('Query marked as resolved', 'success');
+            loadAdminQueries();
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Failed to update query status', 'error');
+        }
+    } catch (error) {
+        showToast('Error updating query status', 'error');
+        console.error(error);
+    }
+}
+
+

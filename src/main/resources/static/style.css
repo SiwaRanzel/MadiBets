@@ -992,6 +992,29 @@ body {
     display: none !important;
 }
 
+/* Modal for create group */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 22, 40, 0.45);
+    z-index: 1500;
+}
+
+.modal .modal-content {
+    background: var(--color-pure-white);
+    border-radius: 12px;
+    padding: 20px;
+    width: 480px;
+    box-shadow: 0 20px 60px rgba(27, 47, 94, 0.12);
+}
+
+.group-row:hover {
+    background: #FBFDFF;
+}
+
 /* -------------------------------------------------------------
  * 5. HELP PAGE PANEL
  * ------------------------------------------------------------- */
@@ -1516,6 +1539,7 @@ body {
 .admin-mode .workspace-header { display: none !important; }
 
 
+
 /* ── Custom Confirm Modal ── */
 .confirm-modal-overlay {
     position: fixed;
@@ -1610,4 +1634,237 @@ body {
 .lb-sort-btn.lb-sort-active {
     background: #1B2F5E;
     color: white;
+}
+/* --- Admin Query Table Styles --- */
+.admin-query-card {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    margin-top: 20px;
+}
+
+.admin-query-header {
+    margin-bottom: 25px;
+}
+
+.admin-query-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1B2F5E;
+}
+
+.admin-query-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+
+.admin-search-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 10px 18px;
+    gap: 12px;
+    color: #A0B2D6;
+}
+
+.admin-search-wrapper input {
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    font-size: 0.95rem;
+    color: #1B2F5E;
+}
+
+.admin-toolbar-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.admin-toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1B2F5E;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-toolbar-btn:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E0;
+}
+
+.admin-query-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 25px;
+}
+
+.admin-query-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.admin-query-table th {
+    padding: 15px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #A0B2D6;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.admin-query-table td {
+    padding: 20px 12px;
+    font-size: 0.9rem;
+    color: #1B2F5E;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.query-row-date { color: #64748B; }
+.query-row-title { font-weight: 700; }
+.query-row-email { color: #1B2F5E; text-decoration: underline; text-underline-offset: 3px; }
+
+.status-pill {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    display: inline-block;
+}
+
+.status-pill.open {
+    background: #FCE7F3;
+    color: #9D174D;
+}
+
+.status-pill.resolved {
+    background: #DCFCE7;
+    color: #166534;
+}
+
+.admin-view-query-btn {
+    background: white;
+    border: 1px solid #E2E8F0;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1B2F5E;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-view-query-btn:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E0;
+}
+
+.admin-option-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.admin-option-trigger {
+    background: none;
+    border: none;
+    color: #CBD5E0;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 1px solid #E2E8F0;
+    padding: 8px;
+    z-index: 100;
+    min-width: 120px;
+    display: none;
+}
+
+.admin-dropdown-menu.show {
+    display: block;
+}
+
+.admin-dropdown-item {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #1B2F5E;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.admin-dropdown-item:hover {
+    background: #F8FAFC;
+}
+
+.admin-query-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 20px;
+    color: #A0B2D6;
+    font-size: 0.85rem;
+}
+
+.admin-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.pagination-select {
+    padding: 4px 8px;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    color: #1B2F5E;
+    font-weight: 600;
+}
+
+.pagination-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.pagination-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    color: #1B2F5E;
+    cursor: pointer;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+
 }
