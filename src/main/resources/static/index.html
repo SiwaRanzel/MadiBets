@@ -204,7 +204,7 @@
                         </span>
                         <span class="menu-text">Dashboard</span>
                     </a>
-                    <a href="#" class="menu-item" id="nav-bets" data-label="Bets">
+                    <a href="#" class="menu-item" id="nav-bets" data-label="Bets" onclick="switchPanel('panel-bets'); return false;">
                         <span class="menu-icon">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -289,18 +289,17 @@
                         </span>
                         <span class="menu-text">Dashboard</span>
                     </a>
-                    <a href="#" class="menu-item" id="nav-groups" data-label="Groups"
-                        onclick="switchPanel('panel-groups'); return false;">
+                    <a href="#" class="menu-item" id="nav-task-lecturer" data-label="Task"
+                        onclick="switchPanel('panel-task'); return false;">
                         <span class="menu-icon">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="9" cy="7" r="3" />
-                                <path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6" />
-                                <circle cx="17" cy="7" r="3" />
-                                <path d="M22 20c0-3.3-1.6-6-5-6" />
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
                             </svg>
                         </span>
-                        <span class="menu-text">Groups</span>
+                        <span class="menu-text">Task</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-account-lecturer" data-label="Account"
                         onclick="switchPanel('panel-account'); return false;">
@@ -312,6 +311,18 @@
                             </svg>
                         </span>
                         <span class="menu-text">Account</span>
+                    </a>
+                    <a href="#" class="menu-item" id="nav-leaderboard-lecturer" data-label="Leaderboard"
+                        onclick="switchPanel('panel-leaderboard'); return false;">
+                        <span class="menu-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="13" width="5" height="8" rx="1" />
+                                <rect x="9" y="8" width="5" height="13" rx="1" />
+                                <rect x="16" y="3" width="5" height="18" rx="1" />
+                            </svg>
+                        </span>
+                        <span class="menu-text">Leaderboard</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-help-lecturer" data-label="Help"
                         onclick="switchPanel('panel-help'); return false;">
@@ -556,12 +567,12 @@
                             Bets</h3>
                         <ul
                             style="list-style-type: disc; padding-left: 20px; color: #6C7D93; line-height: 2.2; flex: 1; margin-bottom: 30px; font-size: 0.95rem;">
-                            <li>200 Bets have been added today</li>
-                            <li>520 Bets have been Placed today</li>
-                            <li>45 Bets are pending manual review</li>
-                            <li>25 upcoming events</li>
+                            <li><span id="stat-bets-proposed">Loading...</span> Bets proposed today</li>
+                            <li><span id="stat-bets-placed">Loading...</span> Bets placed today</li>
+                            <li><span id="stat-bets-pending">Loading...</span> Bets pending manual review</li>
+                            <li><span id="stat-upcoming-events">Loading...</span> upcoming events</li>
                         </ul>
-                        <button
+                        <button onclick="switchPanel('panel-bets')"
                             style="width: 100%; background-color: #1B2F5E; color: white; border: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Go
                             to Bets</button>
                     </div>
@@ -572,15 +583,31 @@
                             Accounts</h3>
                         <ul
                             style="list-style-type: disc; padding-left: 20px; color: #E2E8F0; line-height: 2.2; flex: 1; margin-bottom: 30px; font-size: 0.95rem;">
-                            <li>20 Users have joined today</li>
-                            <li>150 Users have won today</li>
-                            <li>88% Active user retention rate this week</li>
-                            <li>20 Users got bonus Madibucks</li>
+                            <li><span id="stat-users-total">Loading...</span> Registered users overall</li>
+                            <li><span id="stat-users-joined-today">Loading...</span> Users have joined today</li>
+                            <li><span id="stat-support-queries">Loading...</span> Open support queries</li>
+                            <li><span id="stat-bonus-awarded">Loading...</span> Users got bonus Madibucks today</li>
                         </ul>
-                        <button
+                        <button onclick="switchPanel('panel-account')"
                             style="width: 100%; background-color: #E2E8F0; color: #1B2F5E; border: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Go
                             to account</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- ── Bets Panel ── -->
+            <div id="panel-bets" class="hidden">
+                <div style="background: white; border-radius: 20px; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); text-align: center;">
+                    <h2 style="color: #1B2F5E; margin-bottom: 20px;">Bets Dashboard</h2>
+                    <p style="color: #6C7A9C;">This feature is currently under development.</p>
+                </div>
+            </div>
+
+            <!-- ── Task Panel ── -->
+            <div id="panel-task" class="hidden">
+                <div style="background: white; border-radius: 20px; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); text-align: center;">
+                    <h2 style="color: #1B2F5E; margin-bottom: 20px;">Tasks</h2>
+                    <p style="color: #6C7A9C;">This feature is currently under development.</p>
                 </div>
             </div>
 
@@ -628,8 +655,8 @@
                                 Students</p>
                             <h3 id="lect-stat-students" style="font-size: 2.2rem; color: #1B2F5E; margin: 0 0 5px 0;">
                                 128</h3>
-                            <p style="font-size: 0.8rem; color: #1B2F5E; font-weight: 500;"><span
-                                    style="color: #28A745; font-weight: 700;">↑ 8</span> joined this week</p>
+                            <p style="font-size: 0.8rem; color: #1B2F5E; font-weight: 500;"><span id="lect-stat-students-trend"
+                                    style="color: #28A745; font-weight: 700;">&uarr; 8</span> joined this week</p>
                         </div>
                     </div>
                     <!-- Active Today -->
@@ -647,7 +674,7 @@
                                 Today</p>
                             <h3 id="lect-stat-active" style="font-size: 2.2rem; color: #1B2F5E; margin: 0 0 5px 0;">73
                             </h3>
-                            <p style="font-size: 0.8rem; color: #1B2F5E; font-weight: 500;"><span
+                            <p style="font-size: 0.8rem; color: #1B2F5E; font-weight: 500;"><span id="lect-stat-engagement"
                                     style="color: #28A745; font-weight: 700;">57%</span> engagement rate</p>
                         </div>
                     </div>

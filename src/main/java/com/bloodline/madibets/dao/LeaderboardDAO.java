@@ -75,7 +75,7 @@ public class LeaderboardDAO {
                    + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES') AS betsWon "
                    + "FROM User u "
                    + "JOIN Account a ON u.userID = a.userID "
-                   + "WHERE u.userType != 'ADMIN' "
+                   + "WHERE u.userType = 'STUDENT' "
                    + "ORDER BY " + orderClause + " "
                    + "LIMIT ?";
         List<Map<String, Object>> rankings = new ArrayList<>();
@@ -105,8 +105,8 @@ public class LeaderboardDAO {
     // ------------------------------------------------------------------
     public int getUserRank(int userID) throws SQLException {
         String sql = "SELECT COUNT(*) + 1 AS userRank "
-                   + "FROM Account "
-                   + "WHERE balance > (SELECT balance FROM Account WHERE userID = ?)";
+                   + "FROM Account a JOIN User u ON a.userID = u.userID "
+                   + "WHERE u.userType = 'STUDENT' AND a.balance > (SELECT balance FROM Account WHERE userID = ?)";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, userID);
@@ -117,7 +117,7 @@ public class LeaderboardDAO {
     }
 
     public int getTotalPlayers() throws SQLException {
-        String sql = "SELECT COUNT(*) FROM User WHERE userType != 'ADMIN'";
+        String sql = "SELECT COUNT(*) FROM User WHERE userType = 'STUDENT'";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {

@@ -439,7 +439,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets', 'panel-task'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -469,7 +469,9 @@ function switchPanel(panelId) {
         'panel-help':               ['nav-help-student', 'nav-help-lecturer'],
         'panel-account':            ['nav-account-student', 'nav-account-lecturer'],
         'panel-friends':            'nav-friends',
-        'panel-leaderboard':        'nav-leaderboard',
+        'panel-leaderboard':        ['nav-leaderboard', 'nav-leaderboard-lecturer'],
+        'panel-bets':               'nav-bets',
+        'panel-task':               'nav-task-lecturer',
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -494,6 +496,10 @@ function switchPanel(panelId) {
         loadAdminQueries();
     } else if (panelId === 'panel-delete-request') {
         loadDeleteRequests();
+    } else if (panelId === 'panel-dashboard' || panelId === 'panel-dashboard-admin') {
+        loadAdminDashboardStats();
+    } else if (panelId === 'panel-dashboard-lecturer') {
+        loadLecturerDashboardStats();
     }
 }
 
@@ -1562,6 +1568,40 @@ async function loadUserStats(userID) {
     }
 }
 
+// ── Fetch & display live lecturer dashboard stats ──
+async function loadLecturerDashboardStats() {
+    try {
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        if (!user || user.userType !== 'LECTURER') return;
+        const res = await fetch(`${API_BASE}/lecturers/${user.userID}/dashboard-stats`);
+        if (!res.ok) return;
+        const stats = await res.json();
+
+        const grpEl = document.getElementById('lect-stat-groups');
+        if (grpEl) grpEl.innerText = stats.totalGroups;
+
+        const stuEl = document.getElementById('lect-stat-students');
+        if (stuEl) stuEl.innerText = stats.totalStudents;
+        
+        const stuTrendEl = document.getElementById('lect-stat-students-trend');
+        if (stuTrendEl) stuTrendEl.innerHTML = `&uarr; ${stats.newStudentsThisWeek}`;
+
+        const actEl = document.getElementById('lect-stat-active');
+        if (actEl) actEl.innerText = stats.activeToday;
+
+        const engEl = document.getElementById('lect-stat-engagement');
+        if (engEl) {
+            let pct = 0;
+            if (stats.totalStudents > 0) {
+                pct = Math.round((stats.activeToday / stats.totalStudents) * 100);
+            }
+            engEl.innerText = `${pct}%`;
+        }
+    } catch (e) {
+        console.error("Failed to load lecturer stats", e);
+    }
+}
+
 // C500 — Load top rankings table
 let currentLeaderboardSort = 'balance';
 
@@ -1898,5 +1938,31 @@ async function deleteUserPermanently(userId) {
     } catch (err) {
         console.error(err);
         showToast('Error deleting user', 'error');
+    }
+}
+
+// ── Fetch & display live admin dashboard stats ──
+async function loadAdminDashboardStats() {
+    try {
+        const res = await fetch(`${API_BASE}/admin/dashboard-stats`);
+        if (!res.ok) return;
+        const stats = await res.json();
+        
+        const setStat = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        };
+        
+        setStat('stat-bets-proposed', stats.betsProposedToday);
+        setStat('stat-bets-placed', stats.betsPlacedToday);
+        setStat('stat-bets-pending', stats.betsPendingReview);
+        setStat('stat-upcoming-events', stats.upcomingEvents);
+        
+        setStat('stat-users-total', stats.totalUsers);
+        setStat('stat-users-joined-today', stats.usersJoinedToday);
+        setStat('stat-support-queries', stats.openSupportQueries);
+        setStat('stat-bonus-awarded', stats.usersRewardedToday);
+    } catch (err) {
+        console.error('Failed to load admin dashboard stats:', err);
     }
 }
