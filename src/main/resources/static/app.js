@@ -2199,9 +2199,9 @@ function renderActiveAdminTable(bets) {
     document.getElementById('acct-active-empty').classList.toggle('hidden', bets.length > 0);
     tbody.innerHTML = '';
     bets.forEach(b => {
-        const wager = b.open
-            ? '<span style="color:#A0B2D6;">Open</span>'
-            : `${Number(b.amountToBeWon).toFixed(2)} MB to win`;
+        const wager = b.wagerCount > 0
+            ? `${b.wagerCount} wager${b.wagerCount === 1 ? '' : 's'} · ${Number(b.totalStaked).toFixed(2)} MB staked`
+            : '<span style="color:#A0B2D6;">No wagers yet</span>';
         tbody.innerHTML += `
             <tr>
                 <td>${escapeHtml(b.description)}</td>

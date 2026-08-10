@@ -19,7 +19,7 @@ import java.util.Map;
  * Business rules live in BetService — this layer only translates HTTP.
  *
  * Routes (all under /api/bets):
- *   GET    /active           B700  every ACTIVE bet ("open": true until wagered)
+ *   GET    /active           B700  every ACTIVE bet (+ wagerCount/totalStaked)
  *   GET    /proposed         B300  the admin review queue
  *   POST   /propose          B200  {userID, eventID?, description}   -> 201 {betID}
  *   POST   /{id}/approve     B300  {odds, adminUserID}
@@ -182,15 +182,15 @@ public class BetController {
             m.put("eventID", b.getEventID());
             m.put("description", b.getDescription());
             m.put("odds", b.getOdds());
-            m.put("amountToBeWon", b.getAmountToBeWon());
             m.put("outcome", b.getOutcome());
             m.put("status", b.getStatus());
             m.put("proposedDate", b.getProposedDate());
-            m.put("placedDate", b.getPlacedDate());
             m.put("gradedDate", b.getGradedDate());
             m.put("gradedBy", b.getGradedBy());
-            // update-in-place model: an ACTIVE bet takes exactly one wager
-            m.put("open", "ACTIVE".equals(b.getStatus()) && b.getPlacedDate() == null);
+            m.put("wagerCount", b.getWagerCount());
+            m.put("totalStaked", b.getTotalStaked());
+            // market/wager split: an ACTIVE bet stays open to every student
+            m.put("open", "ACTIVE".equals(b.getStatus()));
             out.add(m);
         }
         return out;

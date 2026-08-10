@@ -8,10 +8,12 @@ import com.bloodline.madibets.dao.UserDAO;
 import com.bloodline.madibets.model.Bet;
 import com.bloodline.madibets.model.Event;
 import com.bloodline.madibets.model.User;
+import com.bloodline.madibets.model.Wager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,6 +21,8 @@ import java.util.List;
  * Owner: Kieran (B-series). Business rules for the bet lifecycle; SQL stays in BetDAO.
  * Follows the AuthService pattern. Invalid input is reported with
  * IllegalArgumentException so callers can show the message to the user.
+ * Market/wager split (design note #1 resolved): many students can wager on one
+ * bet; settlement walks every Wager row.
  */
 public class BetService {
 
@@ -32,8 +36,8 @@ public class BetService {
 
     /**
      * B700: the bets a student can currently wager on.
-     * No business rules yet — the 'ACTIVE' filter is the whole use case. Stake
-     * validation (B100) and payout logic (B400/B600) land here later.
+     * The 'ACTIVE' filter is the whole use case; each row carries its wager
+     * count and total staked for the UI.
      */
     public List<Bet> viewActiveBets() throws SQLException {
         return betDAO.findActiveBets();
@@ -102,12 +106,12 @@ public class BetService {
     }
 
     /**
-     * B100: a student wagers on an ACTIVE bet. Update-in-place model (team
-     * decision on design gap #1): the wager is stored on the market row itself,
-     * so each bet takes exactly one wager, implicitly on the YES side of the
-     * description. The stake leaves the student's Account immediately;
-     * amountToBeWon = stake × odds (decimal odds — payout includes the stake
-     * back). Debit, wager claim, and audit row commit as ONE DB transaction.
+     * B100: a student wagers on an ACTIVE bet. One Wager row per student per
+     * bet (UNIQUE constraint); any number of students can ride the same market,
+     * each implicitly on the YES side of the description. The stake leaves the
+     * student's Account immediately; amountToBeWon = stake × odds (decimal
+     * odds — payout includes the stake back). Debit, wager row, and audit row
+     * commit as ONE DB transaction.
      */
     public void placeBet(int betID, int userID, BigDecimal stake) throws SQLException {
         if (stake == null || stake.signum() <= 0 || stake.scale() > 2) {
@@ -120,9 +124,6 @@ public class BetService {
         if (!"ACTIVE".equals(b.getStatus())) {
             throw new IllegalArgumentException("Bet " + betID + " is " + b.getStatus() + " — not open for wagering.");
         }
-        if (b.getPlacedDate() != null) {
-            throw new IllegalArgumentException("Bet " + betID + " already has a wager on it.");
-        }
         BigDecimal payout = stake.multiply(b.getOdds()).setScale(2, RoundingMode.HALF_UP);
 
         try (Connection con = DatabaseConnection.getConnection()) {
@@ -131,13 +132,17 @@ public class BetService {
                 if (!accountDAO.adjustBalance(con, userID, stake.negate())) {
                     throw new IllegalArgumentException("Insufficient MadiBucks for a stake of " + stake + ".");
                 }
-                if (!betDAO.placeWager(con, betID, userID, payout, LocalDateTime.now())) {
-                    // Someone else's wager or a status change won the race after our read.
-                    throw new IllegalArgumentException("Bet " + betID + " was taken or closed in the meantime.");
+                if (!betDAO.placeWager(con, betID, userID, stake, payout, LocalDateTime.now())) {
+                    // The status guard found nothing: the bet was graded/deleted after our read.
+                    throw new IllegalArgumentException("Bet " + betID + " was closed in the meantime.");
                 }
                 accountDAO.logTransaction(con, userID, stake.negate(),
                         "B100: user " + userID + " staked " + stake + " on bet " + betID);
                 con.commit();
+            } catch (SQLIntegrityConstraintViolationException e) {
+                con.rollback();
+                // UNIQUE (betID, userID): same student, second wager
+                throw new IllegalArgumentException("You already have a wager on bet " + betID + ".");
             } catch (SQLException | RuntimeException e) {
                 con.rollback();
                 throw e;
@@ -148,12 +153,13 @@ public class BetService {
     }
 
     /**
-     * B400 + B600: an admin records the real-world outcome, and any winnings or
-     * refund land in the holder's Account in the same DB transaction.
-     * YES        -> the wager (implicitly on the YES side) won: credit amountToBeWon.
-     * NO         -> wager lost: the stake left the account at placement; nothing moves.
-     * CANCELLED  -> stake refunded. The schema stores no stake column, so the
-     *               refund is derived as amountToBeWon / odds (see stakeOf).
+     * B400 + B600: an admin records the real-world outcome, and every wager on
+     * the bet settles in the same DB transaction.
+     * YES        -> all wagers (implicitly on the YES side) won: credit each
+     *               holder their amountToBeWon.
+     * NO         -> wagers lost: the stakes left the accounts at placement;
+     *               nothing moves.
+     * CANCELLED  -> every stake refunded (stored explicitly on the Wager row).
      * A never-wagered bet can still be graded — the market simply closes.
      */
     public void gradeBet(int betID, String outcome, int adminUserID) throws SQLException {
@@ -176,13 +182,15 @@ public class BetService {
                 if (!betDAO.grade(con, betID, outcome, adminUserID, LocalDateTime.now())) {
                     throw new IllegalArgumentException("Bet " + betID + " was graded or closed in the meantime.");
                 }
-                if (b.getPlacedDate() != null) {   // someone holds a wager on this bet
-                    if ("YES".equals(outcome)) {
-                        payOut(con, b.getUserID(), b.getAmountToBeWon(),
-                                "B600: bet " + betID + " won, paid user " + b.getUserID());
-                    } else if ("CANCELLED".equals(outcome)) {
-                        payOut(con, b.getUserID(), stakeOf(b),
-                                "B600: bet " + betID + " cancelled, stake refunded to user " + b.getUserID());
+                if (!"NO".equals(outcome)) {
+                    for (Wager w : betDAO.findWagersByBet(con, betID)) {
+                        if ("YES".equals(outcome)) {
+                            payOut(con, w.getUserID(), w.getAmountToBeWon(),
+                                    "B600: bet " + betID + " won, paid user " + w.getUserID());
+                        } else {   // CANCELLED
+                            payOut(con, w.getUserID(), w.getStake(),
+                                    "B600: bet " + betID + " cancelled, stake refunded to user " + w.getUserID());
+                        }
                     }
                 }
                 con.commit();
@@ -198,8 +206,8 @@ public class BetService {
     /**
      * B500: an admin retires a bet. Soft delete — status DELETED keeps the row
      * for the audit trail (simulated accounting must stay reconstructable), and
-     * B700 already filters it out. A live wager is refunded in the same
-     * transaction so an admin deletion never costs the student their stake.
+     * B700 already filters it out. Every live wager is refunded in the same
+     * transaction so an admin deletion never costs a student their stake.
      * GRADED bets are settled history and cannot be deleted.
      */
     public void deleteBet(int betID, int adminUserID) throws SQLException {
@@ -219,9 +227,11 @@ public class BetService {
                 if (!betDAO.delete(con, betID)) {
                     throw new IllegalArgumentException("Bet " + betID + " was closed in the meantime.");
                 }
-                if ("ACTIVE".equals(b.getStatus()) && b.getPlacedDate() != null) {
-                    payOut(con, b.getUserID(), stakeOf(b),
-                            "B500: bet " + betID + " deleted, stake refunded to user " + b.getUserID());
+                if ("ACTIVE".equals(b.getStatus())) {
+                    for (Wager w : betDAO.findWagersByBet(con, betID)) {
+                        payOut(con, w.getUserID(), w.getStake(),
+                                "B500: bet " + betID + " deleted, stake refunded to user " + w.getUserID());
+                    }
                 }
                 con.commit();
             } catch (SQLException | RuntimeException e) {
@@ -240,12 +250,6 @@ public class BetService {
             throw new IllegalStateException("User " + userID + " has no Account row to receive " + amount + ".");
         }
         accountDAO.logTransaction(con, userID, amount, description);
-    }
-
-    /** The stake is not stored (design gap #1) — derive it from payout / odds.
-     *  Rounding can drift the refund by a cent; flagged, accepted by the team. */
-    private BigDecimal stakeOf(Bet b) {
-        return b.getAmountToBeWon().divide(b.getOdds(), 2, RoundingMode.HALF_UP);
     }
 
     private void requireAdmin(int adminUserID, String action) throws SQLException {

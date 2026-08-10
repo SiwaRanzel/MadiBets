@@ -2,6 +2,7 @@ package com.bloodline.madibets.dao;
 
 import com.bloodline.madibets.config.DatabaseConnection;
 import com.bloodline.madibets.model.Bet;
+import com.bloodline.madibets.model.Wager;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.LocalDateTime;
@@ -11,11 +12,17 @@ import java.util.List;
 /** Owner: Kieran (B-series). Copy the PreparedStatement pattern from UserDAO. */
 public class BetDAO {
 
+    /** Shared SELECT for the list reads: market columns + wager aggregates. */
+    private static final String LIST_SQL =
+            "SELECT b.betID, b.userID, b.eventID, b.description, b.odds, "
+          + "b.outcome, b.status, b.proposedDate, b.gradedDate, b.gradedBy, "
+          + "COUNT(w.wagerID) AS wagerCount, COALESCE(SUM(w.stake), 0) AS totalStaked "
+          + "FROM Bet b LEFT JOIN Wager w ON w.betID = b.betID "
+          + "WHERE b.status = ? GROUP BY b.betID ";
+
     /** B700 View Bets (READ). Every bet currently open for wagering. */
     public List<Bet> findActiveBets() throws SQLException {
-        String sql = "SELECT betID, userID, eventID, description, odds, amountToBeWon, "
-                   + "outcome, status, proposedDate, placedDate, gradedDate, gradedBy "
-                   + "FROM Bet WHERE status = ? ORDER BY proposedDate DESC, betID DESC";
+        String sql = LIST_SQL + "ORDER BY b.proposedDate DESC, b.betID DESC";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, "ACTIVE");
@@ -31,9 +38,7 @@ public class BetDAO {
 
     /** B300 list (READ): proposals waiting for admin review, oldest first. */
     public List<Bet> findProposedBets() throws SQLException {
-        String sql = "SELECT betID, userID, eventID, description, odds, amountToBeWon, "
-                   + "outcome, status, proposedDate, placedDate, gradedDate, gradedBy "
-                   + "FROM Bet WHERE status = ? ORDER BY proposedDate ASC, betID ASC";
+        String sql = LIST_SQL + "ORDER BY b.proposedDate ASC, b.betID ASC";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, "PROPOSED");
@@ -68,14 +73,14 @@ public class BetDAO {
 
     /** Single-row read used by the B-series services. Returns null if absent. */
     public Bet findById(int betID) throws SQLException {
-        String sql = "SELECT betID, userID, eventID, description, odds, amountToBeWon, "
-                   + "outcome, status, proposedDate, placedDate, gradedDate, gradedBy "
+        String sql = "SELECT betID, userID, eventID, description, odds, "
+                   + "outcome, status, proposedDate, gradedDate, gradedBy "
                    + "FROM Bet WHERE betID = ?";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, betID);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? map(rs) : null;
+                return rs.next() ? mapMarket(rs) : null;
             }
         }
     }
@@ -110,31 +115,54 @@ public class BetDAO {
     }
 
     /**
-     * B100 Place Bet (UPDATE). Claims the ACTIVE market row for the wagering
-     * student — the wager lives on the same row as the market (team decision on
-     * design gap #1: update-in-place, one wager per bet). Takes the caller's
-     * Connection because the claim must commit together with the Account debit.
-     * The "placedDate IS NULL" guard makes the one-wager rule atomic: two
-     * simultaneous placements can never both match the row.
+     * B100 Place Bet (CREATE). One Wager row per student per bet — the UNIQUE
+     * (betID, userID) constraint turns a double wager by the same student into
+     * an SQLIntegrityConstraintViolationException the service reports nicely.
+     * Takes the caller's Connection: the insert commits with the Account debit.
+     * The subquery guard keeps the insert atomic against a concurrent
+     * grade/delete: it only finds a betID that is still ACTIVE.
      */
-    public boolean placeWager(Connection con, int betID, int userID,
+    public boolean placeWager(Connection con, int betID, int userID, BigDecimal stake,
                               BigDecimal amountToBeWon, LocalDateTime placedDate) throws SQLException {
-        String sql = "UPDATE Bet SET userID = ?, amountToBeWon = ?, placedDate = ? "
-                   + "WHERE betID = ? AND status = ? AND placedDate IS NULL";
+        String sql = "INSERT INTO Wager (betID, userID, stake, amountToBeWon, placedDate) "
+                   + "SELECT b.betID, ?, ?, ?, ? FROM Bet b WHERE b.betID = ? AND b.status = 'ACTIVE'";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, userID);
-            ps.setBigDecimal(2, amountToBeWon);
-            ps.setObject(3, placedDate);
-            ps.setInt(4, betID);
-            ps.setString(5, "ACTIVE");
+            ps.setBigDecimal(2, stake);
+            ps.setBigDecimal(3, amountToBeWon);
+            ps.setObject(4, placedDate);
+            ps.setInt(5, betID);
             return ps.executeUpdate() == 1;
+        }
+    }
+
+    /** All wagers riding on one bet — B400/B600 settlement walks this list. */
+    public List<Wager> findWagersByBet(Connection con, int betID) throws SQLException {
+        String sql = "SELECT wagerID, betID, userID, stake, amountToBeWon, placedDate "
+                   + "FROM Wager WHERE betID = ? ORDER BY wagerID";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, betID);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<Wager> wagers = new ArrayList<>();
+                while (rs.next()) {
+                    Wager w = new Wager();
+                    w.setWagerID(rs.getInt("wagerID"));
+                    w.setBetID(rs.getInt("betID"));
+                    w.setUserID(rs.getInt("userID"));
+                    w.setStake(rs.getBigDecimal("stake"));
+                    w.setAmountToBeWon(rs.getBigDecimal("amountToBeWon"));
+                    w.setPlacedDate(rs.getObject("placedDate", LocalDateTime.class));
+                    wagers.add(w);
+                }
+                return wagers;
+            }
         }
     }
 
     /**
      * B400 Grade Bet (UPDATE). Records the real-world result and closes the bet.
      * Takes the caller's Connection: grading commits together with the B600
-     * payout/refund. Guard: only an ACTIVE bet can be graded.
+     * payouts. Guard: only an ACTIVE bet can be graded.
      */
     public boolean grade(Connection con, int betID, String outcome,
                          int gradedBy, LocalDateTime gradedDate) throws SQLException {
@@ -154,7 +182,7 @@ public class BetDAO {
     /**
      * B500 Delete Bet — soft delete via status, keeping the row for the audit
      * trail. Takes the caller's Connection: deleting a wagered ACTIVE bet
-     * refunds the stake in the same transaction. GRADED bets are settled
+     * refunds every stake in the same transaction. GRADED bets are settled
      * history and never match the guard.
      */
     public boolean delete(Connection con, int betID) throws SQLException {
@@ -168,7 +196,16 @@ public class BetDAO {
         }
     }
 
+    /** Row mapper for the list queries (market columns + aggregates). */
     private Bet map(ResultSet rs) throws SQLException {
+        Bet b = mapMarket(rs);
+        b.setWagerCount(rs.getInt("wagerCount"));
+        b.setTotalStaked(rs.getBigDecimal("totalStaked"));
+        return b;
+    }
+
+    /** Row mapper for the market columns only. */
+    private Bet mapMarket(ResultSet rs) throws SQLException {
         Bet b = new Bet();
         b.setBetID(rs.getInt("betID"));
         b.setUserID(rs.getInt("userID"));
@@ -177,11 +214,9 @@ public class BetDAO {
         b.setEventID(rs.getObject("eventID", Integer.class));
         b.setDescription(rs.getString("description"));
         b.setOdds(rs.getBigDecimal("odds"));
-        b.setAmountToBeWon(rs.getBigDecimal("amountToBeWon"));
         b.setOutcome(rs.getString("outcome"));
         b.setStatus(rs.getString("status"));
         b.setProposedDate(rs.getObject("proposedDate", LocalDateTime.class));
-        b.setPlacedDate(rs.getObject("placedDate", LocalDateTime.class));
         b.setGradedDate(rs.getObject("gradedDate", LocalDateTime.class));
         b.setGradedBy(rs.getObject("gradedBy", Integer.class));
         return b;

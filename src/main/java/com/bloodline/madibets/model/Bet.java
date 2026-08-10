@@ -3,20 +3,25 @@ package com.bloodline.madibets.model;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** Mirrors one row of the Bet table. Owner: Kieran (B-series). */
+/**
+ * Mirrors one row of the Bet table — the MARKET only. Owner: Kieran (B-series).
+ * Student stakes live in Wager (design note #1 resolved: many wagers per bet).
+ */
 public class Bet {
     private int betID;
-    private int userID;              // proposer/placer (see schema DESIGN NOTES #1)
+    private int userID;              // proposer
     private Integer eventID;         // nullable FK
     private String description;
     private BigDecimal odds;
-    private BigDecimal amountToBeWon;
     private String outcome;          // PENDING | YES | NO | CANCELLED
     private String status;           // PROPOSED | ACTIVE | GRADED | DELETED
     private LocalDateTime proposedDate;
-    private LocalDateTime placedDate;
     private LocalDateTime gradedDate;
     private Integer gradedBy;        // nullable FK — admin userID
+
+    // Aggregates filled by the list queries (not columns on Bet itself)
+    private int wagerCount;
+    private BigDecimal totalStaked;
 
     public Bet() {}
 
@@ -30,18 +35,18 @@ public class Bet {
     public void setDescription(String v)         { this.description = v; }
     public BigDecimal getOdds()                  { return odds; }
     public void setOdds(BigDecimal v)            { this.odds = v; }
-    public BigDecimal getAmountToBeWon()         { return amountToBeWon; }
-    public void setAmountToBeWon(BigDecimal v)   { this.amountToBeWon = v; }
     public String getOutcome()                   { return outcome; }
     public void setOutcome(String v)             { this.outcome = v; }
     public String getStatus()                    { return status; }
     public void setStatus(String v)              { this.status = v; }
     public LocalDateTime getProposedDate()       { return proposedDate; }
     public void setProposedDate(LocalDateTime v) { this.proposedDate = v; }
-    public LocalDateTime getPlacedDate()         { return placedDate; }
-    public void setPlacedDate(LocalDateTime v)   { this.placedDate = v; }
     public LocalDateTime getGradedDate()         { return gradedDate; }
     public void setGradedDate(LocalDateTime v)   { this.gradedDate = v; }
     public Integer getGradedBy()                 { return gradedBy; }
     public void setGradedBy(Integer v)           { this.gradedBy = v; }
+    public int getWagerCount()                   { return wagerCount; }
+    public void setWagerCount(int v)             { this.wagerCount = v; }
+    public BigDecimal getTotalStaked()           { return totalStaked; }
+    public void setTotalStaked(BigDecimal v)     { this.totalStaked = v; }
 }

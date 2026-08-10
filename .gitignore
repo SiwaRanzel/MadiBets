@@ -13,3 +13,5 @@ CLAUDE.md
 *.iml
 .DS_Store
 *.png
+
+uploads/

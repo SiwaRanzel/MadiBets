@@ -23,12 +23,15 @@ public class LeaderboardDAO {
     // Returns all bets placed by a given user, newest first.
     // ------------------------------------------------------------------
     public List<Map<String, Object>> findBetsByUser(int userID) throws SQLException {
-        String sql = "SELECT b.betID, b.description, b.odds, b.amountToBeWon, b.outcome, "
-                   + "b.placedDate, b.gradedDate, e.eventDescription "
-                   + "FROM Bet b "
+        // Market/wager split: a user's bet history is their Wager rows joined
+        // back to the market for description/odds/outcome.
+        String sql = "SELECT b.betID, b.description, b.odds, w.amountToBeWon, b.outcome, "
+                   + "w.placedDate, b.gradedDate, e.eventDescription "
+                   + "FROM Wager w "
+                   + "JOIN Bet b ON w.betID = b.betID "
                    + "LEFT JOIN Event e ON b.eventID = e.eventID "
-                   + "WHERE b.userID = ? "
-                   + "ORDER BY b.placedDate DESC";
+                   + "WHERE w.userID = ? "
+                   + "ORDER BY w.placedDate DESC";
         List<Map<String, Object>> bets = new ArrayList<>();
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -57,13 +60,17 @@ public class LeaderboardDAO {
     // Returns top N users with rank, name, balance, and bet stats.
     // ------------------------------------------------------------------
     public List<Map<String, Object>> getRankings(int limit, String sortBy) throws SQLException {
+        // Market/wager split: bet counts and wins come from the user's Wager rows.
+        String winsSub  = "(SELECT COUNT(*) FROM Wager w JOIN Bet b ON w.betID = b.betID "
+                        + "WHERE w.userID = u.userID AND b.outcome = 'YES')";
+        String totalSub = "(SELECT COUNT(*) FROM Wager w WHERE w.userID = u.userID)";
         String orderClause;
         switch (sortBy) {
             case "wins":
-                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES' AND placedDate IS NOT NULL) DESC";
+                orderClause = winsSub + " DESC";
                 break;
             case "totalBets":
-                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) DESC";
+                orderClause = totalSub + " DESC";
                 break;
             default: // "balance"
                 orderClause = "a.balance DESC";
@@ -71,8 +78,8 @@ public class LeaderboardDAO {
         }
 
         String sql = "SELECT u.userID, u.name, u.surname, u.userType, a.balance, "
-                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) AS totalBets, "
-                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES' AND placedDate IS NOT NULL) AS betsWon "
+                   + totalSub + " AS totalBets, "
+                   + winsSub + " AS betsWon "
                    + "FROM User u "
                    + "JOIN Account a ON u.userID = a.userID "
                    + "WHERE u.userType = 'STUDENT' "
@@ -163,12 +170,13 @@ public class LeaderboardDAO {
     // C500 — Get user's bet stats (wins, losses, pending)
     // ------------------------------------------------------------------
     public Map<String, Object> getUserBetStats(int userID) throws SQLException {
+        // Market/wager split: stats count the user's Wager rows by market outcome.
         String sql = "SELECT "
                    + "COUNT(*) AS totalBets, "
-                   + "SUM(CASE WHEN outcome = 'YES' AND placedDate IS NOT NULL THEN 1 ELSE 0 END) AS wins, "
-                   + "SUM(CASE WHEN outcome = 'NO' AND placedDate IS NOT NULL THEN 1 ELSE 0 END) AS losses, "
-                   + "SUM(CASE WHEN outcome = 'PENDING' THEN 1 ELSE 0 END) AS pending "
-                   + "FROM Bet WHERE userID = ?";
+                   + "SUM(CASE WHEN b.outcome = 'YES' THEN 1 ELSE 0 END) AS wins, "
+                   + "SUM(CASE WHEN b.outcome = 'NO' THEN 1 ELSE 0 END) AS losses, "
+                   + "SUM(CASE WHEN b.outcome = 'PENDING' THEN 1 ELSE 0 END) AS pending "
+                   + "FROM Wager w JOIN Bet b ON w.betID = b.betID WHERE w.userID = ?";
         Map<String, Object> stats = new HashMap<>();
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
