@@ -500,6 +500,10 @@ function switchPanel(panelId) {
         loadAdminDashboardStats();
     } else if (panelId === 'panel-dashboard-lecturer') {
         loadLecturerDashboardStats();
+    } else if (panelId === 'panel-bets') {
+        loadBetsPanel();
+    } else if (panelId === 'panel-accounting') {
+        loadAccountingPanel();
     }
 }
 
@@ -1965,4 +1969,298 @@ async function loadAdminDashboardStats() {
     } catch (err) {
         console.error('Failed to load admin dashboard stats:', err);
     }
+}
+
+/* =============================================================
+ * B-SERIES: BETS PANEL + ACCOUNTING SYSTEM (Kieran)
+ * ============================================================= */
+
+const BET_TYPE_OPTIONS = ['Academics', 'Sports', 'Social', 'Class Room'];
+
+function betTypeOf(description) {
+    const idx = description.indexOf(':');
+    if (idx > 0) {
+        const prefix = description.slice(0, idx).trim();
+        if (BET_TYPE_OPTIONS.some(t => t.toLowerCase() === prefix.toLowerCase())) return prefix;
+    }
+    return 'Other';
+}
+
+function betTextOf(description) {
+    return betTypeOf(description) === 'Other'
+        ? description
+        : description.slice(description.indexOf(':') + 1).trim();
+}
+
+// ── Bets panel (student) ──
+let betsCache = {};   // betID -> bet, so onclick handlers don't embed user text
+
+function switchBetsTab(tab) {
+    document.getElementById('bets-tab-place').classList.toggle('active', tab === 'place');
+    document.getElementById('bets-tab-propose').classList.toggle('active', tab === 'propose');
+    document.getElementById('bets-list-view').classList.toggle('hidden', tab !== 'place');
+    document.getElementById('bets-propose-view').classList.toggle('hidden', tab !== 'propose');
+    if (tab === 'place') loadBetsPanel();
+}
+
+async function loadBetsPanel() {
+    const tbody = document.getElementById('bets-table-body');
+    const empty = document.getElementById('bets-empty-msg');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/bets/active`);
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Failed to load bets.', 'error');
+            return;
+        }
+        const bets = data.bets || [];
+        betsCache = {};
+        tbody.innerHTML = '';
+        empty.classList.toggle('hidden', bets.length > 0);
+
+        bets.forEach(b => {
+            betsCache[b.betID] = b;
+            const odds = Number(b.odds).toFixed(2);
+            const action = b.open
+                ? `<button class="bet-action-btn" onclick="openWagerModal(${b.betID})">${odds}</button>`
+                : `<span class="bet-taken-pill">Taken · ${odds}</span>`;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${escapeHtml(betTypeOf(b.description))}</td>
+                    <td>${escapeHtml(betTextOf(b.description))}</td>
+                    <td style="text-align: center;">${action}</td>
+                </tr>
+            `;
+        });
+    } catch (err) {
+        showToast('Network error — is the API server running?', 'error');
+        console.error(err);
+    }
+}
+
+// ── Wager modal (B100) ──
+let wagerBetID = null;
+
+function openWagerModal(betID) {
+    const b = betsCache[betID];
+    if (!b) return;
+    wagerBetID = betID;
+    document.getElementById('wager-bet-desc').textContent = betTextOf(b.description);
+    document.getElementById('wager-amount').value = '';
+    updateWagerPayout();
+    document.getElementById('wager-modal').classList.remove('hidden');
+}
+
+function closeWagerModal() {
+    wagerBetID = null;
+    document.getElementById('wager-modal').classList.add('hidden');
+}
+
+function updateWagerPayout() {
+    const b = betsCache[wagerBetID];
+    if (!b) return;
+    const odds = Number(b.odds);
+    const amount = parseFloat(document.getElementById('wager-amount').value);
+    document.getElementById('wager-bet-payout').textContent = (amount > 0)
+        ? `Odds ${odds.toFixed(2)} — potential payout ${(amount * odds).toFixed(2)} MB`
+        : `Odds ${odds.toFixed(2)}`;
+}
+
+async function submitWager() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user || wagerBetID === null) return;
+    const amount = parseFloat(document.getElementById('wager-amount').value);
+    if (!(amount > 0)) {
+        showToast('Please enter a stake amount.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-place-wager');
+    setButtonLoading(btn, true);
+    try {
+        const res = await fetch(`${API_BASE}/bets/${wagerBetID}/wager`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, stake: amount })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`Bet placed! ${amount.toFixed(2)} MB staked.`, 'success');
+            if (data.newBalance != null) {
+                const walletEl = document.getElementById('wallet-balance');
+                if (walletEl) walletEl.textContent = `${parseFloat(data.newBalance).toFixed(2)} MB`;
+            }
+            closeWagerModal();
+            loadBetsPanel();
+        } else {
+            showToast(data.error || 'Failed to place bet.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// ── Proposal form (B200) ──
+async function submitProposal() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+    const type = document.getElementById('propose-type').value;
+    const text = document.getElementById('propose-description').value.trim();
+    if (!text) {
+        showToast('Please describe the bet you want to propose.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-submit-proposal');
+    setButtonLoading(btn, true);
+    try {
+        const res = await fetch(`${API_BASE}/bets/propose`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, eventID: null, description: `${type}: ${text}` })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast('Proposal sent to the admins for review!', 'success');
+            document.getElementById('propose-description').value = '';
+            switchBetsTab('place');
+        } else {
+            showToast(data.error || 'Failed to submit proposal.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// ── Accounting System panel (admin: B300/B400/B500) ──
+async function loadAccountingPanel() {
+    try {
+        const [pRes, aRes] = await Promise.all([
+            fetch(`${API_BASE}/bets/proposed`),
+            fetch(`${API_BASE}/bets/active`)
+        ]);
+        const pData = await pRes.json();
+        const aData = await aRes.json();
+        if (!pRes.ok || !aRes.ok) {
+            showToast(pData.error || aData.error || 'Failed to load bets.', 'error');
+            return;
+        }
+        renderProposedTable(pData.bets || []);
+        renderActiveAdminTable(aData.bets || []);
+    } catch (err) {
+        showToast('Network error — is the API server running?', 'error');
+        console.error(err);
+    }
+}
+
+function renderProposedTable(bets) {
+    const tbody = document.getElementById('acct-proposed-body');
+    document.getElementById('acct-proposed-empty').classList.toggle('hidden', bets.length > 0);
+    tbody.innerHTML = '';
+    bets.forEach(b => {
+        const date = b.proposedDate ? String(b.proposedDate).slice(0, 10) : '—';
+        tbody.innerHTML += `
+            <tr>
+                <td>${date}</td>
+                <td>${escapeHtml(b.description)}</td>
+                <td><input type="number" id="odds-input-${b.betID}" class="acct-odds-input"
+                        min="1.01" step="0.01" placeholder="e.g. 2.50"></td>
+                <td>
+                    <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
+                    <button class="acct-btn acct-btn-reject" onclick="rejectProposalUI(${b.betID})">Reject</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function renderActiveAdminTable(bets) {
+    const tbody = document.getElementById('acct-active-body');
+    document.getElementById('acct-active-empty').classList.toggle('hidden', bets.length > 0);
+    tbody.innerHTML = '';
+    bets.forEach(b => {
+        const wager = b.open
+            ? '<span style="color:#A0B2D6;">Open</span>'
+            : `${Number(b.amountToBeWon).toFixed(2)} MB to win`;
+        tbody.innerHTML += `
+            <tr>
+                <td>${escapeHtml(b.description)}</td>
+                <td style="text-align: center;">${Number(b.odds).toFixed(2)}</td>
+                <td>${wager}</td>
+                <td>
+                    <button class="acct-btn acct-btn-yes" onclick="gradeBetUI(${b.betID}, 'YES')">YES</button>
+                    <button class="acct-btn acct-btn-no" onclick="gradeBetUI(${b.betID}, 'NO')">NO</button>
+                    <button class="acct-btn acct-btn-cancel" onclick="gradeBetUI(${b.betID}, 'CANCELLED')">Cancel</button>
+                    <button class="acct-btn acct-btn-delete" onclick="deleteBetUI(${b.betID})">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+async function acctCall(request, okMsg) {
+    try {
+        const res = await request();
+        const data = await res.json();
+        if (res.ok) {
+            showToast(okMsg, 'success');
+            loadAccountingPanel();
+        } else {
+            showToast(data.error || 'Action failed.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    }
+}
+
+function adminID() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    return user ? user.userID : null;
+}
+
+async function approveProposalUI(betID) {
+    const odds = parseFloat(document.getElementById(`odds-input-${betID}`).value);
+    if (!(odds > 1)) {
+        showToast('Enter odds greater than 1.00 before approving.', 'error');
+        return;
+    }
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ odds: odds, adminUserID: adminID() })
+    }), `Bet #${betID} approved at odds ${odds.toFixed(2)}.`);
+}
+
+async function rejectProposalUI(betID) {
+    if (!confirm(`Reject proposal #${betID}? The proposer will not see it again.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUserID: adminID() })
+    }), `Proposal #${betID} rejected.`);
+}
+
+async function gradeBetUI(betID, outcome) {
+    if (!confirm(`Grade bet #${betID} as ${outcome}? This settles any wager and cannot be undone.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome: outcome, adminUserID: adminID() })
+    }), `Bet #${betID} graded ${outcome}.`);
+}
+
+async function deleteBetUI(betID) {
+    if (!confirm(`Delete bet #${betID}? A live wager will be refunded.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}?adminUserID=${adminID()}`, {
+        method: 'DELETE'
+    }), `Bet #${betID} deleted.`);
 }

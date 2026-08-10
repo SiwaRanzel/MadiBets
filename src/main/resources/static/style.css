@@ -1868,3 +1868,96 @@ body {
     cursor: not-allowed;
 
 }
+
+/* =============================================================
+ * B-SERIES: BETS PANEL + ACCOUNTING SYSTEM (Kieran)
+ * ============================================================= */
+
+.bets-tab-btn {
+    background: none;
+    border: 1.5px solid #1B2F5E;
+    color: #1B2F5E;
+    padding: 9px 26px;
+    border-radius: 20px;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.bets-tab-btn.active {
+    background: #1B2F5E;
+    color: white;
+}
+
+.bets-table th {
+    text-align: left;
+    padding: 13px 10px;
+    color: #A0B2D6;
+    font-weight: 500;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #F0F2F5;
+}
+.bets-table td {
+    padding: 13px 10px;
+    color: #1B2F5E;
+    font-size: 0.92rem;
+    border-bottom: 1px solid #F0F2F5;
+}
+.bets-table tr:last-child td { border-bottom: none; }
+
+/* B700 list: the odds double as the "bet on this" button (per FSSB design) */
+.bet-action-btn {
+    background: var(--color-nmu-gold);
+    border: none;
+    color: #1B2F5E;
+    font-family: var(--font-primary);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 7px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.bet-action-btn:hover { background: #E0921B; }
+
+/* update-in-place model: one wager per bet, then it reads as taken */
+.bet-taken-pill {
+    background: #E2E8F0;
+    color: #6C7D93;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.acct-odds-input {
+    width: 95px;
+    padding: 7px 9px;
+    border: 1px solid #D1D9E4;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    outline: none;
+}
+.acct-odds-input:focus { border-color: #1B2F5E; }
+
+.acct-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 13px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-right: 5px;
+    transition: filter 0.15s;
+}
+.acct-btn:hover { filter: brightness(0.94); }
+.acct-btn-approve, .acct-btn-yes { background: #E6F9EE; color: #1A7A3F; }
+.acct-btn-reject,  .acct-btn-no  { background: #FDECEA; color: #C0392B; }
+.acct-btn-cancel { background: #FFF8E1; color: #B8860B; }
+.acct-btn-delete {
+    background: none;
+    border: 1.5px solid #D9534F;
+    color: #D9534F;
+}

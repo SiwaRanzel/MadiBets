@@ -60,7 +60,7 @@ public class LeaderboardDAO {
         String orderClause;
         switch (sortBy) {
             case "wins":
-                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES') DESC";
+                orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES' AND placedDate IS NOT NULL) DESC";
                 break;
             case "totalBets":
                 orderClause = "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) DESC";
@@ -72,7 +72,7 @@ public class LeaderboardDAO {
 
         String sql = "SELECT u.userID, u.name, u.surname, u.userType, a.balance, "
                    + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID) AS totalBets, "
-                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES') AS betsWon "
+                   + "(SELECT COUNT(*) FROM Bet WHERE userID = u.userID AND outcome = 'YES' AND placedDate IS NOT NULL) AS betsWon "
                    + "FROM User u "
                    + "JOIN Account a ON u.userID = a.userID "
                    + "WHERE u.userType = 'STUDENT' "
@@ -165,8 +165,8 @@ public class LeaderboardDAO {
     public Map<String, Object> getUserBetStats(int userID) throws SQLException {
         String sql = "SELECT "
                    + "COUNT(*) AS totalBets, "
-                   + "SUM(CASE WHEN outcome = 'YES' THEN 1 ELSE 0 END) AS wins, "
-                   + "SUM(CASE WHEN outcome = 'NO' THEN 1 ELSE 0 END) AS losses, "
+                   + "SUM(CASE WHEN outcome = 'YES' AND placedDate IS NOT NULL THEN 1 ELSE 0 END) AS wins, "
+                   + "SUM(CASE WHEN outcome = 'NO' AND placedDate IS NOT NULL THEN 1 ELSE 0 END) AS losses, "
                    + "SUM(CASE WHEN outcome = 'PENDING' THEN 1 ELSE 0 END) AS pending "
                    + "FROM Bet WHERE userID = ?";
         Map<String, Object> stats = new HashMap<>();
