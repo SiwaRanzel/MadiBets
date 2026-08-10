@@ -2034,10 +2034,21 @@ async function loadBetsPanel() {
                 </tr>
             `;
         });
+        filterBetsTable();
     } catch (err) {
         showToast('Network error — is the API server running?', 'error');
         console.error(err);
     }
+}
+
+// B700 mockup: search field filters the open-bets list client-side
+function filterBetsTable() {
+    const input = document.getElementById('bets-search');
+    if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('#bets-table-body tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
 }
 
 // ── Wager modal (B100) ──
@@ -2170,7 +2181,8 @@ function renderProposedTable(bets) {
         tbody.innerHTML += `
             <tr>
                 <td>${date}</td>
-                <td>${escapeHtml(b.description)}</td>
+                <td>${escapeHtml(betTypeOf(b.description))}</td>
+                <td>${escapeHtml(betTextOf(b.description))}</td>
                 <td><input type="number" id="odds-input-${b.betID}" class="acct-odds-input"
                         min="1.01" step="0.01" placeholder="e.g. 2.50"></td>
                 <td>

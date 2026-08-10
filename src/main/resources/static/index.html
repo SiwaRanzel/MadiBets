@@ -598,9 +598,11 @@
             <!-- ── Bets Panel (B700 view / B100 place / B200 propose) ── -->
             <div id="panel-bets" class="hidden">
                 <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
-                    <div style="display: flex; gap: 12px; margin-bottom: 25px;">
+                    <div style="display: flex; gap: 12px; margin-bottom: 25px; align-items: center;">
                         <button id="bets-tab-place" class="bets-tab-btn active" onclick="switchBetsTab('place')">Place Bet</button>
                         <button id="bets-tab-propose" class="bets-tab-btn" onclick="switchBetsTab('propose')">Propose Bet</button>
+                        <input type="text" id="bets-search" placeholder="Search" oninput="filterBetsTable()"
+                            style="margin-left: auto; width: 200px; padding: 8px 14px; border: 1px solid #D1D9E4; border-radius: 20px; font-size: 0.85rem; outline: none;">
                     </div>
 
                     <!-- B700: the open market list -->
@@ -1327,6 +1329,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 110px;">Date</th>
+                                <th style="width: 110px;">Type</th>
                                 <th>Description</th>
                                 <th style="width: 120px;">Odds</th>
                                 <th style="width: 200px;">Action</th>
