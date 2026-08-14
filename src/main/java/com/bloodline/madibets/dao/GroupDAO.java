@@ -151,6 +151,22 @@ public class GroupDAO {
         return results;
     }
 
+    /** Find groups created by a specific user. */
+    public List<Group> findByCreator(int createdBy) throws SQLException {
+        List<Group> results = new ArrayList<>();
+        String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` WHERE createdBy = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, createdBy);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(map(rs));
+                }
+            }
+        }
+        return results;
+    }
+
     /** Add a member to a group. Returns true if inserted, false if already member. */
     public boolean addMember(int groupID, int userID) throws SQLException {
         String sql = "INSERT INTO GroupMember (groupID, userID) VALUES (?, ?)";

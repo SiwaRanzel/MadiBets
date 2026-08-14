@@ -439,7 +439,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets', 'panel-task'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets', 'panel-task'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -460,7 +460,6 @@ function switchPanel(panelId) {
         'panel-dashboard-admin':    'nav-dashboard-admin',
         'panel-delete-request':     'nav-delete-request',
         'panel-user-management':    'nav-user-management',
-        'panel-madibucks':          'nav-madibucks',
         'panel-accounting':         'nav-accounting',
         'panel-admin-groups':       'nav-admin-groups',
         'panel-reports':            'nav-reports',
@@ -1014,24 +1013,46 @@ async function loadAccountData() {
                     <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
                 `;
 
-                // Dummy data matching screenshot
-                const tasks = [
-                    { type: 'Academics', bucks: '150', task: 'Quiz 2', status: 'Over', statusColor: '#E0F2E9', textColor: '#28A745' },
-                    { type: 'Academics', bucks: '200', task: 'Quiz 5', status: 'Active', statusColor: '#E2E8F0', textColor: '#6C7D93' }
-                ];
-                
-                tasks.forEach(t => {
-                    tbody.innerHTML += `
-                        <tr style="border-bottom: 1px solid #F0F2F5;">
-                            <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${t.type}</td>
-                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${t.bucks}</td>
-                            <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${t.task}</td>
-                            <td style="text-align: center; padding: 15px 10px;">
-                                <span style="background: ${t.statusColor}; color: ${t.textColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.status}</span>
-                            </td>
-                        </tr>
-                    `;
-                });
+                // Fetch real data from backend
+                fetch(`http://localhost:8081/api/tasks?createdBy=${u.userID}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        let tasks = [];
+                        if (Array.isArray(data)) {
+                            tasks = data;
+                        }
+
+                        if (tasks.length === 0) {
+                            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #6C7D93;">No tasks found.</td></tr>`;
+                            return;
+                        }
+
+                        tasks.forEach(task => {
+                            // Backend Task has: title, description, amount, etc.
+                            // Default to "Academics" and "Active" since DB doesn't track these yet.
+                            const type = 'Academics';
+                            const status = 'Active';
+                            const bucks = task.amount || 0;
+                            const title = task.title || 'Untitled Task';
+                            const statusColor = '#E2E8F0';
+                            const textColor = '#6C7D93';
+
+                            tbody.innerHTML += `
+                                <tr style="border-bottom: 1px solid #F0F2F5;">
+                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${type}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${bucks}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #6C7D93; font-size: 0.95rem;">${title}</td>
+                                    <td style="text-align: center; padding: 15px 10px;">
+                                        <span style="background: ${statusColor}; color: ${textColor}; padding: 5px 15px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${status}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    })
+                    .catch(err => {
+                        console.error('Error fetching tasks:', err);
+                        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #D9534F;">Failed to load tasks.</td></tr>`;
+                    });
             } else {
                 tableTitle.textContent = 'Bets Placed';
                 stat1Label.textContent = 'Total Students';
@@ -1229,18 +1250,27 @@ function switchUMTab(role, btnEl) {
     document.querySelectorAll('.um-tab-btn').forEach(btn => btn.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
     
-    // Update title
     const titleEl = document.getElementById('um-tab-title');
     const colNo = document.getElementById('um-col-no');
+    
+    const searchBySelect = document.getElementById('um-search-by');
+    let idOption = null;
+    if (searchBySelect) {
+        idOption = searchBySelect.querySelector('option[value="id"]');
+    }
+
     if (role === 'STUDENT') {
         titleEl.textContent = 'Student';
         colNo.textContent = 'Student No.';
+        if (idOption) idOption.textContent = 'Search by: Student No.';
     } else if (role === 'LECTURER') {
         titleEl.textContent = 'Lecturer';
         colNo.textContent = 'Staff No.';
+        if (idOption) idOption.textContent = 'Search by: Staff No.';
     } else {
         titleEl.textContent = 'Administrator';
         colNo.textContent = 'User ID';
+        if (idOption) idOption.textContent = 'Search by: User ID';
     }
 
     renderUMTable();
@@ -1262,34 +1292,55 @@ function renderUMTable() {
     // Filter by role and search
     let filteredUsers = umUsers.filter(u => u.userType === umActiveTab);
     
+    const searchBySelect = document.getElementById('um-search-by');
+    const searchBy = searchBySelect ? searchBySelect.value : 'id';
+    
     if (searchTerm) {
         filteredUsers = filteredUsers.filter(u => {
-            const fullName = `${u.name} ${u.surname}`.toLowerCase();
-            const email = u.email.toLowerCase();
-            const no = String(u.studentNo || u.staffNo || u.userID).toLowerCase();
-            return fullName.includes(searchTerm) || email.includes(searchTerm) || no.includes(searchTerm);
+            const fullName = `${u.name || ''} ${u.surname || ''}`.toLowerCase();
+            const email = (u.email || '').toLowerCase();
+            const no = String(u.studentNo || u.staffNo || u.userID || '').toLowerCase();
+            
+            if (searchBy === 'id') return no.includes(searchTerm);
+            if (searchBy === 'name') return fullName.includes(searchTerm);
+            if (searchBy === 'email') return email.includes(searchTerm);
+            return false;
         });
     }
 
     // Pagination info
     const pageInfo = document.getElementById('um-pagination-info');
     if (pageInfo) {
-        pageInfo.textContent = `1 - ${filteredUsers.length} of ${filteredUsers.length}`;
+        if (filteredUsers.length === 0) {
+            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
+        } else {
+            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1 - ${filteredUsers.length}</span> of ${filteredUsers.length}`;
+        }
     }
 
     filteredUsers.forEach(u => {
         const no = u.userType === 'STUDENT' ? (u.studentNo || 'N/A') : (u.userType === 'LECTURER' ? (u.staffNo || 'N/A') : u.userID);
-        const date = '17/03/2026'; // Placeholder as registration date isn't in the schema
+        let date = 'N/A';
+        if (u.createdDate) {
+            const match = u.createdDate.match(/^(\d{4}-\d{2}-\d{2})/);
+            if (match) {
+                // convert YYYY-MM-DD to DD/MM/YYYY for the table to match previous style
+                const parts = match[1].split('-');
+                date = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            } else {
+                date = u.createdDate.split(' ')[0];
+            }
+        }
 
         tbody.innerHTML += `
             <tr>
-                <td><input type="checkbox" style="width: 16px; height: 16px;"></td>
                 <td style="color: #A0B2D6;">#${no}</td>
                 <td style="color: #1B2F5E; font-weight: 600;">${u.name} ${u.surname}</td>
                 <td><a href="mailto:${u.email}" style="color: #6C7D93; text-decoration: underline;">${u.email}</a></td>
                 <td style="color: #1B2F5E; font-weight: 600;">${date}</td>
-                <td style="text-align: center;"><button class="um-action-btn">View</button></td>
-                <td style="text-align: center; color: #A0B2D6; font-size: 1.2rem; cursor: pointer;">⋮</td>
+                <td style="text-align: center;">
+                    <button class="um-action-btn" onclick="currentSelectedUserId = ${u.userID}; openUserProfileModal()">View</button>
+                </td>
             </tr>
         `;
     });
@@ -1601,6 +1652,46 @@ async function loadLecturerDashboardStats() {
             }
             engEl.innerText = `${pct}%`;
         }
+
+        // Fetch lecturer's created groups
+        const groupsRes = await fetch(`${API_BASE}/groups?createdBy=${user.userID}`);
+        if (groupsRes.ok) {
+            const groups = await groupsRes.json();
+            const container = document.getElementById('lecturer-groups-container');
+            if (container) {
+                container.innerHTML = '';
+                if (groups.length === 0) {
+                    container.innerHTML = '<p style="color: #6C7D93; font-style: italic;">No groups created yet.</p>';
+                } else {
+                    groups.forEach(g => {
+                        const badge = g.groupName ? g.groupName.substring(0, 4).toUpperCase() : 'GRP';
+                        const name = g.groupName || 'Unnamed Group';
+                        const desc = g.description || 'No description';
+                        const dateStr = g.createdDate ? new Date(g.createdDate).toLocaleDateString() : 'recently';
+                        
+                        container.innerHTML += `
+                            <div class="lect-group-card">
+                                <div class="lect-group-header">
+                                    <div class="lect-group-badge">${badge}</div>
+                                    <div>
+                                        <p class="lect-group-name">${name}</p>
+                                        <p class="lect-group-meta">${desc}</p>
+                                    </div>
+                                    <div class="lect-group-pill lect-pill-green">Active</div>
+                                </div>
+                                <ul class="lect-group-updates">
+                                    <li>🟢 Created on: <strong>${dateStr}</strong></li>
+                                    <li>💬 Ready for new activities</li>
+                                </ul>
+                                <button class="lect-group-btn" onclick="switchPanel('panel-groups'); return false;">View Group
+                                    →</button>
+                            </div>
+                        `;
+                    });
+                }
+            }
+        }
+
     } catch (e) {
         console.error("Failed to load lecturer stats", e);
     }
@@ -1727,6 +1818,12 @@ async function loadAdminQueries() {
         
         if (response.ok) {
             renderQueryTable(queries);
+            const openQueries = queries.filter(q => q.resolvedStatus === 'OPEN');
+            const badge = document.getElementById('query-badge');
+            if (badge) {
+                badge.textContent = openQueries.length;
+                badge.style.display = openQueries.length > 0 ? 'inline-flex' : 'none';
+            }
         } else {
             console.error('Failed to load queries');
         }
@@ -1850,15 +1947,14 @@ async function submitDeleteRequest() {
     }
 }
 
+window.allDeleteRequests = [];
+
 async function loadDeleteRequests() {
     try {
         const response = await fetch(`${API_BASE}/users/delete-requests`);
         if (!response.ok) return;
         const requests = await response.json();
 
-        const tbody = document.getElementById('delete-request-tbody');
-        if (!tbody) return;
-        
         const newRequests = requests.filter(r => r.status === 'NEW');
         
         const uniqueRequests = [];
@@ -1877,36 +1973,73 @@ async function loadDeleteRequests() {
             badge.style.display = newCount > 0 ? 'inline-flex' : 'none';
         }
         
-        const paginationInfo = document.getElementById('delete-request-pagination-info');
-        if (paginationInfo) {
-            if (newCount === 0) {
-                paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
-            } else {
-                paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of ${newCount}`;
-            }
+        const adminDeleteStat = document.getElementById('admin-delete-requests');
+        if (adminDeleteStat) {
+            adminDeleteStat.textContent = newCount;
         }
-
-        tbody.innerHTML = '';
-        uniqueRequests.forEach(req => {
-            const dateStr = new Date(req.requestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding: 12px 15px; color: #6C7A9C; font-size: 0.9rem;">${dateStr}</td>
-                <td style="padding: 12px 15px; font-weight: 600; color: #1B2F5E; font-size: 0.95rem;">${req.userName}</td>
-                <td style="padding: 12px 15px;"><a href="mailto:${req.userEmail}" style="color: #6C7A9C; text-decoration: underline; font-size: 0.9rem;">${req.userEmail}</a></td>
-                <td style="padding: 12px 15px; text-align: center;">
-                    <div style="display: flex; gap: 8px; justify-content: center;">
-                        <button onclick="reinstateUser(${req.requestID})" style="background: white; border: 1px solid #1B2F5E; color: #1B2F5E; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Reinstate</button>
-                        <button onclick="deleteUserPermanently(${req.userID})" style="background: #D9534F; border: none; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Delete</button>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
+        
+        window.allDeleteRequests = uniqueRequests;
+        filterDeleteRequests();
     } catch (err) {
         console.error('Failed to load delete requests:', err);
     }
+}
+
+window.filterDeleteRequests = function() {
+    const searchInput = document.getElementById('admin-delete-search-input');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    const searchBySelect = document.getElementById('admin-delete-search-by');
+    const searchBy = searchBySelect ? searchBySelect.value : 'name';
+    
+    let filtered = window.allDeleteRequests;
+    if (searchTerm) {
+        filtered = filtered.filter(req => {
+            const name = (req.userName || '').toLowerCase();
+            const email = (req.userEmail || '').toLowerCase();
+            
+            if (searchBy === 'name') return name.includes(searchTerm);
+            if (searchBy === 'email') return email.includes(searchTerm);
+            return false;
+        });
+    }
+    
+    renderDeleteRequests(filtered);
+}
+
+function renderDeleteRequests(requestsToRender) {
+    const tbody = document.getElementById('delete-request-tbody');
+    if (!tbody) return;
+    
+    const count = requestsToRender.length;
+    
+    const paginationInfo = document.getElementById('delete-request-pagination-info');
+    if (paginationInfo) {
+        if (count === 0) {
+            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
+        } else {
+            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of ${count}`;
+        }
+    }
+
+    tbody.innerHTML = '';
+    requestsToRender.forEach(req => {
+        const dateStr = new Date(req.requestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="padding: 12px 15px; color: #6C7A9C; font-size: 0.9rem;">${dateStr}</td>
+            <td style="padding: 12px 15px; font-weight: 600; color: #1B2F5E; font-size: 0.95rem;">${escapeHtml(req.userName || '')}</td>
+            <td style="padding: 12px 15px;"><a href="mailto:${req.userEmail}" style="color: #6C7A9C; text-decoration: underline; font-size: 0.9rem;">${escapeHtml(req.userEmail || '')}</a></td>
+            <td style="padding: 12px 15px; text-align: center;">
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button onclick="reinstateUser(${req.requestID})" style="background: white; border: 1px solid #1B2F5E; color: #1B2F5E; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Reinstate</button>
+                    <button onclick="deleteUserPermanently(${req.userID})" style="background: #D9534F; border: none; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Delete</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 async function reinstateUser(reqId) {
@@ -1947,27 +2080,340 @@ async function deleteUserPermanently(userId) {
 
 // ── Fetch & display live admin dashboard stats ──
 async function loadAdminDashboardStats() {
+    const setStat = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    // 1. Dashboard stat cards
     try {
         const res = await fetch(`${API_BASE}/admin/dashboard-stats`);
-        if (!res.ok) return;
-        const stats = await res.json();
-        
-        const setStat = (id, value) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value;
-        };
-        
-        setStat('stat-bets-proposed', stats.betsProposedToday);
-        setStat('stat-bets-placed', stats.betsPlacedToday);
-        setStat('stat-bets-pending', stats.betsPendingReview);
-        setStat('stat-upcoming-events', stats.upcomingEvents);
-        
-        setStat('stat-users-total', stats.totalUsers);
-        setStat('stat-users-joined-today', stats.usersJoinedToday);
-        setStat('stat-support-queries', stats.openSupportQueries);
-        setStat('stat-bonus-awarded', stats.usersRewardedToday);
+        if (res.ok) {
+            const stats = await res.json();
+            
+            setStat('stat-bets-proposed', stats.betsProposedToday);
+            setStat('stat-bets-placed', stats.betsPlacedToday);
+            setStat('stat-bets-pending', stats.betsPendingReview);
+            setStat('stat-upcoming-events', stats.upcomingEvents);
+            
+            setStat('stat-users-total', stats.totalUsers);
+            setStat('stat-users-joined-today', stats.usersJoinedToday);
+            setStat('stat-support-queries', stats.openSupportQueries);
+            setStat('stat-bonus-awarded', stats.usersRewardedToday);
+            
+            setStat('admin-total-users', stats.totalUsers);
+            setStat('admin-new-proposals', stats.betsPendingReview);
+            setStat('admin-weekly-growth', stats.usersJoinedToday);
+        }
     } catch (err) {
         console.error('Failed to load admin dashboard stats:', err);
+    }
+    
+    // 2. Populate dashboard Delete Requests card
+    try {
+        const res = await fetch(`${API_BASE}/users/delete-requests`);
+        if (res.ok) {
+            const requests = await res.json();
+            const newRequests = requests.filter(r => r.status === 'NEW');
+            const uniqueRequests = [];
+            const seenUsers = new Set();
+            for (const req of newRequests) {
+                if (!seenUsers.has(req.userID)) {
+                    seenUsers.add(req.userID);
+                    uniqueRequests.push(req);
+                }
+            }
+            const tbody = document.getElementById('dashboard-delete-requests-tbody');
+            if (tbody) {
+                if (uniqueRequests.length === 0) {
+                    tbody.innerHTML = '<tr><td style="color:#A0B2D6;">No pending requests</td></tr>';
+                } else {
+                    tbody.innerHTML = uniqueRequests.slice(0, 6).map(r =>
+                        `<tr><td>${r.userName || ''}</td></tr>`
+                    ).join('');
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load dashboard delete requests:', err);
+    }
+    
+    // 3. Populate dashboard Groups card
+    try {
+        const res = await fetch(`${API_BASE}/groups`);
+        if (res.ok) {
+            const groups = await res.json();
+            const container = document.getElementById('dashboard-groups-list');
+            if (container) {
+                if (groups.length === 0) {
+                    container.innerHTML = '<div class="admin-league-row"><span style="color:#A0B2D6;">No groups yet</span></div>';
+                } else {
+                    container.innerHTML = groups.slice(0, 6).map(g =>
+                        `<div class="admin-league-row"><span>${g.groupName}</span><button class="admin-league-btn" onclick="switchPanel('panel-groups')">View</button></div>`
+                    ).join('');
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load dashboard groups:', err);
+    }
+    
+    // 4. Populate Bet Types pie chart from active bets
+    try {
+        const res = await fetch(`${API_BASE}/bets/active`);
+        if (res.ok) {
+            const data = await res.json();
+            const bets = data.bets || [];
+            
+            const typeColors = {
+                'Academics': '#34D399',
+                'Sports': '#3B82F6',
+                'Social': '#F87171',
+                'Class Room': '#F5A623',
+                'Other': '#A78BFA'
+            };
+            
+            // Count bets by type
+            const counts = {};
+            bets.forEach(b => {
+                const idx = b.description.indexOf(':');
+                let type = 'Other';
+                if (idx > 0) {
+                    const prefix = b.description.slice(0, idx).trim();
+                    const known = Object.keys(typeColors);
+                    const match = known.find(k => k.toLowerCase() === prefix.toLowerCase());
+                    if (match) type = match;
+                }
+                counts[type] = (counts[type] || 0) + 1;
+            });
+            
+            const total = bets.length;
+            const pie = document.getElementById('admin-bet-pie');
+            const legend = document.getElementById('admin-bet-legend');
+            
+            if (pie && legend && total > 0) {
+                // Build conic-gradient
+                let gradientParts = [];
+                let cumulative = 0;
+                const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                
+                entries.forEach(([type, count]) => {
+                    const pct = (count / total) * 100;
+                    const color = typeColors[type] || '#A78BFA';
+                    gradientParts.push(`${color} ${cumulative.toFixed(1)}% ${(cumulative + pct).toFixed(1)}%`);
+                    cumulative += pct;
+                });
+                
+                pie.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+                
+                // Build legend
+                legend.innerHTML = entries.map(([type, count]) => {
+                    const color = typeColors[type] || '#A78BFA';
+                    return `<span class="admin-legend-dot" style="background:${color}; margin-left:8px;"></span> ${type} (${count})`;
+                }).join('');
+            } else if (pie && total === 0) {
+                pie.style.background = '#E2E8F0';
+                legend.innerHTML = '<span style="color:#A0B2D6;">No active bets</span>';
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load bet types chart:', err);
+    }
+    
+    // 5. Populate New Users line graph
+    try {
+        const res = await fetch(`${API_BASE}/users/all`);
+        if (res.ok) {
+            const users = await res.json();
+            // Filter to STUDENTS and LECTURERS
+            const targetUsers = users.filter(u => u.userType === 'STUDENT' || u.userType === 'LECTURER');
+            
+            // Generate last 7 days array ['Mon', 'Tue', 'Wed', ...] and counts
+            const daysMap = {};
+            const labels = [];
+            const counts = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+                daysMap[dateStr] = { count: 0, label: label };
+                labels.push(label);
+            }
+            
+            // Count users by date
+            targetUsers.forEach(u => {
+                if (u.createdDate) {
+                    const match = u.createdDate.match(/^(\d{4}-\d{2}-\d{2})/);
+                    if (match) {
+                        const dateStr = match[1];
+                        if (daysMap[dateStr]) {
+                            daysMap[dateStr].count++;
+                        }
+                    }
+                }
+            });
+            
+            Object.values(daysMap).forEach(data => counts.push(data.count));
+            
+            let maxCount = Math.max(...counts);
+            if (maxCount < 10) maxCount = 10; // Minimum scale of 10
+            
+            // Update Y-axis labels
+            const yAxis = document.getElementById('admin-users-line-y-axis');
+            if (yAxis) {
+                yAxis.innerHTML = `
+                    <span>${maxCount}</span>
+                    <span>${Math.round(maxCount / 2)}</span>
+                    <span>0</span>
+                `;
+            }
+            
+            // Draw SVG
+            const pathEl = document.getElementById('admin-users-line-path');
+            const pointsGroup = document.getElementById('admin-users-line-points');
+            const labelsDiv = document.getElementById('admin-users-line-labels');
+            const tooltip = document.getElementById('admin-users-line-tooltip');
+            
+            if (pathEl && pointsGroup && labelsDiv) {
+                let dPath = '';
+                pointsGroup.innerHTML = '';
+                
+                const width = 200;
+                const chartHeight = 80;
+                const topPadding = 10;
+                const stepX = width / (counts.length - 1);
+                
+                counts.forEach((val, i) => {
+                    const x = i * stepX;
+                    const y = topPadding + chartHeight - (val / maxCount) * chartHeight;
+                    
+                    if (i === 0) dPath += `M ${x} ${y} `;
+                    else dPath += `L ${x} ${y} `;
+                    
+                    // Add invisible larger circle for easier hovering
+                    pointsGroup.innerHTML += `
+                        <circle cx="${x}" cy="${y}" r="10" fill="transparent"
+                            onmouseover="showAdminLineTooltip(event, '${labels[i]}', ${val})"
+                            onmouseout="hideAdminLineTooltip()" />
+                        <circle cx="${x}" cy="${y}" r="3" fill="#1B2F5E" style="pointer-events:none;" />
+                    `;
+                });
+                
+                pathEl.setAttribute('d', dPath);
+                labelsDiv.innerHTML = labels.map(l => `<span>${l}</span>`).join('');
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load new users chart:', err);
+    }
+}
+
+window.showAdminLineTooltip = function(e, label, value) {
+    const tooltip = document.getElementById('admin-users-line-tooltip');
+    if (!tooltip) return;
+    tooltip.innerHTML = `${label}: ${value} users`;
+    tooltip.style.opacity = '1';
+    
+    const svgRect = document.getElementById('admin-users-line-chart').getBoundingClientRect();
+    const x = e.clientX - svgRect.left;
+    const y = e.clientY - svgRect.top;
+    
+    // Position tooltip above the point
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+}
+
+window.hideAdminLineTooltip = function() {
+    const tooltip = document.getElementById('admin-users-line-tooltip');
+    if (tooltip) tooltip.style.opacity = '0';
+}
+
+/* =============================================================
+ * USER PROFILE MODAL & DELETION LOGIC
+ * ============================================================= */
+
+let currentSelectedUserId = null;
+
+window.openUserProfileModal = async function() {
+    if (!currentSelectedUserId) return;
+    
+    const detailsContainer = document.getElementById('user-profile-details');
+    detailsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px;">Loading details...</div>';
+    
+    document.getElementById('user-profile-modal').classList.remove('hidden');
+    
+    try {
+        const res = await fetch(`${API_BASE}/users/${currentSelectedUserId}`);
+        const data = await res.json();
+        
+        if (res.ok && data.user) {
+            const u = data.user;
+            const balance = typeof data.balance === 'number' ? data.balance.toFixed(2) : '0.00';
+            const role = u.userType || 'N/A';
+            const idField = role === 'STUDENT' ? 'Student No.' : (role === 'LECTURER' ? 'Staff No.' : 'User ID');
+            const idVal = role === 'STUDENT' ? u.studentNo : (role === 'LECTURER' ? u.staffNo : u.userID);
+            
+            detailsContainer.innerHTML = `
+                <div style="color: #6C7D93; font-weight: 500;">Name:</div>
+                <div style="font-weight: 600;">${escapeHtml(u.name || '')} ${escapeHtml(u.surname || '')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">Email:</div>
+                <div style="font-weight: 600;">${escapeHtml(u.email || 'N/A')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">${idField}:</div>
+                <div style="font-weight: 600;">#${escapeHtml(idVal || 'N/A')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">Role:</div>
+                <div style="font-weight: 600;">${escapeHtml(role)}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">MadiBucks:</div>
+                <div style="font-weight: 700; color: #F5A623;">${balance}</div>
+            `;
+        } else {
+            detailsContainer.innerHTML = `<div style="grid-column: span 2; color: #D9534F; text-align: center; padding: 20px;">Failed to load profile.</div>`;
+        }
+    } catch (err) {
+        console.error('Error fetching user profile:', err);
+        detailsContainer.innerHTML = `<div style="grid-column: span 2; color: #D9534F; text-align: center; padding: 20px;">Network error.</div>`;
+    }
+}
+
+window.closeUserProfileModal = function() {
+    document.getElementById('user-profile-modal').classList.add('hidden');
+}
+
+window.confirmDeleteUser = async function() {
+    if (!currentSelectedUserId) return;
+    
+    // Utilize the existing confirm modal which returns a Promise
+    const confirmed = await showConfirmModal(
+        'Delete User?', 
+        'Are you sure you want to delete this user? This action cannot be undone and will remove all associated bets and account data.'
+    );
+    
+    if (confirmed) {
+        try {
+            const res = await fetch(`${API_BASE}/users/${currentSelectedUserId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                showToast('User deleted successfully.', 'success');
+                closeUserProfileModal();
+                // Refresh the table
+                loadUserManagementTable();
+            } else {
+                const errData = await res.json();
+                showToast(errData.error || 'Failed to delete user.', 'error');
+            }
+        } catch (err) {
+            console.error('Error deleting user:', err);
+            showToast('Network error while deleting.', 'error');
+        }
     }
 }
 

@@ -22,7 +22,7 @@ public class AdminDAO {
             }
             
             // 2. Bets Placed Today
-            String q2 = "SELECT COUNT(*) FROM Bet WHERE DATE(placedDate) = CURDATE()";
+            String q2 = "SELECT COUNT(*) FROM Wager WHERE DATE(placedDate) = CURDATE()";
             try (PreparedStatement ps = con.prepareStatement(q2); ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) stats.setBetsPlacedToday(rs.getInt(1));
             }

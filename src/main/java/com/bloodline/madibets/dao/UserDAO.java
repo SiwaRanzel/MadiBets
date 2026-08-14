@@ -100,7 +100,7 @@ public class UserDAO {
 
     /** A200 Login (READ). Returns the matching user, or null. */
     public User findByEmail(String email) throws SQLException {
-        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, u.createdDate, "
                    + "s.studentNo, l.staffNo "
                    + "FROM User u "
                    + "LEFT JOIN Student s ON u.userID = s.userID "
@@ -117,7 +117,7 @@ public class UserDAO {
 
     /** A300 View Profile (READ). */
     public User findById(int userID) throws SQLException {
-        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, u.createdDate, "
                    + "s.studentNo, l.staffNo "
                    + "FROM User u "
                    + "LEFT JOIN Student s ON u.userID = s.userID "
@@ -134,7 +134,7 @@ public class UserDAO {
 
     /** View All Users (READ). */
     public List<User> getAllUsers() throws SQLException {
-        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, "
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, u.createdDate, "
                    + "s.studentNo, l.staffNo "
                    + "FROM User u "
                    + "LEFT JOIN Student s ON u.userID = s.userID "
@@ -299,6 +299,7 @@ public class UserDAO {
         u.setStudentNo(rs.getString("studentNo"));
         u.setStaffNo(rs.getString("staffNo"));
         u.setAvatarPath(rs.getString("avatarPath"));
+        u.setCreatedDate(rs.getString("createdDate"));
         return u;
     }
 }

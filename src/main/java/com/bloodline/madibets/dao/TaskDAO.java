@@ -72,4 +72,33 @@ public class TaskDAO {
         }
         return tasks;
     }
+
+    // D501 View Tasks by Creator (READ) -> findByCreator(int createdBy)
+    public List<Task> findByCreator(int createdBy) throws SQLException {
+        String sql = "SELECT taskID, title, description, groupID, userID, amount, createdBy FROM Task WHERE createdBy = ?";
+        List<Task> tasks = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, createdBy);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Task task = new Task();
+                    task.setTaskID(rs.getInt("taskID"));
+                    task.setTitle(rs.getString("title"));
+                    task.setDescription(rs.getString("description"));
+                    task.setGroupID(rs.getInt("groupID"));
+                    
+                    int userID = rs.getInt("userID");
+                    if (!rs.wasNull()) {
+                        task.setUserID(userID);
+                    }
+                    
+                    task.setAmount(rs.getBigDecimal("amount"));
+                    task.setCreatedBy(rs.getInt("createdBy"));
+                    tasks.add(task);
+                }
+            }
+        }
+        return tasks;
+    }
 }

@@ -11,6 +11,7 @@ public class User {
     private String studentNo;
     private String staffNo;
     private String avatarPath;
+    private String createdDate;
 
     public User() {}
 
@@ -41,4 +42,6 @@ public class User {
     public void setStaffNo(String v)    { this.staffNo = v; }
     public String getAvatarPath()       { return avatarPath; }
     public void setAvatarPath(String v) { this.avatarPath = v; }
+    public String getCreatedDate()      { return createdDate; }
+    public void setCreatedDate(String v){ this.createdDate = v; }
 }

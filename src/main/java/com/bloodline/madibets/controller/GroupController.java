@@ -41,9 +41,16 @@ public class GroupController {
 
     @GetMapping("")
     public ResponseEntity<?> listGroups(@RequestParam(required = false) String q,
-                                        @RequestParam(required = false) Integer userId) {
+                                        @RequestParam(required = false) Integer userId,
+                                        @RequestParam(required = false) Integer createdBy) {
         try {
             List<Object> out = new ArrayList<>();
+            
+            if (createdBy != null) {
+                out.addAll(groupDAO.findByCreator(createdBy));
+                return ResponseEntity.ok(out);
+            }
+            
             if (userId != null) {
                 Map<String,Object> overall = Map.of(
                         "groupID", 0,

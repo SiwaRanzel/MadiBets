@@ -1265,7 +1265,7 @@ body {
 /* --- Stat Cards Row --- */
 .admin-stats-row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px;
     margin-bottom: 20px;
 }
@@ -1293,7 +1293,7 @@ body {
 /* --- Chart Cards Row --- */
 .admin-charts-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 14px;
     margin-bottom: 20px;
 }
@@ -1382,7 +1382,7 @@ body {
 /* --- Bottom Row --- */
 .admin-bottom-row {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 14px;
 }
 .admin-bottom-card {
