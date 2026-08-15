@@ -76,33 +76,52 @@ CREATE TABLE Event (
 ) ENGINE=InnoDB;
 
 CREATE TABLE Bet (
-  betID         INT AUTO_INCREMENT PRIMARY KEY,
-  userID        INT NOT NULL,           -- proposer (wagers live in Wager, see DESIGN NOTES #1)
-  eventID       INT,
-  description   VARCHAR(255) NOT NULL,
-  odds          DECIMAL(6,2),
-  outcome       ENUM('PENDING','YES','NO','CANCELLED') NOT NULL DEFAULT 'PENDING',
-  status        ENUM('PROPOSED','ACTIVE','GRADED','DELETED') NOT NULL DEFAULT 'PROPOSED',
-  proposedDate  DATETIME,
-  gradedDate    DATETIME,
-  gradedBy      INT,                     -- admin userID
+  betID            INT AUTO_INCREMENT PRIMARY KEY,
+  userID           INT NOT NULL,        -- proposer (wagers live in Wager, see DESIGN NOTES #1)
+  eventID          INT,
+  description      VARCHAR(255) NOT NULL,
+  outcome          ENUM('PENDING','DECIDED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+  status           ENUM('PROPOSED','ACTIVE','GRADED','DELETED') NOT NULL DEFAULT 'PROPOSED',
+  deadline         DATETIME,            -- admin-set at approval; wagering closes when it passes
+  winningOutcomeID INT,                 -- set when graded DECIDED (FK added after BetOutcome)
+  proposedDate     DATETIME,
+  gradedDate       DATETIME,
+  gradedBy         INT,                 -- admin userID
   CONSTRAINT fk_bet_user   FOREIGN KEY (userID)   REFERENCES User(userID),
   CONSTRAINT fk_bet_event  FOREIGN KEY (eventID)  REFERENCES Event(eventID),
   CONSTRAINT fk_bet_grader FOREIGN KEY (gradedBy) REFERENCES User(userID)
 ) ENGINE=InnoDB;
 
--- One student's stake on one market (design note #1 resolved: market/wager
--- split so many students can wager on the same bet). Stake is stored
--- explicitly, so refunds no longer need to be derived from payout/odds.
+-- The 2-4 possible outcomes of one bet (e.g. "Madibaz win" / "Wits win" /
+-- "Draw"). The proposer names them; the admin prices them at approval, so
+-- odds stay NULL while the bet is PROPOSED.
+CREATE TABLE BetOutcome (
+  outcomeID INT AUTO_INCREMENT PRIMARY KEY,
+  betID     INT NOT NULL,
+  label     VARCHAR(100) NOT NULL,
+  odds      DECIMAL(6,2),               -- NULL until the admin prices it (B300)
+  position  INT NOT NULL DEFAULT 0,     -- display order
+  CONSTRAINT fk_outcome_bet FOREIGN KEY (betID) REFERENCES Bet(betID) ON DELETE CASCADE,
+  CONSTRAINT uq_outcome UNIQUE (betID, label)
+) ENGINE=InnoDB;
+
+ALTER TABLE Bet
+  ADD CONSTRAINT fk_bet_winner FOREIGN KEY (winningOutcomeID) REFERENCES BetOutcome(outcomeID);
+
+-- One student's stake on one outcome of one market (design note #1 resolved:
+-- market/wager split so many students can wager on the same bet). Stake is
+-- stored explicitly, so refunds no longer need to be derived from payout/odds.
 CREATE TABLE Wager (
   wagerID       INT AUTO_INCREMENT PRIMARY KEY,
   betID         INT NOT NULL,
+  outcomeID     INT NOT NULL,            -- the outcome this student backed
   userID        INT NOT NULL,
   stake         DECIMAL(12,2) NOT NULL,
-  amountToBeWon DECIMAL(12,2) NOT NULL,  -- stake x odds, frozen at placement
+  amountToBeWon DECIMAL(12,2) NOT NULL,  -- stake x chosen outcome's odds, frozen at placement
   placedDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_wager_bet  FOREIGN KEY (betID)  REFERENCES Bet(betID) ON DELETE CASCADE,
-  CONSTRAINT fk_wager_user FOREIGN KEY (userID) REFERENCES User(userID),
+  CONSTRAINT fk_wager_bet     FOREIGN KEY (betID)     REFERENCES Bet(betID) ON DELETE CASCADE,
+  CONSTRAINT fk_wager_outcome FOREIGN KEY (outcomeID) REFERENCES BetOutcome(outcomeID),
+  CONSTRAINT fk_wager_user    FOREIGN KEY (userID)    REFERENCES User(userID),
   CONSTRAINT uq_wager UNIQUE (betID, userID)   -- one wager per student per bet
 ) ENGINE=InnoDB;
 
