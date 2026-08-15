@@ -2003,6 +2003,11 @@ function switchBetsTab(tab) {
     if (tab === 'place') loadBetsPanel();
 }
 
+/** "2026-08-20T18:00" -> "2026-08-20 18:00" for table cells. */
+function fmtDeadline(dt) {
+    return dt ? String(dt).slice(0, 16).replace('T', ' ') : '—';
+}
+
 async function loadBetsPanel() {
     const tbody = document.getElementById('bets-table-body');
     const empty = document.getElementById('bets-empty-msg');
@@ -2022,15 +2027,19 @@ async function loadBetsPanel() {
 
         bets.forEach(b => {
             betsCache[b.betID] = b;
-            const odds = Number(b.odds).toFixed(2);
+            // One odds button per outcome (FSSB p.25: side-by-side odds).
             const action = b.open
-                ? `<button class="bet-action-btn" onclick="openWagerModal(${b.betID})">${odds}</button>`
-                : `<span class="bet-taken-pill">Taken · ${odds}</span>`;
+                ? (b.outcomes || []).map(o =>
+                    `<button class="bet-action-btn" style="margin: 2px 4px 2px 0;"
+                        onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
+                        ${escapeHtml(o.label)} ${Number(o.odds).toFixed(2)}</button>`).join('')
+                : '<span class="bet-taken-pill">Closed — awaiting grading</span>';
             tbody.innerHTML += `
                 <tr>
                     <td>${escapeHtml(betTypeOf(b.description))}</td>
                     <td>${escapeHtml(betTextOf(b.description))}</td>
-                    <td style="text-align: center;">${action}</td>
+                    <td>${fmtDeadline(b.deadline)}</td>
+                    <td>${action}</td>
                 </tr>
             `;
         });
@@ -2053,12 +2062,21 @@ function filterBetsTable() {
 
 // ── Wager modal (B100) ──
 let wagerBetID = null;
+let wagerOutcomeID = null;
 
-function openWagerModal(betID) {
+function wagerOutcome() {
+    const b = betsCache[wagerBetID];
+    return b ? (b.outcomes || []).find(o => o.outcomeID === wagerOutcomeID) : null;
+}
+
+function openWagerModal(betID, outcomeID) {
     const b = betsCache[betID];
     if (!b) return;
     wagerBetID = betID;
+    wagerOutcomeID = outcomeID;
+    const o = wagerOutcome();
     document.getElementById('wager-bet-desc').textContent = betTextOf(b.description);
+    document.getElementById('wager-bet-outcome').textContent = o ? `Your pick: ${o.label}` : '';
     document.getElementById('wager-amount').value = '';
     updateWagerPayout();
     document.getElementById('wager-modal').classList.remove('hidden');
@@ -2066,13 +2084,14 @@ function openWagerModal(betID) {
 
 function closeWagerModal() {
     wagerBetID = null;
+    wagerOutcomeID = null;
     document.getElementById('wager-modal').classList.add('hidden');
 }
 
 function updateWagerPayout() {
-    const b = betsCache[wagerBetID];
-    if (!b) return;
-    const odds = Number(b.odds);
+    const o = wagerOutcome();
+    if (!o) return;
+    const odds = Number(o.odds);
     const amount = parseFloat(document.getElementById('wager-amount').value);
     document.getElementById('wager-bet-payout').textContent = (amount > 0)
         ? `Odds ${odds.toFixed(2)} — potential payout ${(amount * odds).toFixed(2)} MB`
@@ -2094,7 +2113,7 @@ async function submitWager() {
         const res = await fetch(`${API_BASE}/bets/${wagerBetID}/wager`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userID: user.userID, stake: amount })
+            body: JSON.stringify({ userID: user.userID, outcomeID: wagerOutcomeID, stake: amount })
         });
         const data = await res.json();
         if (res.ok) {
@@ -2117,6 +2136,20 @@ async function submitWager() {
 }
 
 // ── Proposal form (B200) ──
+function addOutcomeField() {
+    const container = document.getElementById('propose-outcomes');
+    if (container.querySelectorAll('.propose-outcome-input').length >= 4) {
+        showToast('A bet can have at most 4 outcomes.', 'error');
+        return;
+    }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'propose-outcome-input';
+    input.maxLength = 100;
+    input.placeholder = 'Another outcome';
+    container.appendChild(input);
+}
+
 async function submitProposal() {
     const user = JSON.parse(sessionStorage.getItem('user'));
     if (!user) return;
@@ -2126,6 +2159,13 @@ async function submitProposal() {
         showToast('Please describe the bet you want to propose.', 'error');
         return;
     }
+    const outcomes = Array.from(document.querySelectorAll('.propose-outcome-input'))
+        .map(i => i.value.trim())
+        .filter(v => v);
+    if (outcomes.length < 2) {
+        showToast('List at least 2 possible outcomes.', 'error');
+        return;
+    }
 
     const btn = document.getElementById('btn-submit-proposal');
     setButtonLoading(btn, true);
@@ -2133,12 +2173,14 @@ async function submitProposal() {
         const res = await fetch(`${API_BASE}/bets/propose`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userID: user.userID, eventID: null, description: `${type}: ${text}` })
+            body: JSON.stringify({ userID: user.userID, eventID: null,
+                                   description: `${type}: ${text}`, outcomes: outcomes })
         });
         const data = await res.json();
         if (res.ok) {
             showToast('Proposal sent to the admins for review!', 'success');
             document.getElementById('propose-description').value = '';
+            document.querySelectorAll('.propose-outcome-input').forEach(i => { i.value = ''; });
             switchBetsTab('place');
         } else {
             showToast(data.error || 'Failed to submit proposal.', 'error');
@@ -2172,19 +2214,30 @@ async function loadAccountingPanel() {
     }
 }
 
+let acctCache = {};   // betID -> bet (with outcomes), for approve/grade handlers
+
 function renderProposedTable(bets) {
     const tbody = document.getElementById('acct-proposed-body');
     document.getElementById('acct-proposed-empty').classList.toggle('hidden', bets.length > 0);
     tbody.innerHTML = '';
     bets.forEach(b => {
+        acctCache[b.betID] = b;
         const date = b.proposedDate ? String(b.proposedDate).slice(0, 10) : '—';
+        // One odds input per proposed outcome — all required to approve.
+        const oddsInputs = (b.outcomes || []).map(o => `
+            <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
+                <span style="min-width: 90px; font-size: 0.85rem;">${escapeHtml(o.label)}</span>
+                <input type="number" id="odds-input-${b.betID}-${o.outcomeID}" class="acct-odds-input"
+                    min="1.01" step="0.01" placeholder="e.g. 2.50">
+            </div>`).join('');
         tbody.innerHTML += `
             <tr>
                 <td>${date}</td>
                 <td>${escapeHtml(betTypeOf(b.description))}</td>
                 <td>${escapeHtml(betTextOf(b.description))}</td>
-                <td><input type="number" id="odds-input-${b.betID}" class="acct-odds-input"
-                        min="1.01" step="0.01" placeholder="e.g. 2.50"></td>
+                <td>${oddsInputs}</td>
+                <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-odds-input"
+                        style="width: 175px;"></td>
                 <td>
                     <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
                     <button class="acct-btn acct-btn-reject" onclick="rejectProposalUI(${b.betID})">Reject</button>
@@ -2199,19 +2252,32 @@ function renderActiveAdminTable(bets) {
     document.getElementById('acct-active-empty').classList.toggle('hidden', bets.length > 0);
     tbody.innerHTML = '';
     bets.forEach(b => {
+        acctCache[b.betID] = b;
+        const outcomes = (b.outcomes || []).map(o =>
+            `${escapeHtml(o.label)} @ ${Number(o.odds).toFixed(2)}`).join('<br>');
         const wager = b.wagerCount > 0
             ? `${b.wagerCount} wager${b.wagerCount === 1 ? '' : 's'} · ${Number(b.totalStaked).toFixed(2)} MB staked`
             : '<span style="color:#A0B2D6;">No wagers yet</span>';
+        const closes = b.open
+            ? fmtDeadline(b.deadline)
+            : `${fmtDeadline(b.deadline)}<br><span style="color:#C0392B; font-weight:600;">Closed</span>`;
+        // One "winner" button per outcome, plus cancel/delete.
+        const winnerBtns = (b.outcomes || []).map(o =>
+            `<button class="acct-btn acct-btn-yes"
+                onclick="gradeBetUI(${b.betID}, ${o.outcomeID})">${escapeHtml(o.label)}</button>`).join('');
         tbody.innerHTML += `
             <tr>
                 <td>${escapeHtml(b.description)}</td>
-                <td style="text-align: center;">${Number(b.odds).toFixed(2)}</td>
+                <td style="font-size: 0.85rem;">${outcomes}</td>
                 <td>${wager}</td>
+                <td style="font-size: 0.85rem;">${closes}</td>
                 <td>
-                    <button class="acct-btn acct-btn-yes" onclick="gradeBetUI(${b.betID}, 'YES')">YES</button>
-                    <button class="acct-btn acct-btn-no" onclick="gradeBetUI(${b.betID}, 'NO')">NO</button>
-                    <button class="acct-btn acct-btn-cancel" onclick="gradeBetUI(${b.betID}, 'CANCELLED')">Cancel</button>
-                    <button class="acct-btn acct-btn-delete" onclick="deleteBetUI(${b.betID})">Delete</button>
+                    <div style="font-size: 0.72rem; color: #A0B2D6; margin-bottom: 3px;">Winner:</div>
+                    ${winnerBtns}
+                    <div style="margin-top: 5px;">
+                        <button class="acct-btn acct-btn-cancel" onclick="cancelBetUI(${b.betID})">Cancel</button>
+                        <button class="acct-btn acct-btn-delete" onclick="deleteBetUI(${b.betID})">Delete</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -2240,16 +2306,27 @@ function adminID() {
 }
 
 async function approveProposalUI(betID) {
-    const odds = parseFloat(document.getElementById(`odds-input-${betID}`).value);
-    if (!(odds > 1)) {
-        showToast('Enter odds greater than 1.00 before approving.', 'error');
+    const b = acctCache[betID];
+    if (!b) return;
+    const odds = {};
+    for (const o of (b.outcomes || [])) {
+        const v = parseFloat(document.getElementById(`odds-input-${betID}-${o.outcomeID}`).value);
+        if (!(v > 1)) {
+            showToast(`Enter odds greater than 1.00 for "${o.label}".`, 'error');
+            return;
+        }
+        odds[o.outcomeID] = v;
+    }
+    const deadline = document.getElementById(`deadline-input-${betID}`).value;
+    if (!deadline) {
+        showToast('Set the wagering deadline before approving.', 'error');
         return;
     }
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ odds: odds, adminUserID: adminID() })
-    }), `Bet #${betID} approved at odds ${odds.toFixed(2)}.`);
+        body: JSON.stringify({ odds: odds, deadline: deadline, adminUserID: adminID() })
+    }), `Bet #${betID} approved — open until ${deadline.replace('T', ' ')}.`);
 }
 
 async function rejectProposalUI(betID) {
@@ -2261,13 +2338,25 @@ async function rejectProposalUI(betID) {
     }), `Proposal #${betID} rejected.`);
 }
 
-async function gradeBetUI(betID, outcome) {
-    if (!confirm(`Grade bet #${betID} as ${outcome}? This settles any wager and cannot be undone.`)) return;
+async function gradeBetUI(betID, outcomeID) {
+    const b = acctCache[betID];
+    const o = b ? (b.outcomes || []).find(x => x.outcomeID === outcomeID) : null;
+    const label = o ? o.label : `outcome ${outcomeID}`;
+    if (!confirm(`Grade bet #${betID} with winner "${label}"? This settles every wager and cannot be undone.`)) return;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome: outcome, adminUserID: adminID() })
-    }), `Bet #${betID} graded ${outcome}.`);
+        body: JSON.stringify({ winningOutcomeID: outcomeID, adminUserID: adminID() })
+    }), `Bet #${betID} graded — "${label}" wins.`);
+}
+
+async function cancelBetUI(betID) {
+    if (!confirm(`Cancel bet #${betID}? Every stake will be refunded.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelled: true, adminUserID: adminID() })
+    }), `Bet #${betID} cancelled — stakes refunded.`);
 }
 
 async function deleteBetUI(betID) {

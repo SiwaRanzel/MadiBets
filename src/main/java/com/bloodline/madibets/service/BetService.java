@@ -6,6 +6,7 @@ import com.bloodline.madibets.dao.BetDAO;
 import com.bloodline.madibets.dao.EventDAO;
 import com.bloodline.madibets.dao.UserDAO;
 import com.bloodline.madibets.model.Bet;
+import com.bloodline.madibets.model.BetOutcome;
 import com.bloodline.madibets.model.Event;
 import com.bloodline.madibets.model.User;
 import com.bloodline.madibets.model.Wager;
@@ -15,19 +16,26 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Owner: Kieran (B-series). Business rules for the bet lifecycle; SQL stays in BetDAO.
  * Follows the AuthService pattern. Invalid input is reported with
  * IllegalArgumentException so callers can show the message to the user.
- * Market/wager split (design note #1 resolved): many students can wager on one
- * bet; settlement walks every Wager row.
+ * Multi-outcome markets: the proposer names 2-4 outcomes, the admin prices
+ * each and sets the wagering deadline at approval, students back exactly one
+ * outcome per bet, and grading pays every wager on the winning outcome.
  */
 public class BetService {
 
     /** odds is DECIMAL(6,2): anything above this overflows the column. */
     private static final BigDecimal MAX_ODDS = new BigDecimal("9999.99");
+    private static final int MIN_OUTCOMES = 2;
+    private static final int MAX_OUTCOMES = 4;
 
     private final BetDAO betDAO = new BetDAO();
     private final EventDAO eventDAO = new EventDAO();
@@ -35,9 +43,9 @@ public class BetService {
     private final UserDAO userDAO = new UserDAO();   // read-only use: B300 admin check
 
     /**
-     * B700: the bets a student can currently wager on.
-     * The 'ACTIVE' filter is the whole use case; each row carries its wager
-     * count and total staked for the UI.
+     * B700: the bets a student can currently wager on, outcomes and deadline
+     * included. Past-deadline bets stay listed (they read as closed) until the
+     * admin grades them.
      */
     public List<Bet> viewActiveBets() throws SQLException {
         return betDAO.findActiveBets();
@@ -49,15 +57,18 @@ public class BetService {
     }
 
     /**
-     * B200: a student proposes a bet. It stays PROPOSED (invisible to B700)
-     * until an admin reviews it and assigns odds (B300). The event link is
-     * optional, but when given it must point at an event that can still happen.
-     * Returns the new betID.
+     * B200: a student proposes a bet with the 2-4 outcomes it can end in
+     * (e.g. "Madibaz win" / "Wits win" / "Draw"). It stays PROPOSED (invisible
+     * to B700) until an admin prices each outcome and sets the deadline (B300).
+     * The event link is optional, but when given it must point at an event
+     * that can still happen. Returns the new betID.
      */
-    public int proposeBet(int userID, Integer eventID, String description) throws SQLException {
+    public int proposeBet(int userID, Integer eventID, String description,
+                          List<String> outcomeLabels) throws SQLException {
         if (description == null || description.isBlank()) {
             throw new IllegalArgumentException("A proposal needs a description.");
         }
+        List<String> labels = cleanOutcomeLabels(outcomeLabels);
         if (eventID != null) {
             Event e = eventDAO.findById(eventID);
             if (e == null) {
@@ -75,20 +86,64 @@ public class BetService {
         b.setOutcome("PENDING");
         b.setStatus("PROPOSED");
         b.setProposedDate(LocalDateTime.now());
-        return betDAO.propose(b);
+        return betDAO.propose(b, labels);
+    }
+
+    /** 2-4 trimmed, non-blank, case-insensitively distinct labels of sane length. */
+    private List<String> cleanOutcomeLabels(List<String> raw) {
+        if (raw == null) {
+            throw new IllegalArgumentException("A proposal needs its possible outcomes.");
+        }
+        List<String> labels = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String s : raw) {
+            if (s == null || s.isBlank()) continue;
+            String label = s.trim();
+            if (label.length() > 100) {
+                throw new IllegalArgumentException("Outcome labels must be 100 characters or fewer.");
+            }
+            if (!seen.add(label.toLowerCase())) {
+                throw new IllegalArgumentException("Outcome '" + label + "' is listed twice.");
+            }
+            labels.add(label);
+        }
+        if (labels.size() < MIN_OUTCOMES || labels.size() > MAX_OUTCOMES) {
+            throw new IllegalArgumentException(
+                    "A bet needs between " + MIN_OUTCOMES + " and " + MAX_OUTCOMES + " outcomes.");
+        }
+        return labels;
     }
 
     /**
-     * B300: an admin approves a proposal — assigns the odds and opens the bet
-     * for wagering. Odds are decimal ("for one"): 1.00 would pay back exactly
-     * the stake, so they must be strictly greater.
+     * B300: an admin approves a proposal — prices every outcome and sets the
+     * wagering deadline, which must be in the future. Odds are decimal ("for
+     * one"): 1.00 would pay back exactly the stake, so they must be strictly
+     * greater. Every outcome of the bet must be priced — no half-priced
+     * markets (that was the old Yes-only model's flaw).
      */
-    public void approveProposal(int betID, BigDecimal odds, int adminUserID) throws SQLException {
+    public void approveProposal(int betID, Map<Integer, BigDecimal> oddsByOutcomeID,
+                                LocalDateTime deadline, int adminUserID) throws SQLException {
         requireAdmin(adminUserID, "review bet proposals");
-        if (odds == null || odds.compareTo(BigDecimal.ONE) <= 0 || odds.compareTo(MAX_ODDS) > 0) {
-            throw new IllegalArgumentException("Odds must be between 1.01 and " + MAX_ODDS + ".");
+        if (deadline == null || !deadline.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("The wagering deadline must be in the future.");
         }
-        if (!betDAO.activate(betID, odds)) {
+        for (BigDecimal odds : oddsByOutcomeID.values()) {
+            if (odds == null || odds.compareTo(BigDecimal.ONE) <= 0 || odds.compareTo(MAX_ODDS) > 0) {
+                throw new IllegalArgumentException("Each outcome's odds must be between 1.01 and " + MAX_ODDS + ".");
+            }
+        }
+        Bet b = betDAO.findById(betID);
+        if (b == null) {
+            throw new IllegalArgumentException("Bet " + betID + " does not exist.");
+        }
+        Set<Integer> expected = new HashSet<>();
+        for (BetOutcome o : b.getOutcomes()) {
+            expected.add(o.getOutcomeID());
+        }
+        if (!expected.equals(oddsByOutcomeID.keySet())) {
+            throw new IllegalArgumentException("Odds are required for every outcome of bet " + betID + ".");
+        }
+        if (!betDAO.activate(betID, deadline, oddsByOutcomeID)) {
             throw notReviewable(betID);
         }
     }
@@ -106,14 +161,14 @@ public class BetService {
     }
 
     /**
-     * B100: a student wagers on an ACTIVE bet. One Wager row per student per
-     * bet (UNIQUE constraint); any number of students can ride the same market,
-     * each implicitly on the YES side of the description. The stake leaves the
-     * student's Account immediately; amountToBeWon = stake × odds (decimal
-     * odds — payout includes the stake back). Debit, wager row, and audit row
-     * commit as ONE DB transaction.
+     * B100: a student backs ONE outcome of an ACTIVE bet before its deadline.
+     * One Wager row per student per bet (UNIQUE constraint); any number of
+     * students can ride the same market. The stake leaves the student's
+     * Account immediately; amountToBeWon = stake × the chosen outcome's odds
+     * (decimal odds — payout includes the stake back). Debit, wager row, and
+     * audit row commit as ONE DB transaction.
      */
-    public void placeBet(int betID, int userID, BigDecimal stake) throws SQLException {
+    public void placeBet(int betID, int outcomeID, int userID, BigDecimal stake) throws SQLException {
         if (stake == null || stake.signum() <= 0 || stake.scale() > 2) {
             throw new IllegalArgumentException("Stake must be a positive amount with at most 2 decimals.");
         }
@@ -124,7 +179,18 @@ public class BetService {
         if (!"ACTIVE".equals(b.getStatus())) {
             throw new IllegalArgumentException("Bet " + betID + " is " + b.getStatus() + " — not open for wagering.");
         }
-        BigDecimal payout = stake.multiply(b.getOdds()).setScale(2, RoundingMode.HALF_UP);
+        if (b.getDeadline() != null && !b.getDeadline().isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Bet " + betID + " closed for wagering on " + b.getDeadline() + ".");
+        }
+        BetOutcome chosen = b.getOutcomes().stream()
+                .filter(o -> o.getOutcomeID() == outcomeID)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Outcome " + outcomeID + " does not belong to bet " + betID + "."));
+        if (chosen.getOdds() == null) {
+            throw new IllegalArgumentException("Outcome '" + chosen.getLabel() + "' has no odds — not open for wagering.");
+        }
+        BigDecimal payout = stake.multiply(chosen.getOdds()).setScale(2, RoundingMode.HALF_UP);
 
         try (Connection con = DatabaseConnection.getConnection()) {
             con.setAutoCommit(false);
@@ -132,12 +198,13 @@ public class BetService {
                 if (!accountDAO.adjustBalance(con, userID, stake.negate())) {
                     throw new IllegalArgumentException("Insufficient MadiBucks for a stake of " + stake + ".");
                 }
-                if (!betDAO.placeWager(con, betID, userID, stake, payout, LocalDateTime.now())) {
-                    // The status guard found nothing: the bet was graded/deleted after our read.
-                    throw new IllegalArgumentException("Bet " + betID + " was closed in the meantime.");
+                if (!betDAO.placeWager(con, betID, outcomeID, userID, stake, payout, LocalDateTime.now())) {
+                    // The SQL guard found nothing: closed, deadline passed, or bad outcome.
+                    throw new IllegalArgumentException("Bet " + betID + " closed in the meantime.");
                 }
                 accountDAO.logTransaction(con, userID, stake.negate(),
-                        "B100: user " + userID + " staked " + stake + " on bet " + betID);
+                        "B100: user " + userID + " staked " + stake + " on '" + chosen.getLabel()
+                        + "' (bet " + betID + ")");
                 con.commit();
             } catch (SQLIntegrityConstraintViolationException e) {
                 con.rollback();
@@ -153,19 +220,20 @@ public class BetService {
     }
 
     /**
-     * B400 + B600: an admin records the real-world outcome, and every wager on
-     * the bet settles in the same DB transaction.
-     * YES        -> all wagers (implicitly on the YES side) won: credit each
-     *               holder their amountToBeWon.
-     * NO         -> wagers lost: the stakes left the accounts at placement;
-     *               nothing moves.
-     * CANCELLED  -> every stake refunded (stored explicitly on the Wager row).
+     * B400 + B600: an admin records which outcome won (or cancels the market)
+     * and every wager settles in the same DB transaction.
+     * winner given -> wagers on that outcome are paid their amountToBeWon;
+     *                all other wagers lost (stakes left at placement).
+     * cancelled    -> every stake refunded.
      * A never-wagered bet can still be graded — the market simply closes.
+     * Grading is allowed before the deadline too — the admin may know the
+     * result early (a cancelled fixture, a released mark).
      */
-    public void gradeBet(int betID, String outcome, int adminUserID) throws SQLException {
+    public void gradeBet(int betID, Integer winningOutcomeID, boolean cancelled,
+                         int adminUserID) throws SQLException {
         requireAdmin(adminUserID, "grade bets");
-        if (!"YES".equals(outcome) && !"NO".equals(outcome) && !"CANCELLED".equals(outcome)) {
-            throw new IllegalArgumentException("Outcome must be YES, NO or CANCELLED.");
+        if (cancelled == (winningOutcomeID != null)) {
+            throw new IllegalArgumentException("Grade with either a winning outcome or cancelled — exactly one.");
         }
         Bet b = betDAO.findById(betID);
         if (b == null) {
@@ -179,19 +247,20 @@ public class BetService {
         try (Connection con = DatabaseConnection.getConnection()) {
             con.setAutoCommit(false);
             try {
-                if (!betDAO.grade(con, betID, outcome, adminUserID, LocalDateTime.now())) {
-                    throw new IllegalArgumentException("Bet " + betID + " was graded or closed in the meantime.");
+                if (!betDAO.grade(con, betID, winningOutcomeID, adminUserID, LocalDateTime.now())) {
+                    // Guard failed: raced by another grade/delete, or winner not on this bet.
+                    throw new IllegalArgumentException(
+                            "Could not grade bet " + betID + " — check the winning outcome and try again.");
                 }
-                if (!"NO".equals(outcome)) {
-                    for (Wager w : betDAO.findWagersByBet(con, betID)) {
-                        if ("YES".equals(outcome)) {
-                            payOut(con, w.getUserID(), w.getAmountToBeWon(),
-                                    "B600: bet " + betID + " won, paid user " + w.getUserID());
-                        } else {   // CANCELLED
-                            payOut(con, w.getUserID(), w.getStake(),
-                                    "B600: bet " + betID + " cancelled, stake refunded to user " + w.getUserID());
-                        }
+                for (Wager w : betDAO.findWagersByBet(con, betID)) {
+                    if (cancelled) {
+                        payOut(con, w.getUserID(), w.getStake(),
+                                "B600: bet " + betID + " cancelled, stake refunded to user " + w.getUserID());
+                    } else if (w.getOutcomeID() == winningOutcomeID) {
+                        payOut(con, w.getUserID(), w.getAmountToBeWon(),
+                                "B600: bet " + betID + " won, paid user " + w.getUserID());
                     }
+                    // losing wagers: stake already left the account at placement
                 }
                 con.commit();
             } catch (SQLException | RuntimeException e) {

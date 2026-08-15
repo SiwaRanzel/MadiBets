@@ -1961,3 +1961,16 @@ body {
     border: 1.5px solid #D9534F;
     color: #D9534F;
 }
+
+/* B200 proposal form: one input per possible outcome */
+.propose-outcome-input {
+    background-color: #F8FAFC;
+    border: 1px solid #D1D9E4;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: var(--font-secondary);
+    font-size: 0.95rem;
+    color: #2A3B50;
+    outline: none;
+}
+.propose-outcome-input:focus { border-color: #1B2F5E; }
