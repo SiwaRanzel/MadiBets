@@ -10,7 +10,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 
 <body>
@@ -628,7 +629,7 @@
                             Describe the bet you would like to propose. An admin will review it and assign the odds.</p>
                         <div class="form-field-group" style="max-width: 220px; margin-bottom: 15px;">
                             <label for="propose-type">Bet type</label>
-                            <select id="propose-type">
+                            <select id="propose-type" onchange="updateOutcomePlaceholders()">
                                 <option>Academics</option>
                                 <option>Sports</option>
                                 <option>Social</option>
@@ -644,9 +645,9 @@
                         <div class="form-field-group" style="margin-top: 15px;">
                             <label>Possible outcomes (2&ndash;4) &mdash; an admin assigns the odds</label>
                             <div id="propose-outcomes" style="display: flex; flex-direction: column; gap: 8px; max-width: 420px;">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Madibaz win">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Wits win">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Draw (optional)">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Above 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Below 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Exactly 60% (optional)">
                             </div>
                             <button type="button" id="btn-add-outcome" onclick="addOutcomeField()"
                                 style="margin-top: 8px; background: none; border: none; color: #1B2F5E; font-weight: 600; cursor: pointer; padding: 0; font-size: 0.85rem;">
@@ -1841,7 +1842,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
 </body>
 
 </html>

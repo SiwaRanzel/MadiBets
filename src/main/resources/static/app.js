@@ -2028,8 +2028,10 @@ async function loadBetsPanel() {
         bets.forEach(b => {
             betsCache[b.betID] = b;
             // One odds button per outcome (FSSB p.25: side-by-side odds).
+            // Unpriced outcomes (odds null — only on pre-migration bets) are
+            // not wagerable, so they get no button.
             const action = b.open
-                ? (b.outcomes || []).map(o =>
+                ? (b.outcomes || []).filter(o => o.odds != null).map(o =>
                     `<button class="bet-action-btn" style="margin: 2px 4px 2px 0;"
                         onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
                         ${escapeHtml(o.label)} ${Number(o.odds).toFixed(2)}</button>`).join('')
@@ -2136,6 +2138,24 @@ async function submitWager() {
 }
 
 // ── Proposal form (B200) ──
+// Placeholder examples per bet type, so an Academics proposal never shows
+// rugby examples. Index = outcome slot; slots past the list fall back to
+// "Another outcome".
+const OUTCOME_EXAMPLES = {
+    'Academics':  ['e.g. Above 60%', 'e.g. Below 60%', 'e.g. Exactly 60% (optional)'],
+    'Sports':     ['e.g. Madibaz win', 'e.g. Wits win', 'e.g. Draw (optional)'],
+    'Social':     ['e.g. Over 100 attend', 'e.g. Under 100 attend', 'e.g. Exactly 100 (optional)'],
+    'Class Room': ['e.g. Lecture happens', 'e.g. Lecture cancelled', 'e.g. Moved online (optional)'],
+};
+
+function updateOutcomePlaceholders() {
+    const type = document.getElementById('propose-type').value;
+    const examples = OUTCOME_EXAMPLES[type] || [];
+    document.querySelectorAll('.propose-outcome-input').forEach((input, i) => {
+        input.placeholder = examples[i] || 'Another outcome';
+    });
+}
+
 function addOutcomeField() {
     const container = document.getElementById('propose-outcomes');
     if (container.querySelectorAll('.propose-outcome-input').length >= 4) {
@@ -2146,8 +2166,8 @@ function addOutcomeField() {
     input.type = 'text';
     input.className = 'propose-outcome-input';
     input.maxLength = 100;
-    input.placeholder = 'Another outcome';
     container.appendChild(input);
+    updateOutcomePlaceholders();
 }
 
 async function submitProposal() {
@@ -2254,7 +2274,7 @@ function renderActiveAdminTable(bets) {
     bets.forEach(b => {
         acctCache[b.betID] = b;
         const outcomes = (b.outcomes || []).map(o =>
-            `${escapeHtml(o.label)} @ ${Number(o.odds).toFixed(2)}`).join('<br>');
+            `${escapeHtml(o.label)} @ ${o.odds != null ? Number(o.odds).toFixed(2) : 'unpriced'}`).join('<br>');
         const wager = b.wagerCount > 0
             ? `${b.wagerCount} wager${b.wagerCount === 1 ? '' : 's'} · ${Number(b.totalStaked).toFixed(2)} MB staked`
             : '<span style="color:#A0B2D6;">No wagers yet</span>';
