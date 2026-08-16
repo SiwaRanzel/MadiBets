@@ -2032,9 +2032,10 @@ async function loadBetsPanel() {
             // not wagerable, so they get no button.
             const action = b.open
                 ? (b.outcomes || []).filter(o => o.odds != null).map(o =>
-                    `<button class="bet-action-btn" style="margin: 2px 4px 2px 0;"
+                    `<button class="bet-action-btn bet-outcome-btn"
                         onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
-                        ${escapeHtml(o.label)} ${Number(o.odds).toFixed(2)}</button>`).join('')
+                        <span class="bet-outcome-label">${escapeHtml(o.label)}</span>
+                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('')
                 : '<span class="bet-taken-pill">Closed — awaiting grading</span>';
             tbody.innerHTML += `
                 <tr>
@@ -2259,8 +2260,10 @@ function renderProposedTable(bets) {
                 <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-odds-input"
                         style="width: 175px;"></td>
                 <td>
-                    <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
-                    <button class="acct-btn acct-btn-reject" onclick="rejectProposalUI(${b.betID})">Reject</button>
+                    <div class="acct-btn-stack">
+                        <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
+                        <button class="acct-btn acct-btn-reject" onclick="rejectProposalUI(${b.betID})">Reject</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -2292,11 +2295,19 @@ function renderActiveAdminTable(bets) {
                 <td>${wager}</td>
                 <td style="font-size: 0.85rem;">${closes}</td>
                 <td>
-                    <div style="font-size: 0.72rem; color: #A0B2D6; margin-bottom: 3px;">Winner:</div>
-                    ${winnerBtns}
-                    <div style="margin-top: 5px;">
-                        <button class="acct-btn acct-btn-cancel" onclick="cancelBetUI(${b.betID})">Cancel</button>
-                        <button class="acct-btn acct-btn-delete" onclick="deleteBetUI(${b.betID})">Delete</button>
+                    <div style="display: flex; align-items: flex-start; gap: 6px;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.72rem; color: #A0B2D6; margin-bottom: 3px;">Winner:</div>
+                            ${winnerBtns}
+                        </div>
+                        <div class="acct-menu">
+                            <button class="acct-menu-btn" title="More actions"
+                                onclick="toggleAcctMenu(event, ${b.betID})">&#8942;</button>
+                            <div class="acct-menu-dropdown hidden" id="acct-menu-${b.betID}">
+                                <button onclick="cancelBetUI(${b.betID})">Cancel bet &mdash; refund stakes</button>
+                                <button class="acct-menu-danger" onclick="deleteBetUI(${b.betID})">Delete bet</button>
+                            </div>
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -2325,6 +2336,22 @@ function adminID() {
     return user ? user.userID : null;
 }
 
+// ── Overflow (⋮) menu on the admin Active Bets rows ──
+function closeAllAcctMenus() {
+    document.querySelectorAll('.acct-menu-dropdown').forEach(m => m.classList.add('hidden'));
+}
+
+function toggleAcctMenu(event, betID) {
+    event.stopPropagation();
+    const menu = document.getElementById(`acct-menu-${betID}`);
+    const wasOpen = menu && !menu.classList.contains('hidden');
+    closeAllAcctMenus();
+    if (menu && !wasOpen) menu.classList.remove('hidden');
+}
+
+// Any click outside a menu closes it.
+document.addEventListener('click', closeAllAcctMenus);
+
 async function approveProposalUI(betID) {
     const b = acctCache[betID];
     if (!b) return;
@@ -2350,7 +2377,8 @@ async function approveProposalUI(betID) {
 }
 
 async function rejectProposalUI(betID) {
-    if (!confirm(`Reject proposal #${betID}? The proposer will not see it again.`)) return;
+    if (!await showConfirmModal('Reject this proposal?',
+            `Proposal #${betID} will be removed and the proposer will not see it again.`)) return;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2362,7 +2390,8 @@ async function gradeBetUI(betID, outcomeID) {
     const b = acctCache[betID];
     const o = b ? (b.outcomes || []).find(x => x.outcomeID === outcomeID) : null;
     const label = o ? o.label : `outcome ${outcomeID}`;
-    if (!confirm(`Grade bet #${betID} with winner "${label}"? This settles every wager and cannot be undone.`)) return;
+    if (!await showConfirmModal(`Grade "${label}" as the winner?`,
+            `Bet #${betID} will be settled: wagers on "${label}" are paid out and all others lose. This cannot be undone.`)) return;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2371,7 +2400,9 @@ async function gradeBetUI(betID, outcomeID) {
 }
 
 async function cancelBetUI(betID) {
-    if (!confirm(`Cancel bet #${betID}? Every stake will be refunded.`)) return;
+    closeAllAcctMenus();
+    if (!await showConfirmModal('Cancel this bet?',
+            `Bet #${betID} will be closed and every stake refunded to the students who wagered.`)) return;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2380,7 +2411,9 @@ async function cancelBetUI(betID) {
 }
 
 async function deleteBetUI(betID) {
-    if (!confirm(`Delete bet #${betID}? A live wager will be refunded.`)) return;
+    closeAllAcctMenus();
+    if (!await showConfirmModal('Delete this bet?',
+            `Bet #${betID} will be removed from every view. Any live wagers are refunded.`)) return;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}?adminUserID=${adminID()}`, {
         method: 'DELETE'
     }), `Bet #${betID} deleted.`);

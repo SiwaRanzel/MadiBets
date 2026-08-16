@@ -1921,6 +1921,28 @@ body {
 }
 .bet-action-btn:hover { background: #E0921B; }
 
+/* Multi-outcome: label on the left, odds in a distinct pill on the right,
+   so "Above 60" and "2.15" never read as one string. */
+.bet-outcome-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 6px 6px 14px;
+    margin: 2px 6px 2px 0;
+}
+.bet-outcome-label {
+    font-weight: 600;
+    text-align: left;
+}
+.bet-outcome-odds {
+    background: #1B2F5E;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
 /* update-in-place model: one wager per bet, then it reads as taken */
 .bet-taken-pill {
     background: #E2E8F0;
@@ -1961,6 +1983,65 @@ body {
     border: 1.5px solid #D9534F;
     color: #D9534F;
 }
+
+/* Approve/Reject stacked at equal width */
+.acct-btn-stack {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 92px;
+}
+.acct-btn-stack .acct-btn {
+    width: 100%;
+    margin-right: 0;
+    text-align: center;
+}
+
+/* Overflow (⋮) menu for the rarer Cancel/Delete actions */
+.acct-menu {
+    position: relative;
+    flex-shrink: 0;
+}
+.acct-menu-btn {
+    background: none;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    font-size: 1.1rem;
+    line-height: 1;
+    color: #6C7D93;
+    cursor: pointer;
+}
+.acct-menu-btn:hover { background: #F8FAFC; color: #1B2F5E; }
+.acct-menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: 34px;
+    min-width: 200px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+    padding: 6px;
+    z-index: 50;
+}
+.acct-menu-dropdown button {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1B2F5E;
+    cursor: pointer;
+}
+.acct-menu-dropdown button:hover { background: #F8FAFC; }
+.acct-menu-dropdown .acct-menu-danger { color: #D9534F; }
+.acct-menu-dropdown .acct-menu-danger:hover { background: #FDECEA; }
 
 /* B200 proposal form: one input per possible outcome */
 .propose-outcome-input {
