@@ -1,68 +1,83 @@
 package com.bloodline.madibets.model;
 
-/** Owner: Pieter (D-series). Task = a True/False question assigned to a Group. */
+import java.math.BigDecimal;
+
 public class Task {
     private int taskID;
+    private String title;
+    private String description;
     private int groupID;
-    private String question;
-    private boolean correctAnswer;
-    private double amount;
+    private Integer userID; // Can be null if assigned to the whole group
+    private BigDecimal amount;
     private int createdBy;
-    private java.sql.Timestamp createdDate;
 
-    // Transient fields populated for the UI (not stored in DB)
-    private Boolean answered;      // null = not answered, true/false = student's submitted answer
-    private Boolean isCorrect;     // null = not answered, true/false = whether the answer was correct
-
+    // Constructors
     public Task() {}
 
-    public Task(int taskID, int groupID, String question, boolean correctAnswer, double amount, int createdBy, java.sql.Timestamp createdDate) {
+    public Task(int taskID, String title, String description, int groupID, Integer userID, BigDecimal amount, int createdBy) {
         this.taskID = taskID;
+        this.title = title;
+        this.description = description;
         this.groupID = groupID;
-        this.question = question;
-        this.correctAnswer = correctAnswer;
+        this.userID = userID;
         this.amount = amount;
         this.createdBy = createdBy;
-        this.createdDate = createdDate;
     }
 
-    public int getTaskID() { return taskID; }
-    public void setTaskID(int taskID) { this.taskID = taskID; }
+    // Getters and Setters
+    public int getTaskID() {
+        return taskID;
+    }
 
-    public int getGroupID() { return groupID; }
-    public void setGroupID(int groupID) { this.groupID = groupID; }
+    public void setTaskID(int taskID) {
+        this.taskID = taskID;
+    }
 
-    public String getQuestion() { return question; }
-    public void setQuestion(String question) { this.question = question; }
+    public String getTitle() {
+        return title;
+    }
 
-    public boolean isCorrectAnswer() { return correctAnswer; }
-    public void setCorrectAnswer(boolean correctAnswer) { this.correctAnswer = correctAnswer; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public double getAmount() { return amount; }
-    public void setAmount(double amount) { this.amount = amount; }
+    public String getDescription() {
+        return description;
+    }
 
-    public int getCreatedBy() { return createdBy; }
-    public void setCreatedBy(int createdBy) { this.createdBy = createdBy; }
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-    public java.sql.Timestamp getCreatedDate() { return createdDate; }
-    public void setCreatedDate(java.sql.Timestamp createdDate) { this.createdDate = createdDate; }
+    public int getGroupID() {
+        return groupID;
+    }
 
-    public Boolean getAnswered() { return answered; }
-    public void setAnswered(Boolean answered) { this.answered = answered; }
+    public void setGroupID(int groupID) {
+        this.groupID = groupID;
+    }
 
-    public Boolean getIsCorrect() { return isCorrect; }
-    public void setIsCorrect(Boolean isCorrect) { this.isCorrect = isCorrect; }
+    public Integer getUserID() {
+        return userID;
+    }
 
-    @Override
-    public String toString() {
-        return "Task{" +
-                "taskID=" + taskID +
-                ", groupID=" + groupID +
-                ", question='" + question + '\'' +
-                ", correctAnswer=" + correctAnswer +
-                ", amount=" + amount +
-                ", createdBy=" + createdBy +
-                ", createdDate=" + createdDate +
-                '}';
+    public void setUserID(Integer userID) {
+        this.userID = userID;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
+    public int getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(int createdBy) {
+        this.createdBy = createdBy;
     }
 }

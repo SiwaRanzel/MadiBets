@@ -88,6 +88,11 @@ public class AuthController {
 
             User u = authService.login(email, password);
             if (u != null) {
+                com.bloodline.madibets.dao.DeletionRequestDAO drDao = new com.bloodline.madibets.dao.DeletionRequestDAO();
+                if (drDao.hasPendingDeleteRequest(u.getUserID())) {
+                    return ResponseEntity.status(403).body(Map.of("error", "Your account deletion is pending. Please contact support if this was a mistake."));
+                }
+                
                 u.setPassword(null); // hide password
                 double balance = userDAO.getAccountBalance(u.getUserID());
                 Map<String, Object> response = new HashMap<>();

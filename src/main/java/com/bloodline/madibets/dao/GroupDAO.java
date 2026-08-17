@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /** Owner: Pieter (D-series). */
 public class GroupDAO {
@@ -152,42 +151,20 @@ public class GroupDAO {
         return results;
     }
 
-    /** List members of a group with their names, surnames and roles. */
-    public List<Map<String, Object>> findMembers(int groupID) throws SQLException {
-        List<Map<String, Object>> members = new ArrayList<>();
-        String sql = "SELECT u.userID, u.name, u.surname, u.userType, gm.role "
-                   + "FROM GroupMember gm "
-                   + "JOIN User u ON u.userID = gm.userID "
-                   + "WHERE gm.groupID = ? "
-                   + "ORDER BY gm.role, u.surname, u.name";
+    /** Find groups created by a specific user. */
+    public List<Group> findByCreator(int createdBy) throws SQLException {
+        List<Group> results = new ArrayList<>();
+        String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` WHERE createdBy = ?";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, groupID);
+            ps.setInt(1, createdBy);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Map<String, Object> m = new java.util.HashMap<>();
-                    m.put("userID", rs.getInt("userID"));
-                    m.put("name", rs.getString("name"));
-                    m.put("surname", rs.getString("surname"));
-                    m.put("userType", rs.getString("userType"));
-                    m.put("role", rs.getString("role"));
-                    members.add(m);
+                    results.add(map(rs));
                 }
             }
         }
-        return members;
-    }
-
-    /** Count the members of a group. */
-    public int getMemberCount(int groupID) throws SQLException {
-        String sql = "SELECT COUNT(*) AS c FROM GroupMember WHERE groupID = ?";
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, groupID);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getInt("c") : 0;
-            }
-        }
+        return results;
     }
 
     /** Add a member to a group. Returns true if inserted, false if already member. */

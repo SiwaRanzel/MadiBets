@@ -5,7 +5,13 @@ target/
 # Local DB credentials — never commit
 src/main/resources/db.properties
 
+# Personal Claude Code working context — not shared with the team
+CLAUDE.md
+
 # IDE / OS
 .idea/
 *.iml
 .DS_Store
+*.png
+
+uploads/

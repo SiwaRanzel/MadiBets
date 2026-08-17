@@ -1,6 +1,198 @@
 // Base API URL config
 const API_BASE = 'http://localhost:8081/api';
 
+// ── Button Loading Spinner Utility ──
+function setButtonLoading(buttonEl, isLoading) {
+    if (!buttonEl) return;
+    if (isLoading) {
+        buttonEl.classList.add('btn-loading');
+        // Use light spinner for dark-background buttons
+        const bgColor = getComputedStyle(buttonEl).backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            const rgb = bgColor.match(/\d+/g);
+            if (rgb && (parseInt(rgb[0]) + parseInt(rgb[1]) + parseInt(rgb[2])) / 3 < 128) {
+                buttonEl.classList.add('btn-loading-light');
+            }
+        }
+        buttonEl.disabled = true;
+    } else {
+        buttonEl.classList.remove('btn-loading', 'btn-loading-light');
+        buttonEl.disabled = false;
+    }
+}
+
+// ── Fetch & display live user / student counts ──
+async function fetchUserCounts() {
+    try {
+        const res  = await fetch(`${API_BASE}/users/count`);
+        const data = await res.json();
+        if (!res.ok) return;
+
+        const totalUsers    = Number(data.totalUsers).toLocaleString();
+        const totalStudents = Number(data.totalStudents).toLocaleString();
+
+        // Student dashboard stat card
+        const dashboardEl = document.getElementById('dashboard-total-students');
+        if (dashboardEl) dashboardEl.textContent = totalStudents;
+
+        // Account page stat card (students & lecturers both show student count)
+        const accountValue = document.getElementById('account-stat-1-value');
+        if (accountValue) accountValue.textContent = totalStudents;
+
+        // Admin dashboard stat card
+        const adminEl = document.getElementById('admin-total-users');
+        if (adminEl) adminEl.textContent = totalUsers;
+
+        // Dashboard student weekly trend
+        const studentTrendEl = document.getElementById('dashboard-total-students-trend');
+        if (studentTrendEl && data.studentWeeklyGrowth !== undefined) {
+            const growth = Math.round(data.studentWeeklyGrowth);
+            if (growth >= 0) {
+                studentTrendEl.textContent = `↑ ${growth}%`;
+                studentTrendEl.style.color = '#28A745'; // Green
+            } else {
+                studentTrendEl.textContent = `↓ ${Math.abs(growth)}%`;
+                studentTrendEl.style.color = '#D9534F'; // Red
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load user counts:', err);
+    }
+}
+
+// ── Fetch & display live user rank ──
+async function fetchUserRank() {
+    const userStr = localStorage.getItem('madibets_user');
+    if (!userStr) return;
+    try {
+        const user = JSON.parse(userStr);
+        if (user.userType === 'ADMIN') return;
+
+        const res = await fetch(`${API_BASE}/leaderboard/stats/${user.userID}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const rankNum = Number(data.rank).toLocaleString();
+        const totalNum = data.totalPlayers ? Number(data.totalPlayers).toLocaleString() : '-';
+        const rankStr = `${rankNum} / ${totalNum}`;
+        
+        const dashboardPos = document.getElementById('dashboard-current-pos');
+        if (dashboardPos) dashboardPos.textContent = rankStr;
+
+        const accountPos = document.getElementById('account-current-pos');
+        if (accountPos) accountPos.textContent = rankStr;
+
+        const trendEl = document.getElementById('dashboard-current-pos-trend');
+        if (trendEl && data.weeklyGrowth !== undefined) {
+            const growth = Math.round(data.weeklyGrowth);
+            if (growth >= 0) {
+                trendEl.textContent = `↑ ${growth}%`;
+                trendEl.style.color = '#28A745'; // Green
+            } else {
+                trendEl.textContent = `↓ ${Math.abs(growth)}%`;
+                trendEl.style.color = '#D9534F'; // Red
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load user rank:', err);
+    }
+}
+
+// ── About Us Modal ──
+function openAboutModal() {
+    document.getElementById('about-modal').classList.remove('hidden');
+}
+function closeAboutModal() {
+    document.getElementById('about-modal').classList.add('hidden');
+}
+
+// ── Inline Registration Validation ──
+function validateRegField(input) {
+    const id = input.id;
+    const val = input.value.trim();
+    const errSpan = document.getElementById('err-' + id);
+    let msg = '';
+
+    // Clear previous state
+    input.classList.remove('input-error');
+    if (errSpan) errSpan.textContent = '';
+
+    // Skip validation if field is empty and not yet touched (optional fields)
+    // But validate if the field has content or is required
+
+    switch (id) {
+        case 'reg-name':
+            if (val.length === 0) {
+                msg = 'Name is required.';
+            } else if (val.length < 2) {
+                msg = 'Name must be at least 2 characters.';
+            }
+            break;
+
+        case 'reg-surname':
+            if (val.length === 0) {
+                msg = 'Surname is required.';
+            } else if (val.length < 2) {
+                msg = 'Surname must be at least 2 characters.';
+            }
+            break;
+
+        case 'reg-student-no':
+            if (val.length === 0 && document.getElementById('reg-usertype').value === 'STUDENT') {
+                msg = 'Student number is required.';
+            } else if (val.length > 0 && !/^\d{9}$/.test(val)) {
+                if (!/^\d+$/.test(val)) {
+                    msg = 'Student number must contain only digits.';
+                } else {
+                    msg = 'Student number must be exactly 9 digits (currently ' + val.length + ').';
+                }
+            }
+            break;
+
+        case 'reg-staff-no':
+            if (val.length === 0 && document.getElementById('reg-usertype').value === 'LECTURER') {
+                msg = 'Staff number is required.';
+            }
+            break;
+
+        case 'reg-email':
+            if (val.length === 0) {
+                msg = 'Email is required.';
+            } else if (!/^[a-zA-Z0-9._%+\-]+@mandela\.ac\.za$/.test(val)) {
+                msg = 'Only @mandela.ac.za email addresses are allowed.';
+            }
+            break;
+
+        case 'reg-password':
+            if (val.length === 0) {
+                msg = 'Password is required.';
+            } else if (val.length < 6) {
+                msg = 'Password must be at least 6 characters.';
+            }
+            // Also re-validate confirm if it has a value
+            const confirmInput = document.getElementById('reg-confirm-password');
+            if (confirmInput && confirmInput.value.trim().length > 0) {
+                validateRegField(confirmInput);
+            }
+            break;
+
+        case 'reg-confirm-password':
+            if (val.length === 0) {
+                msg = 'Please confirm your password.';
+            } else if (val !== document.getElementById('reg-password').value) {
+                msg = 'Passwords do not match.';
+            }
+            break;
+    }
+
+    if (msg) {
+        input.classList.add('input-error');
+        if (errSpan) errSpan.textContent = '⚠ ' + msg;
+    }
+
+    return msg === '';
+}
+
 // ── Sidebar Toggle ──
 function toggleSidebar() {
     const sidebar = document.querySelector('.app-navigation-sidebar');
@@ -512,7 +704,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-madibucks', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets', 'panel-task'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -533,13 +725,17 @@ function switchPanel(panelId) {
         'panel-dashboard-admin':    'nav-dashboard-admin',
         'panel-delete-request':     'nav-delete-request',
         'panel-user-management':    'nav-user-management',
-        'panel-madibucks':          'nav-madibucks',
         'panel-accounting':         'nav-accounting',
         'panel-admin-groups':       'nav-admin-groups',
         'panel-reports':            'nav-reports',
         'panel-settings':           'nav-settings',
         'panel-query':              'nav-query',
         'panel-help':               ['nav-help-student', 'nav-help-lecturer'],
+        'panel-account':            ['nav-account-student', 'nav-account-lecturer'],
+        'panel-friends':            'nav-friends',
+        'panel-leaderboard':        ['nav-leaderboard', 'nav-leaderboard-lecturer'],
+        'panel-bets':               'nav-bets',
+        'panel-task':               'nav-task-lecturer',
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -549,8 +745,29 @@ function switchPanel(panelId) {
         if (activeNav) activeNav.classList.add('item-active');
     }
 
-    if (panelId === 'panel-groups') {
+    // Load specific data when switching to certain panels
+    if (panelId === 'panel-account') {
+        loadAccountData();
+    } else if (panelId === 'panel-user-management') {
+        loadUserManagementData();
+    } else if (panelId === 'panel-friends') {
+        loadFriendsData();
+    } else if (panelId === 'panel-leaderboard') {
+        loadLeaderboardData();
+    } else if (panelId === 'panel-groups') {
         searchGroups('');
+    } else if (panelId === 'panel-query') {
+        loadAdminQueries();
+    } else if (panelId === 'panel-delete-request') {
+        loadDeleteRequests();
+    } else if (panelId === 'panel-dashboard' || panelId === 'panel-dashboard-admin') {
+        loadAdminDashboardStats();
+    } else if (panelId === 'panel-dashboard-lecturer') {
+        loadLecturerDashboardStats();
+    } else if (panelId === 'panel-bets') {
+        loadBetsPanel();
+    } else if (panelId === 'panel-accounting') {
+        loadAccountingPanel();
     }
 }
 
@@ -623,7 +840,7 @@ function switchTab(tab) {
 function setUserRole(role) {
     // Update active button
     document.getElementById('type-student').classList.remove('active');
-    document.getElementById('type-teacher').classList.remove('active');
+    document.getElementById('type-lecturer').classList.remove('active');
 
     const hiddenRoleInput = document.getElementById('reg-usertype');
     if (hiddenRoleInput) hiddenRoleInput.value = role;
@@ -631,8 +848,16 @@ function setUserRole(role) {
     if (role === 'STUDENT') {
         document.getElementById('type-student').classList.add('active');
     } else {
-        document.getElementById('type-teacher').classList.add('active');
+        document.getElementById('type-lecturer').classList.add('active');
     }
+
+    // Update email placeholders based on role
+    const loginEmail = document.getElementById('login-email');
+    const regEmail = document.getElementById('reg-email');
+    const emailPlaceholder = role === 'STUDENT' ? 'e.g. s221234567@mandela.ac.za' : 'e.g. Kie.Whi@mandela.ac.za';
+    
+    if (loginEmail) loginEmail.placeholder = emailPlaceholder;
+    if (regEmail) regEmail.placeholder = emailPlaceholder;
 
     toggleSubtypeFields();
 }
@@ -690,6 +915,8 @@ async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    const btn = document.getElementById('btn-login');
+    setButtonLoading(btn, true);
 
     try {
         const response = await fetch(`${API_BASE}/auth/login`, {
@@ -710,6 +937,8 @@ async function handleLogin(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -737,6 +966,9 @@ async function handleRegister(event) {
         return;
     }
 
+    const btn = document.getElementById('btn-register');
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
@@ -759,6 +991,8 @@ async function handleRegister(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -792,7 +1026,7 @@ function loadDashboardData(user, balance) {
     // Header Greeting
     setElText('user-display-name', `${user.name} ${user.surname}`);
     setElText('header-greeting-name', user.name);
-    setElText('user-role-display', user.userType === 'LECTURER' ? 'Teacher' : (user.userType === 'ADMIN' ? 'Administrator' : 'Student'));
+    setElText('user-role-display', user.userType === 'LECTURER' ? 'Lecturer' : (user.userType === 'ADMIN' ? 'Administrator' : 'Student'));
 
     // Wallet display
     setElText('wallet-balance', `${parseFloat(balance).toFixed(2)} MB`);
@@ -803,6 +1037,28 @@ function loadDashboardData(user, balance) {
     setElText('profile-fullname', `${user.name} ${user.surname}`);
     setElText('profile-email', user.email);
     setElText('profile-usertype', user.userType);
+
+    // Update avatars
+    const headerAvatar = document.getElementById('header-avatar');
+    const sidebarImg = document.getElementById('sidebar-avatar-img');
+    const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+
+    if (user.avatarPath) {
+        const imgUrl = `http://localhost:8081${user.avatarPath}?t=${new Date().getTime()}`;
+        // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
+        
+        if (sidebarImg && sidebarSvg) {
+            sidebarImg.src = imgUrl;
+            sidebarImg.style.display = 'block';
+            sidebarSvg.style.display = 'none';
+        }
+    } else {
+        if (headerAvatar) headerAvatar.src = 'logo.png';
+        if (sidebarImg && sidebarSvg) {
+            sidebarImg.style.display = 'none';
+            sidebarSvg.style.display = 'block';
+        }
+    }
 
     const subtypeRow = document.getElementById('profile-subtype-row');
     const subtypeLabel = document.getElementById('profile-subtype-label');
@@ -857,6 +1113,7 @@ function loadDashboardData(user, balance) {
     if (isAdmin) {
         switchPanel('panel-dashboard-admin');
         loadAdminQueries();
+        loadDeleteRequests();
     } else if (isLecturer) {
         switchPanel('panel-dashboard-lecturer');
     } else {
@@ -864,6 +1121,10 @@ function loadDashboardData(user, balance) {
     }
 
     showView('dashboard-view');
+
+    // Populate live user/student counts across all stat cards
+    fetchUserCounts();
+    fetchUserRank();
 }
 
 // Show/Hide Profile Editor Panel
@@ -891,6 +1152,11 @@ async function handleUpdateProfile(event) {
     const surname = document.getElementById('edit-surname').value;
     const email = document.getElementById('edit-email').value;
 
+    // Find the submit button inside the edit profile form
+    const form = event.target;
+    const btn = form ? form.querySelector('button[type="submit"]') : null;
+    setButtonLoading(btn, true);
+
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}`, {
             method: 'PUT',
@@ -909,6 +1175,8 @@ async function handleUpdateProfile(event) {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -919,6 +1187,10 @@ async function confirmDelete() {
 
     const confirmAction = confirm("Are you sure you want to permanently delete your MadiBets account? This cannot be undone.");
     if (!confirmAction) return;
+
+    // Find the delete button that triggered this
+    const btn = event && event.target ? event.target.closest('button') : null;
+    setButtonLoading(btn, true);
 
     try {
         const response = await fetch(`${API_BASE}/users/${user.userID}`, {
@@ -936,6 +1208,8 @@ async function confirmDelete() {
     } catch (err) {
         showToast('Network error, please try again.', 'error');
         console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -947,6 +1221,859 @@ function logout() {
     switchTab('login');
 }
 
+
+
+// ── Account Page Logic ──
+async function loadAccountData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const u = data.user;
+            
+            // Update avatars if they exist, otherwise clear them
+            const headerAvatar = document.getElementById('header-avatar');
+            const sidebarImg = document.getElementById('sidebar-avatar-img');
+            const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+
+            if (u.avatarPath) {
+                const imgUrl = `http://localhost:8081${u.avatarPath}?t=${new Date().getTime()}`;
+                // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
+                
+                if (sidebarImg && sidebarSvg) {
+                    sidebarImg.src = imgUrl;
+                    sidebarImg.style.display = 'block';
+                    sidebarSvg.style.display = 'none';
+                }
+            } else {
+                if (headerAvatar) headerAvatar.src = 'logo.png';
+                if (sidebarImg && sidebarSvg) {
+                    sidebarImg.style.display = 'none';
+                    sidebarSvg.style.display = 'block';
+                }
+            }
+
+            // Populate table conditionally based on role
+            const tbody = document.getElementById('account-table-body');
+            const tableTitle = document.getElementById('account-table-title');
+            const stat2 = document.getElementById('account-stat-2');
+            const stat1Label = document.getElementById('account-stat-1-label');
+            const tableHeaderRow = document.getElementById('account-table-header');
+            
+            tbody.innerHTML = '';
+            
+            if (u.userType === 'LECTURER') {
+                tableTitle.textContent = 'Task';
+                stat1Label.textContent = 'Total Students';
+                if (stat2) stat2.style.display = 'none'; // Hide Pos for lecturer
+                
+                tableHeaderRow.innerHTML = `
+                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                `;
+
+                // Fetch real data from backend
+                fetch(`http://localhost:8081/api/tasks?createdBy=${u.userID}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        let tasks = [];
+                        if (Array.isArray(data)) {
+                            tasks = data;
+                        }
+
+                        if (tasks.length === 0) {
+                            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #6C7D93;">No tasks found.</td></tr>`;
+                            return;
+                        }
+
+                        tasks.forEach(task => {
+                            // Backend Task has: title, description, amount, etc.
+                            // Default to "Academics" and "Active" since DB doesn't track these yet.
+                            const type = 'Academics';
+                            const status = 'Active';
+                            const bucks = task.amount || 0;
+                            const title = task.title || 'Untitled Task';
+                            const statusColor = '#E2E8F0';
+                            const textColor = '#6C7D93';
+
+                            tbody.innerHTML += `
+                                <tr style="border-bottom: 1px solid #F0F2F5;">
+                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${type}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${bucks}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #6C7D93; font-size: 0.95rem;">${title}</td>
+                                    <td style="text-align: center; padding: 15px 10px;">
+                                        <span style="background: ${statusColor}; color: ${textColor}; padding: 5px 15px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${status}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    })
+                    .catch(err => {
+                        console.error('Error fetching tasks:', err);
+                        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #D9534F;">Failed to load tasks.</td></tr>`;
+                    });
+            } else {
+                tableTitle.textContent = 'Bets Placed';
+                stat1Label.textContent = 'Total Students';
+                if (stat2) stat2.style.display = 'flex'; // Show Pos for student
+
+                tableHeaderRow.innerHTML = `
+                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Event</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Potential Win</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
+                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                `;
+
+                // Fetch real bet history
+                const betsResponse = await fetch(`${API_BASE}/leaderboard/history/${user.userID}`);
+                if (betsResponse.ok) {
+                    const bets = await betsResponse.json();
+                    if (bets.length === 0) {
+                        tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
+                    } else {
+                        bets.forEach(b => {
+                            let statusColor, statusBg;
+                            switch (b.outcome) {
+                                case 'YES':
+                                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
+                                case 'NO':
+                                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
+                                case 'CANCELLED':
+                                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
+                                default:
+                                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
+                            }
+                            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
+                            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
+
+                            tbody.innerHTML += `
+                                <tr style="border-bottom: 1px solid #F0F2F5;">
+                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
+                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${dateStr}</td>
+                                    <td style="text-align: center; padding: 15px 10px;">
+                                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+                } else {
+                    tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load bets.</td></tr>`;
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error loading account data:", err);
+    }
+
+    // Refresh live counts (label is already set for the correct role)
+    fetchUserCounts();
+    fetchUserRank();
+}
+
+async function uploadSelectedAvatar() {
+    const input = document.getElementById('avatar-upload-input');
+    if (!input || !input.files || input.files.length === 0) {
+        showToast('Please select an image file first.', 'error');
+        return;
+    }
+    
+    const file = input.files[0];
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    const btn = document.getElementById('btn-upload-avatar');
+    setButtonLoading(btn, true);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/avatar`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.avatarUrl) {
+            showToast('Avatar updated successfully!', 'success');
+            const imgUrl = `http://localhost:8081${data.avatarUrl}?t=${new Date().getTime()}`;
+            
+            // Update UI
+            const headerAvatar = document.getElementById('header-avatar');
+            // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
+            
+            const sidebarImg = document.getElementById('sidebar-avatar-img');
+            const sidebarSvg = document.getElementById('sidebar-avatar-svg');
+            if (sidebarImg && sidebarSvg) {
+                sidebarImg.src = imgUrl;
+                sidebarImg.style.display = 'block';
+                sidebarSvg.style.display = 'none';
+            }
+            
+            // Update session storage
+            user.avatarPath = data.avatarUrl;
+            sessionStorage.setItem('user', JSON.stringify(user));
+
+            // Clear file input
+            input.value = '';
+        } else {
+            showToast(data.error || 'Failed to upload avatar', 'error');
+        }
+    } catch (err) {
+        showToast('Network error while uploading.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+async function updateAccountPassword() {
+    const p1 = document.getElementById('account-new-password').value;
+    const p2 = document.getElementById('account-confirm-password').value;
+    
+    if (!p1 || !p2) {
+        showToast('Please fill in both password fields', 'error');
+        return;
+    }
+    
+    if (p1 !== p2) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    const btn = document.getElementById('btn-update-password');
+    setButtonLoading(btn, true);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: p1 })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Password updated successfully!', 'success');
+            document.getElementById('account-new-password').value = '';
+            document.getElementById('account-confirm-password').value = '';
+        } else {
+            showToast(data.error || 'Failed to update password', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// ── User Management Logic ──
+let umUsers = [];
+let umActiveTab = 'STUDENT';
+
+async function loadUserManagementData() {
+    try {
+        const response = await fetch(`${API_BASE}/users/all`);
+        if (response.ok) {
+            umUsers = await response.json();
+            renderUMTable();
+        } else {
+            let errMsg = 'Failed to load users';
+            try {
+                const errData = await response.json();
+                errMsg = errData.error || errMsg;
+            } catch(e) {
+                errMsg += ` (HTTP ${response.status})`;
+            }
+            console.error('User management API error:', response.status, errMsg);
+            showToast(errMsg, 'error');
+        }
+    } catch (err) {
+        showToast('Network error while fetching users', 'error');
+        console.error('User management fetch error:', err);
+    }
+}
+
+function switchUMTab(role, btnEl) {
+    umActiveTab = role;
+    
+    // Update active class on buttons
+    document.querySelectorAll('.um-tab-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    
+    const titleEl = document.getElementById('um-tab-title');
+    const colNo = document.getElementById('um-col-no');
+    
+    const searchBySelect = document.getElementById('um-search-by');
+    let idOption = null;
+    if (searchBySelect) {
+        idOption = searchBySelect.querySelector('option[value="id"]');
+    }
+
+    if (role === 'STUDENT') {
+        titleEl.textContent = 'Student';
+        colNo.textContent = 'Student No.';
+        if (idOption) idOption.textContent = 'Search by: Student No.';
+    } else if (role === 'LECTURER') {
+        titleEl.textContent = 'Lecturer';
+        colNo.textContent = 'Staff No.';
+        if (idOption) idOption.textContent = 'Search by: Staff No.';
+    } else {
+        titleEl.textContent = 'Administrator';
+        colNo.textContent = 'User ID';
+        if (idOption) idOption.textContent = 'Search by: User ID';
+    }
+
+    renderUMTable();
+}
+
+function filterUMTable() {
+    renderUMTable();
+}
+
+function renderUMTable() {
+    const tbody = document.getElementById('um-table-body');
+    const searchInput = document.getElementById('um-search-input');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Filter by role and search
+    let filteredUsers = umUsers.filter(u => u.userType === umActiveTab);
+    
+    const searchBySelect = document.getElementById('um-search-by');
+    const searchBy = searchBySelect ? searchBySelect.value : 'id';
+    
+    if (searchTerm) {
+        filteredUsers = filteredUsers.filter(u => {
+            const fullName = `${u.name || ''} ${u.surname || ''}`.toLowerCase();
+            const email = (u.email || '').toLowerCase();
+            const no = String(u.studentNo || u.staffNo || u.userID || '').toLowerCase();
+            
+            if (searchBy === 'id') return no.includes(searchTerm);
+            if (searchBy === 'name') return fullName.includes(searchTerm);
+            if (searchBy === 'email') return email.includes(searchTerm);
+            return false;
+        });
+    }
+
+    // Pagination info
+    const pageInfo = document.getElementById('um-pagination-info');
+    if (pageInfo) {
+        if (filteredUsers.length === 0) {
+            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
+        } else {
+            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1 - ${filteredUsers.length}</span> of ${filteredUsers.length}`;
+        }
+    }
+
+    filteredUsers.forEach(u => {
+        const no = u.userType === 'STUDENT' ? (u.studentNo || 'N/A') : (u.userType === 'LECTURER' ? (u.staffNo || 'N/A') : u.userID);
+        let date = 'N/A';
+        if (u.createdDate) {
+            const match = u.createdDate.match(/^(\d{4}-\d{2}-\d{2})/);
+            if (match) {
+                // convert YYYY-MM-DD to DD/MM/YYYY for the table to match previous style
+                const parts = match[1].split('-');
+                date = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            } else {
+                date = u.createdDate.split(' ')[0];
+            }
+        }
+
+        tbody.innerHTML += `
+            <tr>
+                <td style="color: #A0B2D6;">#${no}</td>
+                <td style="color: #1B2F5E; font-weight: 600;">${u.name} ${u.surname}</td>
+                <td><a href="mailto:${u.email}" style="color: #6C7D93; text-decoration: underline;">${u.email}</a></td>
+                <td style="color: #1B2F5E; font-weight: 600;">${date}</td>
+                <td style="text-align: center;">
+                    <button class="um-action-btn" onclick="currentSelectedUserId = ${u.userID}; openUserProfileModal()">View</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ── Friends Panel Logic (Jason C-series: C100, C200, C300) ──
+// ══════════════════════════════════════════════════════════════
+
+async function loadFriendsData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    await Promise.all([
+        loadFriendsList(user.userID),
+        loadPendingRequests(user.userID)
+    ]);
+}
+
+// C100 — Load accepted friends list
+async function loadFriendsList(userID) {
+    const container = document.getElementById('friends-list-container');
+    const countEl = document.getElementById('friends-count');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${userID}`);
+        const friends = await response.json();
+
+        if (!response.ok) {
+            container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Failed to load friends.</p>`;
+            return;
+        }
+
+        if (friends.length === 0) {
+            container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">You haven't added any friends yet.</p>`;
+            if (countEl) countEl.textContent = '0 friends';
+            return;
+        }
+
+        if (countEl) countEl.textContent = `${friends.length} friend${friends.length !== 1 ? 's' : ''}`;
+
+        container.innerHTML = friends.map(f => {
+            // Show the OTHER person's name (not your own)
+            const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                            </svg>
+                        </div>
+                        <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${friendName}</span>
+                    </div>
+                    <button onclick="removeFriend(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Remove</button>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading friends.</p>`;
+        console.error(err);
+    }
+}
+
+// C100 — Load pending friend requests
+async function loadPendingRequests(userID) {
+    const container = document.getElementById('pending-requests-list');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${userID}/pending`);
+        const pending = await response.json();
+
+        if (!response.ok) {
+            container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Failed to load requests.</p>`;
+            return;
+        }
+
+        if (pending.length === 0) {
+            container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">No pending requests.</p>`;
+            return;
+        }
+
+        container.innerHTML = pending.map(f => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #FFF9E6; border-radius: 12px; border: 1px solid #F5A623;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: #F5A623; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                    </div>
+                    <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${f.requesterName}</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="acceptFriendRequest(${f.friendshipID})" style="background: #28A745; color: white; border: none; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Accept</button>
+                    <button onclick="rejectFriendRequest(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Reject</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading requests.</p>`;
+        console.error(err);
+    }
+}
+
+// C200 — Send friend request by email
+async function sendFriendRequest() {
+    const emailInput = document.getElementById('friend-email-input');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const btn = document.getElementById('btn-send-friend-request');
+
+    if (!email) {
+        showToast('Please enter an email address.', 'error');
+        return;
+    }
+
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    setButtonLoading(btn, true);
+
+    try {
+        // First, look up the user by email
+        const lookupRes = await fetch(`${API_BASE}/users/lookup?email=${encodeURIComponent(email)}`);
+
+        if (!lookupRes.ok) {
+            const errData = await lookupRes.json();
+            showToast(errData.error || 'User not found.', 'error');
+            return;
+        }
+
+        const targetUser = await lookupRes.json();
+
+        // Now send the friend request
+        const response = await fetch(`${API_BASE}/friends/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requesterID: user.userID, addresseID: targetUser.userID })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Friend request sent!', 'success');
+            emailInput.value = '';
+        } else {
+            showToast(data.error || 'Failed to send request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error. Please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// C200 — Accept friend request
+async function acceptFriendRequest(friendshipID) {
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}/accept`, {
+            method: 'PUT'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend request accepted!', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to accept request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// C200 — Reject friend request
+async function rejectFriendRequest(friendshipID) {
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}/reject`, {
+            method: 'PUT'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend request rejected.', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to reject request.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// C300 — Remove friend
+async function removeFriend(friendshipID) {
+    const confirmed = await showConfirmModal('Remove Friend', 'Are you sure you want to remove this friend? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/friends/${friendshipID}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast('Friend removed.', 'success');
+            loadFriendsData();
+        } else {
+            showToast(data.error || 'Failed to remove friend.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error.', 'error');
+        console.error(err);
+    }
+}
+
+// ── Custom Confirm Modal Logic ──
+let confirmResolve = null;
+
+function showConfirmModal(title, message) {
+    return new Promise(resolve => {
+        confirmResolve = resolve;
+        document.getElementById('confirm-modal-title').textContent = title;
+        document.getElementById('confirm-modal-message').textContent = message;
+        document.getElementById('confirm-modal').classList.remove('hidden');
+    });
+}
+
+function closeConfirmModal(result) {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    if (confirmResolve) {
+        confirmResolve(result);
+        confirmResolve = null;
+    }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ── Leaderboard Panel Logic (Jason C-series: C400, C500) ────
+// ══════════════════════════════════════════════════════════════
+
+async function loadLeaderboardData() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    await Promise.all([
+        loadUserStats(user.userID),
+        loadRankings(),
+        loadBetHistory(user.userID)
+    ]);
+}
+
+// C500 — Load user's personal stats (rank, wins, losses, pending)
+async function loadUserStats(userID) {
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/stats/${userID}`);
+        const stats = await response.json();
+
+        if (response.ok) {
+            const rankEl = document.getElementById('lb-user-rank');
+            const winsEl = document.getElementById('lb-user-wins');
+            const lossesEl = document.getElementById('lb-user-losses');
+            const pendingEl = document.getElementById('lb-user-pending');
+
+            if (rankEl) rankEl.textContent = `#${stats.rank}`;
+            if (winsEl) winsEl.textContent = stats.wins || 0;
+            if (lossesEl) lossesEl.textContent = stats.losses || 0;
+            if (pendingEl) pendingEl.textContent = stats.pending || 0;
+        }
+    } catch (err) {
+        console.error('Failed to load user stats:', err);
+    }
+}
+
+// ── Fetch & display live lecturer dashboard stats ──
+async function loadLecturerDashboardStats() {
+    try {
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        if (!user || user.userType !== 'LECTURER') return;
+        const res = await fetch(`${API_BASE}/lecturers/${user.userID}/dashboard-stats`);
+        if (!res.ok) return;
+        const stats = await res.json();
+
+        const grpEl = document.getElementById('lect-stat-groups');
+        if (grpEl) grpEl.innerText = stats.totalGroups;
+
+        const stuEl = document.getElementById('lect-stat-students');
+        if (stuEl) stuEl.innerText = stats.totalStudents;
+        
+        const stuTrendEl = document.getElementById('lect-stat-students-trend');
+        if (stuTrendEl) stuTrendEl.innerHTML = `&uarr; ${stats.newStudentsThisWeek}`;
+
+        const actEl = document.getElementById('lect-stat-active');
+        if (actEl) actEl.innerText = stats.activeToday;
+
+        const engEl = document.getElementById('lect-stat-engagement');
+        if (engEl) {
+            let pct = 0;
+            if (stats.totalStudents > 0) {
+                pct = Math.round((stats.activeToday / stats.totalStudents) * 100);
+            }
+            engEl.innerText = `${pct}%`;
+        }
+
+        // Fetch lecturer's created groups
+        const groupsRes = await fetch(`${API_BASE}/groups?createdBy=${user.userID}`);
+        if (groupsRes.ok) {
+            const groups = await groupsRes.json();
+            const container = document.getElementById('lecturer-groups-container');
+            if (container) {
+                container.innerHTML = '';
+                if (groups.length === 0) {
+                    container.innerHTML = '<p style="color: #6C7D93; font-style: italic;">No groups created yet.</p>';
+                } else {
+                    groups.forEach(g => {
+                        const badge = g.groupName ? g.groupName.substring(0, 4).toUpperCase() : 'GRP';
+                        const name = g.groupName || 'Unnamed Group';
+                        const desc = g.description || 'No description';
+                        const dateStr = g.createdDate ? new Date(g.createdDate).toLocaleDateString() : 'recently';
+                        
+                        container.innerHTML += `
+                            <div class="lect-group-card">
+                                <div class="lect-group-header">
+                                    <div class="lect-group-badge">${badge}</div>
+                                    <div>
+                                        <p class="lect-group-name">${name}</p>
+                                        <p class="lect-group-meta">${desc}</p>
+                                    </div>
+                                    <div class="lect-group-pill lect-pill-green">Active</div>
+                                </div>
+                                <ul class="lect-group-updates">
+                                    <li>🟢 Created on: <strong>${dateStr}</strong></li>
+                                    <li>💬 Ready for new activities</li>
+                                </ul>
+                                <button class="lect-group-btn" onclick="switchPanel('panel-groups'); return false;">View Group
+                                    →</button>
+                            </div>
+                        `;
+                    });
+                }
+            }
+        }
+
+    } catch (e) {
+        console.error("Failed to load lecturer stats", e);
+    }
+}
+
+// C500 — Load top rankings table
+let currentLeaderboardSort = 'balance';
+
+async function loadRankings(sortBy) {
+    if (sortBy) currentLeaderboardSort = sortBy;
+    const tbody = document.getElementById('leaderboard-table-body');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/rankings?limit=20&sortBy=${currentLeaderboardSort}`);
+        const rankings = await response.json();
+
+        if (!response.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load rankings.</td></tr>`;
+            return;
+        }
+
+        if (rankings.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No users ranked yet.</td></tr>`;
+            return;
+        }
+
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        const currentUserID = user ? user.userID : -1;
+
+        tbody.innerHTML = rankings.map(r => {
+            const isCurrentUser = r.userID === currentUserID;
+            const rowBg = isCurrentUser ? 'background: #FFF9E6;' : '';
+            const rankBadge = r.rank <= 3
+                ? `<span style="background: ${r.rank === 1 ? '#F5A623' : r.rank === 2 ? '#C0C0C0' : '#CD7F32'}; color: white; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem;">${r.rank}</span>`
+                : `<span style="color: #1B2F5E; font-weight: 600;">${r.rank}</span>`;
+
+            return `
+                <tr style="border-bottom: 1px solid #F0F2F5; ${rowBg}">
+                    <td style="padding: 14px 10px;">${rankBadge}</td>
+                    <td style="padding: 14px 10px; color: #1B2F5E; font-weight: ${isCurrentUser ? '700' : '500'};">${r.name}${isCurrentUser ? ' (You)' : ''}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${parseFloat(r.balance).toFixed(2)} MB</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${r.totalBets}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #28A745; font-weight: 600;">${r.betsWon}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Error loading rankings.</td></tr>`;
+        console.error(err);
+    }
+}
+
+// C400 — Load bet history table
+async function loadBetHistory(userID) {
+    const tbody = document.getElementById('bet-history-table-body');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/leaderboard/history/${userID}`);
+        const bets = await response.json();
+
+        if (!response.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load bet history.</td></tr>`;
+            return;
+        }
+
+        if (bets.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = bets.map(b => {
+            let statusColor, statusBg;
+            switch (b.outcome) {
+                case 'YES':
+                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
+                case 'NO':
+                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
+                case 'CANCELLED':
+                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
+                default:
+                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
+            }
+
+            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
+            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
+
+            return `
+                <tr style="border-bottom: 1px solid #F0F2F5;">
+                    <td style="padding: 14px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
+                    <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${dateStr}</td>
+                    <td style="text-align: center; padding: 14px 10px;">
+                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Error loading bet history.</td></tr>`;
+        console.error(err);
+    }
+}
+
+// Switch leaderboard sort criteria
+function changeLeaderboardSort(sortBy, btnEl) {
+    // Update active button
+    document.querySelectorAll('.lb-sort-btn').forEach(btn => btn.classList.remove('lb-sort-active'));
+    if (btnEl) btnEl.classList.add('lb-sort-active');
+
+    // Reload rankings with new sort
+    loadRankings(sortBy);
+}
+
+
 // ── Admin Query Management ──
 
 async function loadAdminQueries() {
@@ -956,6 +2083,12 @@ async function loadAdminQueries() {
         
         if (response.ok) {
             renderQueryTable(queries);
+            const openQueries = queries.filter(q => q.resolvedStatus === 'OPEN');
+            const badge = document.getElementById('query-badge');
+            if (badge) {
+                badge.textContent = openQueries.length;
+                badge.style.display = openQueries.length > 0 ? 'inline-flex' : 'none';
+            }
         } else {
             console.error('Failed to load queries');
         }
@@ -1039,4 +2172,818 @@ async function resolveQuery(queryID) {
         showToast('Error updating query status', 'error');
         console.error(error);
     }
+}
+
+// ── Account Deletion Request Logic ──
+
+function showDeleteModal() {
+    const modal = document.getElementById('delete-account-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('delete-account-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitDeleteRequest() {
+    const userStr = sessionStorage.getItem('user');
+    if (!userStr) return;
+    const user = JSON.parse(userStr);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${user.userID}/delete-request`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            closeDeleteModal();
+            showToast('account will be deleted by admin', 'success');
+            setTimeout(() => {
+                logout();
+            }, 1500);
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Failed to submit request', 'error');
+        }
+    } catch (err) {
+        showToast('Error submitting request', 'error');
+        console.error(err);
+    }
+}
+
+window.allDeleteRequests = [];
+
+async function loadDeleteRequests() {
+    try {
+        const response = await fetch(`${API_BASE}/users/delete-requests`);
+        if (!response.ok) return;
+        const requests = await response.json();
+
+        const newRequests = requests.filter(r => r.status === 'NEW');
+        
+        const uniqueRequests = [];
+        const seenUsers = new Set();
+        for (const req of newRequests) {
+            if (!seenUsers.has(req.userID)) {
+                seenUsers.add(req.userID);
+                uniqueRequests.push(req);
+            }
+        }
+        
+        const newCount = uniqueRequests.length;
+        const badge = document.getElementById('delete-request-badge');
+        if (badge) {
+            badge.textContent = newCount;
+            badge.style.display = newCount > 0 ? 'inline-flex' : 'none';
+        }
+        
+        const adminDeleteStat = document.getElementById('admin-delete-requests');
+        if (adminDeleteStat) {
+            adminDeleteStat.textContent = newCount;
+        }
+        
+        window.allDeleteRequests = uniqueRequests;
+        filterDeleteRequests();
+    } catch (err) {
+        console.error('Failed to load delete requests:', err);
+    }
+}
+
+window.filterDeleteRequests = function() {
+    const searchInput = document.getElementById('admin-delete-search-input');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    const searchBySelect = document.getElementById('admin-delete-search-by');
+    const searchBy = searchBySelect ? searchBySelect.value : 'name';
+    
+    let filtered = window.allDeleteRequests;
+    if (searchTerm) {
+        filtered = filtered.filter(req => {
+            const name = (req.userName || '').toLowerCase();
+            const email = (req.userEmail || '').toLowerCase();
+            
+            if (searchBy === 'name') return name.includes(searchTerm);
+            if (searchBy === 'email') return email.includes(searchTerm);
+            return false;
+        });
+    }
+    
+    renderDeleteRequests(filtered);
+}
+
+function renderDeleteRequests(requestsToRender) {
+    const tbody = document.getElementById('delete-request-tbody');
+    if (!tbody) return;
+    
+    const count = requestsToRender.length;
+    
+    const paginationInfo = document.getElementById('delete-request-pagination-info');
+    if (paginationInfo) {
+        if (count === 0) {
+            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
+        } else {
+            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of ${count}`;
+        }
+    }
+
+    tbody.innerHTML = '';
+    requestsToRender.forEach(req => {
+        const dateStr = new Date(req.requestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="padding: 12px 15px; color: #6C7A9C; font-size: 0.9rem;">${dateStr}</td>
+            <td style="padding: 12px 15px; font-weight: 600; color: #1B2F5E; font-size: 0.95rem;">${escapeHtml(req.userName || '')}</td>
+            <td style="padding: 12px 15px;"><a href="mailto:${req.userEmail}" style="color: #6C7A9C; text-decoration: underline; font-size: 0.9rem;">${escapeHtml(req.userEmail || '')}</a></td>
+            <td style="padding: 12px 15px; text-align: center;">
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button onclick="reinstateUser(${req.requestID})" style="background: white; border: 1px solid #1B2F5E; color: #1B2F5E; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Reinstate</button>
+                    <button onclick="deleteUserPermanently(${req.userID})" style="background: #D9534F; border: none; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Delete</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function reinstateUser(reqId) {
+    try {
+        const response = await fetch(`${API_BASE}/users/delete-requests/${reqId}/reinstate`, {
+            method: 'PUT'
+        });
+        if (response.ok) {
+            showToast('User reinstated successfully', 'success');
+            loadDeleteRequests(); // Refresh table and badge
+        } else {
+            showToast('Failed to reinstate user', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error reinstating user', 'error');
+    }
+}
+
+async function deleteUserPermanently(userId) {
+    if (!confirm('Are you absolutely sure you want to permanently delete this user? This cannot be undone.')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/users/${userId}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            showToast('User deleted permanently', 'success');
+            loadDeleteRequests(); // Refresh table and badge
+        } else {
+            showToast('Failed to delete user', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error deleting user', 'error');
+    }
+}
+
+// ── Fetch & display live admin dashboard stats ──
+async function loadAdminDashboardStats() {
+    const setStat = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    // 1. Dashboard stat cards
+    try {
+        const res = await fetch(`${API_BASE}/admin/dashboard-stats`);
+        if (res.ok) {
+            const stats = await res.json();
+            
+            setStat('stat-bets-proposed', stats.betsProposedToday);
+            setStat('stat-bets-placed', stats.betsPlacedToday);
+            setStat('stat-bets-pending', stats.betsPendingReview);
+            setStat('stat-upcoming-events', stats.upcomingEvents);
+            
+            setStat('stat-users-total', stats.totalUsers);
+            setStat('stat-users-joined-today', stats.usersJoinedToday);
+            setStat('stat-support-queries', stats.openSupportQueries);
+            setStat('stat-bonus-awarded', stats.usersRewardedToday);
+            
+            setStat('admin-total-users', stats.totalUsers);
+            setStat('admin-new-proposals', stats.betsPendingReview);
+            setStat('admin-weekly-growth', stats.usersJoinedToday);
+        }
+    } catch (err) {
+        console.error('Failed to load admin dashboard stats:', err);
+    }
+    
+    // 2. Populate dashboard Delete Requests card
+    try {
+        const res = await fetch(`${API_BASE}/users/delete-requests`);
+        if (res.ok) {
+            const requests = await res.json();
+            const newRequests = requests.filter(r => r.status === 'NEW');
+            const uniqueRequests = [];
+            const seenUsers = new Set();
+            for (const req of newRequests) {
+                if (!seenUsers.has(req.userID)) {
+                    seenUsers.add(req.userID);
+                    uniqueRequests.push(req);
+                }
+            }
+            const tbody = document.getElementById('dashboard-delete-requests-tbody');
+            if (tbody) {
+                if (uniqueRequests.length === 0) {
+                    tbody.innerHTML = '<tr><td style="color:#A0B2D6;">No pending requests</td></tr>';
+                } else {
+                    tbody.innerHTML = uniqueRequests.slice(0, 6).map(r =>
+                        `<tr><td>${r.userName || ''}</td></tr>`
+                    ).join('');
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load dashboard delete requests:', err);
+    }
+    
+    // 3. Populate dashboard Groups card
+    try {
+        const res = await fetch(`${API_BASE}/groups`);
+        if (res.ok) {
+            const groups = await res.json();
+            const container = document.getElementById('dashboard-groups-list');
+            if (container) {
+                if (groups.length === 0) {
+                    container.innerHTML = '<div class="admin-league-row"><span style="color:#A0B2D6;">No groups yet</span></div>';
+                } else {
+                    container.innerHTML = groups.slice(0, 6).map(g =>
+                        `<div class="admin-league-row"><span>${g.groupName}</span><button class="admin-league-btn" onclick="switchPanel('panel-groups')">View</button></div>`
+                    ).join('');
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load dashboard groups:', err);
+    }
+    
+    // 4. Populate Bet Types pie chart from active bets
+    try {
+        const res = await fetch(`${API_BASE}/bets/active`);
+        if (res.ok) {
+            const data = await res.json();
+            const bets = data.bets || [];
+            
+            const typeColors = {
+                'Academics': '#34D399',
+                'Sports': '#3B82F6',
+                'Social': '#F87171',
+                'Class Room': '#F5A623',
+                'Other': '#A78BFA'
+            };
+            
+            // Count bets by type
+            const counts = {};
+            bets.forEach(b => {
+                const idx = b.description.indexOf(':');
+                let type = 'Other';
+                if (idx > 0) {
+                    const prefix = b.description.slice(0, idx).trim();
+                    const known = Object.keys(typeColors);
+                    const match = known.find(k => k.toLowerCase() === prefix.toLowerCase());
+                    if (match) type = match;
+                }
+                counts[type] = (counts[type] || 0) + 1;
+            });
+            
+            const total = bets.length;
+            const pie = document.getElementById('admin-bet-pie');
+            const legend = document.getElementById('admin-bet-legend');
+            
+            if (pie && legend && total > 0) {
+                // Build conic-gradient
+                let gradientParts = [];
+                let cumulative = 0;
+                const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                
+                entries.forEach(([type, count]) => {
+                    const pct = (count / total) * 100;
+                    const color = typeColors[type] || '#A78BFA';
+                    gradientParts.push(`${color} ${cumulative.toFixed(1)}% ${(cumulative + pct).toFixed(1)}%`);
+                    cumulative += pct;
+                });
+                
+                pie.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+                
+                // Build legend
+                legend.innerHTML = entries.map(([type, count]) => {
+                    const color = typeColors[type] || '#A78BFA';
+                    return `<span class="admin-legend-dot" style="background:${color}; margin-left:8px;"></span> ${type} (${count})`;
+                }).join('');
+            } else if (pie && total === 0) {
+                pie.style.background = '#E2E8F0';
+                legend.innerHTML = '<span style="color:#A0B2D6;">No active bets</span>';
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load bet types chart:', err);
+    }
+    
+    // 5. Populate New Users line graph
+    try {
+        const res = await fetch(`${API_BASE}/users/all`);
+        if (res.ok) {
+            const users = await res.json();
+            // Filter to STUDENTS and LECTURERS
+            const targetUsers = users.filter(u => u.userType === 'STUDENT' || u.userType === 'LECTURER');
+            
+            // Generate last 7 days array ['Mon', 'Tue', 'Wed', ...] and counts
+            const daysMap = {};
+            const labels = [];
+            const counts = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+                daysMap[dateStr] = { count: 0, label: label };
+                labels.push(label);
+            }
+            
+            // Count users by date
+            targetUsers.forEach(u => {
+                if (u.createdDate) {
+                    const match = u.createdDate.match(/^(\d{4}-\d{2}-\d{2})/);
+                    if (match) {
+                        const dateStr = match[1];
+                        if (daysMap[dateStr]) {
+                            daysMap[dateStr].count++;
+                        }
+                    }
+                }
+            });
+            
+            Object.values(daysMap).forEach(data => counts.push(data.count));
+            
+            let maxCount = Math.max(...counts);
+            if (maxCount < 10) maxCount = 10; // Minimum scale of 10
+            
+            // Update Y-axis labels
+            const yAxis = document.getElementById('admin-users-line-y-axis');
+            if (yAxis) {
+                yAxis.innerHTML = `
+                    <span>${maxCount}</span>
+                    <span>${Math.round(maxCount / 2)}</span>
+                    <span>0</span>
+                `;
+            }
+            
+            // Draw SVG
+            const pathEl = document.getElementById('admin-users-line-path');
+            const pointsGroup = document.getElementById('admin-users-line-points');
+            const labelsDiv = document.getElementById('admin-users-line-labels');
+            const tooltip = document.getElementById('admin-users-line-tooltip');
+            
+            if (pathEl && pointsGroup && labelsDiv) {
+                let dPath = '';
+                pointsGroup.innerHTML = '';
+                
+                const width = 200;
+                const chartHeight = 80;
+                const topPadding = 10;
+                const stepX = width / (counts.length - 1);
+                
+                counts.forEach((val, i) => {
+                    const x = i * stepX;
+                    const y = topPadding + chartHeight - (val / maxCount) * chartHeight;
+                    
+                    if (i === 0) dPath += `M ${x} ${y} `;
+                    else dPath += `L ${x} ${y} `;
+                    
+                    // Add invisible larger circle for easier hovering
+                    pointsGroup.innerHTML += `
+                        <circle cx="${x}" cy="${y}" r="10" fill="transparent"
+                            onmouseover="showAdminLineTooltip(event, '${labels[i]}', ${val})"
+                            onmouseout="hideAdminLineTooltip()" />
+                        <circle cx="${x}" cy="${y}" r="3" fill="#1B2F5E" style="pointer-events:none;" />
+                    `;
+                });
+                
+                pathEl.setAttribute('d', dPath);
+                labelsDiv.innerHTML = labels.map(l => `<span>${l}</span>`).join('');
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load new users chart:', err);
+    }
+}
+
+window.showAdminLineTooltip = function(e, label, value) {
+    const tooltip = document.getElementById('admin-users-line-tooltip');
+    if (!tooltip) return;
+    tooltip.innerHTML = `${label}: ${value} users`;
+    tooltip.style.opacity = '1';
+    
+    const svgRect = document.getElementById('admin-users-line-chart').getBoundingClientRect();
+    const x = e.clientX - svgRect.left;
+    const y = e.clientY - svgRect.top;
+    
+    // Position tooltip above the point
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+}
+
+window.hideAdminLineTooltip = function() {
+    const tooltip = document.getElementById('admin-users-line-tooltip');
+    if (tooltip) tooltip.style.opacity = '0';
+}
+
+/* =============================================================
+ * USER PROFILE MODAL & DELETION LOGIC
+ * ============================================================= */
+
+let currentSelectedUserId = null;
+
+window.openUserProfileModal = async function() {
+    if (!currentSelectedUserId) return;
+    
+    const detailsContainer = document.getElementById('user-profile-details');
+    detailsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px;">Loading details...</div>';
+    
+    document.getElementById('user-profile-modal').classList.remove('hidden');
+    
+    try {
+        const res = await fetch(`${API_BASE}/users/${currentSelectedUserId}`);
+        const data = await res.json();
+        
+        if (res.ok && data.user) {
+            const u = data.user;
+            const balance = typeof data.balance === 'number' ? data.balance.toFixed(2) : '0.00';
+            const role = u.userType || 'N/A';
+            const idField = role === 'STUDENT' ? 'Student No.' : (role === 'LECTURER' ? 'Staff No.' : 'User ID');
+            const idVal = role === 'STUDENT' ? u.studentNo : (role === 'LECTURER' ? u.staffNo : u.userID);
+            
+            detailsContainer.innerHTML = `
+                <div style="color: #6C7D93; font-weight: 500;">Name:</div>
+                <div style="font-weight: 600;">${escapeHtml(u.name || '')} ${escapeHtml(u.surname || '')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">Email:</div>
+                <div style="font-weight: 600;">${escapeHtml(u.email || 'N/A')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">${idField}:</div>
+                <div style="font-weight: 600;">#${escapeHtml(idVal || 'N/A')}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">Role:</div>
+                <div style="font-weight: 600;">${escapeHtml(role)}</div>
+                
+                <div style="color: #6C7D93; font-weight: 500;">MadiBucks:</div>
+                <div style="font-weight: 700; color: #F5A623;">${balance}</div>
+            `;
+        } else {
+            detailsContainer.innerHTML = `<div style="grid-column: span 2; color: #D9534F; text-align: center; padding: 20px;">Failed to load profile.</div>`;
+        }
+    } catch (err) {
+        console.error('Error fetching user profile:', err);
+        detailsContainer.innerHTML = `<div style="grid-column: span 2; color: #D9534F; text-align: center; padding: 20px;">Network error.</div>`;
+    }
+}
+
+window.closeUserProfileModal = function() {
+    document.getElementById('user-profile-modal').classList.add('hidden');
+}
+
+window.confirmDeleteUser = async function() {
+    if (!currentSelectedUserId) return;
+    
+    // Utilize the existing confirm modal which returns a Promise
+    const confirmed = await showConfirmModal(
+        'Delete User?', 
+        'Are you sure you want to delete this user? This action cannot be undone and will remove all associated bets and account data.'
+    );
+    
+    if (confirmed) {
+        try {
+            const res = await fetch(`${API_BASE}/users/${currentSelectedUserId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                showToast('User deleted successfully.', 'success');
+                closeUserProfileModal();
+                // Refresh the table
+                loadUserManagementTable();
+            } else {
+                const errData = await res.json();
+                showToast(errData.error || 'Failed to delete user.', 'error');
+            }
+        } catch (err) {
+            console.error('Error deleting user:', err);
+            showToast('Network error while deleting.', 'error');
+        }
+    }
+}
+
+/* =============================================================
+ * B-SERIES: BETS PANEL + ACCOUNTING SYSTEM (Kieran)
+ * ============================================================= */
+
+const BET_TYPE_OPTIONS = ['Academics', 'Sports', 'Social', 'Class Room'];
+
+function betTypeOf(description) {
+    const idx = description.indexOf(':');
+    if (idx > 0) {
+        const prefix = description.slice(0, idx).trim();
+        if (BET_TYPE_OPTIONS.some(t => t.toLowerCase() === prefix.toLowerCase())) return prefix;
+    }
+    return 'Other';
+}
+
+function betTextOf(description) {
+    return betTypeOf(description) === 'Other'
+        ? description
+        : description.slice(description.indexOf(':') + 1).trim();
+}
+
+// ── Bets panel (student) ──
+let betsCache = {};   // betID -> bet, so onclick handlers don't embed user text
+
+function switchBetsTab(tab) {
+    document.getElementById('bets-tab-place').classList.toggle('active', tab === 'place');
+    document.getElementById('bets-tab-propose').classList.toggle('active', tab === 'propose');
+    document.getElementById('bets-list-view').classList.toggle('hidden', tab !== 'place');
+    document.getElementById('bets-propose-view').classList.toggle('hidden', tab !== 'propose');
+    if (tab === 'place') loadBetsPanel();
+}
+
+async function loadBetsPanel() {
+    const tbody = document.getElementById('bets-table-body');
+    const empty = document.getElementById('bets-empty-msg');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/bets/active`);
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Failed to load bets.', 'error');
+            return;
+        }
+        const bets = data.bets || [];
+        betsCache = {};
+        tbody.innerHTML = '';
+        empty.classList.toggle('hidden', bets.length > 0);
+
+        bets.forEach(b => {
+            betsCache[b.betID] = b;
+            const odds = Number(b.odds).toFixed(2);
+            const action = b.open
+                ? `<button class="bet-action-btn" onclick="openWagerModal(${b.betID})">${odds}</button>`
+                : `<span class="bet-taken-pill">Taken · ${odds}</span>`;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${escapeHtml(betTypeOf(b.description))}</td>
+                    <td>${escapeHtml(betTextOf(b.description))}</td>
+                    <td style="text-align: center;">${action}</td>
+                </tr>
+            `;
+        });
+        filterBetsTable();
+    } catch (err) {
+        showToast('Network error — is the API server running?', 'error');
+        console.error(err);
+    }
+}
+
+// B700 mockup: search field filters the open-bets list client-side
+function filterBetsTable() {
+    const input = document.getElementById('bets-search');
+    if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('#bets-table-body tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+// ── Wager modal (B100) ──
+let wagerBetID = null;
+
+function openWagerModal(betID) {
+    const b = betsCache[betID];
+    if (!b) return;
+    wagerBetID = betID;
+    document.getElementById('wager-bet-desc').textContent = betTextOf(b.description);
+    document.getElementById('wager-amount').value = '';
+    updateWagerPayout();
+    document.getElementById('wager-modal').classList.remove('hidden');
+}
+
+function closeWagerModal() {
+    wagerBetID = null;
+    document.getElementById('wager-modal').classList.add('hidden');
+}
+
+function updateWagerPayout() {
+    const b = betsCache[wagerBetID];
+    if (!b) return;
+    const odds = Number(b.odds);
+    const amount = parseFloat(document.getElementById('wager-amount').value);
+    document.getElementById('wager-bet-payout').textContent = (amount > 0)
+        ? `Odds ${odds.toFixed(2)} — potential payout ${(amount * odds).toFixed(2)} MB`
+        : `Odds ${odds.toFixed(2)}`;
+}
+
+async function submitWager() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user || wagerBetID === null) return;
+    const amount = parseFloat(document.getElementById('wager-amount').value);
+    if (!(amount > 0)) {
+        showToast('Please enter a stake amount.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-place-wager');
+    setButtonLoading(btn, true);
+    try {
+        const res = await fetch(`${API_BASE}/bets/${wagerBetID}/wager`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, stake: amount })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`Bet placed! ${amount.toFixed(2)} MB staked.`, 'success');
+            if (data.newBalance != null) {
+                const walletEl = document.getElementById('wallet-balance');
+                if (walletEl) walletEl.textContent = `${parseFloat(data.newBalance).toFixed(2)} MB`;
+            }
+            closeWagerModal();
+            loadBetsPanel();
+        } else {
+            showToast(data.error || 'Failed to place bet.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// ── Proposal form (B200) ──
+async function submitProposal() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+    const type = document.getElementById('propose-type').value;
+    const text = document.getElementById('propose-description').value.trim();
+    if (!text) {
+        showToast('Please describe the bet you want to propose.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-submit-proposal');
+    setButtonLoading(btn, true);
+    try {
+        const res = await fetch(`${API_BASE}/bets/propose`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, eventID: null, description: `${type}: ${text}` })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast('Proposal sent to the admins for review!', 'success');
+            document.getElementById('propose-description').value = '';
+            switchBetsTab('place');
+        } else {
+            showToast(data.error || 'Failed to submit proposal.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+// ── Accounting System panel (admin: B300/B400/B500) ──
+async function loadAccountingPanel() {
+    try {
+        const [pRes, aRes] = await Promise.all([
+            fetch(`${API_BASE}/bets/proposed`),
+            fetch(`${API_BASE}/bets/active`)
+        ]);
+        const pData = await pRes.json();
+        const aData = await aRes.json();
+        if (!pRes.ok || !aRes.ok) {
+            showToast(pData.error || aData.error || 'Failed to load bets.', 'error');
+            return;
+        }
+        renderProposedTable(pData.bets || []);
+        renderActiveAdminTable(aData.bets || []);
+    } catch (err) {
+        showToast('Network error — is the API server running?', 'error');
+        console.error(err);
+    }
+}
+
+function renderProposedTable(bets) {
+    const tbody = document.getElementById('acct-proposed-body');
+    document.getElementById('acct-proposed-empty').classList.toggle('hidden', bets.length > 0);
+    tbody.innerHTML = '';
+    bets.forEach(b => {
+        const date = b.proposedDate ? String(b.proposedDate).slice(0, 10) : '—';
+        tbody.innerHTML += `
+            <tr>
+                <td>${date}</td>
+                <td>${escapeHtml(betTypeOf(b.description))}</td>
+                <td>${escapeHtml(betTextOf(b.description))}</td>
+                <td><input type="number" id="odds-input-${b.betID}" class="acct-odds-input"
+                        min="1.01" step="0.01" placeholder="e.g. 2.50"></td>
+                <td>
+                    <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
+                    <button class="acct-btn acct-btn-reject" onclick="rejectProposalUI(${b.betID})">Reject</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function renderActiveAdminTable(bets) {
+    const tbody = document.getElementById('acct-active-body');
+    document.getElementById('acct-active-empty').classList.toggle('hidden', bets.length > 0);
+    tbody.innerHTML = '';
+    bets.forEach(b => {
+        const wager = b.wagerCount > 0
+            ? `${b.wagerCount} wager${b.wagerCount === 1 ? '' : 's'} · ${Number(b.totalStaked).toFixed(2)} MB staked`
+            : '<span style="color:#A0B2D6;">No wagers yet</span>';
+        tbody.innerHTML += `
+            <tr>
+                <td>${escapeHtml(b.description)}</td>
+                <td style="text-align: center;">${Number(b.odds).toFixed(2)}</td>
+                <td>${wager}</td>
+                <td>
+                    <button class="acct-btn acct-btn-yes" onclick="gradeBetUI(${b.betID}, 'YES')">YES</button>
+                    <button class="acct-btn acct-btn-no" onclick="gradeBetUI(${b.betID}, 'NO')">NO</button>
+                    <button class="acct-btn acct-btn-cancel" onclick="gradeBetUI(${b.betID}, 'CANCELLED')">Cancel</button>
+                    <button class="acct-btn acct-btn-delete" onclick="deleteBetUI(${b.betID})">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+async function acctCall(request, okMsg) {
+    try {
+        const res = await request();
+        const data = await res.json();
+        if (res.ok) {
+            showToast(okMsg, 'success');
+            loadAccountingPanel();
+        } else {
+            showToast(data.error || 'Action failed.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again.', 'error');
+        console.error(err);
+    }
+}
+
+function adminID() {
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    return user ? user.userID : null;
+}
+
+async function approveProposalUI(betID) {
+    const odds = parseFloat(document.getElementById(`odds-input-${betID}`).value);
+    if (!(odds > 1)) {
+        showToast('Enter odds greater than 1.00 before approving.', 'error');
+        return;
+    }
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ odds: odds, adminUserID: adminID() })
+    }), `Bet #${betID} approved at odds ${odds.toFixed(2)}.`);
+}
+
+async function rejectProposalUI(betID) {
+    if (!confirm(`Reject proposal #${betID}? The proposer will not see it again.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUserID: adminID() })
+    }), `Proposal #${betID} rejected.`);
+}
+
+async function gradeBetUI(betID, outcome) {
+    if (!confirm(`Grade bet #${betID} as ${outcome}? This settles any wager and cannot be undone.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}/grade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome: outcome, adminUserID: adminID() })
+    }), `Bet #${betID} graded ${outcome}.`);
+}
+
+async function deleteBetUI(betID) {
+    if (!confirm(`Delete bet #${betID}? A live wager will be refunded.`)) return;
+    acctCall(() => fetch(`${API_BASE}/bets/${betID}?adminUserID=${adminID()}`, {
+        method: 'DELETE'
+    }), `Bet #${betID} deleted.`);
 }

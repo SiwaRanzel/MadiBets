@@ -2,7 +2,6 @@ package com.bloodline.madibets.dao;
 
 import com.bloodline.madibets.config.DatabaseConnection;
 import com.bloodline.madibets.model.Task;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -10,169 +9,96 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
-/** Owner: Pieter (D-series). D400 Create Tasks (CREATE), D500 View Tasks (READ), answer submission. */
+/** Owner: Pieter (D-series). */
 public class TaskDAO {
-
-    /** D400 Create a task for a group. Returns the generated taskID or -1 on failure. */
-    public int create(Task t) throws SQLException {
-        String sql = "INSERT INTO Task (groupID, question, correctAnswer, amount, createdBy) VALUES (?, ?, ?, ?, ?)";
+    
+    // D400 Create Tasks (CREATE)   -> create(...)
+    public Task create(Task task) throws SQLException {
+        String sql = "INSERT INTO Task (title, description, groupID, userID, amount, createdBy) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, t.getGroupID());
-            ps.setString(2, t.getQuestion());
-            ps.setBoolean(3, t.isCorrectAnswer());
-            ps.setDouble(4, t.getAmount());
-            ps.setInt(5, t.getCreatedBy());
+            
+            ps.setString(1, task.getTitle());
+            ps.setString(2, task.getDescription());
+            ps.setInt(3, task.getGroupID());
+            
+            if (task.getUserID() != null) {
+                ps.setInt(4, task.getUserID());
+            } else {
+                ps.setNull(4, java.sql.Types.INTEGER);
+            }
+            
+            ps.setBigDecimal(5, task.getAmount());
+            ps.setInt(6, task.getCreatedBy());
+            
             ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) {
-                    return keys.getInt(1);
+            
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    task.setTaskID(rs.getInt(1));
                 }
             }
-            return -1;
+            return task;
         }
     }
 
-    /** D500 View tasks belonging to a group, with the given user's answered state (null = not answered). */
-    public List<Task> findByGroup(int groupID, int userID) throws SQLException {
-        String sql = "SELECT t.taskID, t.groupID, t.question, t.correctAnswer, t.amount, t.createdBy, t.createdDate, "
-                   + "tc.answer AS userAnswer "
-                   + "FROM Task t "
-                   + "LEFT JOIN TaskCompletion tc ON tc.taskID = t.taskID AND tc.userID = ? "
-                   + "WHERE t.groupID = ? "
-                   + "ORDER BY t.createdDate DESC, t.taskID DESC";
-        List<Task> results = new ArrayList<>();
+    // D500 View Tasks (READ)       -> findByGroup(int groupID)
+    public List<Task> findByGroup(int groupID) throws SQLException {
+        String sql = "SELECT taskID, title, description, groupID, userID, amount, createdBy FROM Task WHERE groupID = ?";
+        List<Task> tasks = new ArrayList<>();
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, userID);
-            ps.setInt(2, groupID);
+            ps.setInt(1, groupID);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Task t = new Task();
-                    t.setTaskID(rs.getInt("taskID"));
-                    t.setGroupID(rs.getInt("groupID"));
-                    t.setQuestion(rs.getString("question"));
-                    t.setCorrectAnswer(rs.getBoolean("correctAnswer"));
-                    t.setAmount(rs.getDouble("amount"));
-                    t.setCreatedBy(rs.getInt("createdBy"));
-                    t.setCreatedDate(rs.getTimestamp("createdDate"));
-
-                    boolean hasAnswer = rs.getObject("userAnswer") != null;
-                    if (hasAnswer) {
-                        boolean ans = rs.getBoolean("userAnswer");
-                        t.setAnswered(ans);
-                        t.setIsCorrect(ans == t.isCorrectAnswer());
-                    } else {
-                        t.setAnswered(null);
-                        t.setIsCorrect(null);
+                    Task task = new Task();
+                    task.setTaskID(rs.getInt("taskID"));
+                    task.setTitle(rs.getString("title"));
+                    task.setDescription(rs.getString("description"));
+                    task.setGroupID(rs.getInt("groupID"));
+                    
+                    int userID = rs.getInt("userID");
+                    if (!rs.wasNull()) {
+                        task.setUserID(userID);
                     }
-                    results.add(t);
+                    
+                    task.setAmount(rs.getBigDecimal("amount"));
+                    task.setCreatedBy(rs.getInt("createdBy"));
+                    tasks.add(task);
                 }
             }
         }
-        return results;
+        return tasks;
     }
 
-    /**
-     * Submit a student's True/False answer for a task.
-     * Validates the user is a member of the task's group, records the answer,
-     * and if correct credits the user's Account balance with the task's amount.
-     * Returns true on success; false if already answered; throws if not a member.
-     */
-    public boolean submitAnswer(int taskID, int userID, boolean answer) throws SQLException {
-        // Load task + group membership in one query
-        String taskSql = "SELECT t.taskID, t.amount, t.correctAnswer, t.groupID, "
-                       + "(SELECT COUNT(*) FROM GroupMember gm WHERE gm.groupID = t.groupID AND gm.userID = ?) AS memberCount, "
-                       + "(SELECT COUNT(*) FROM TaskCompletion tc WHERE tc.taskID = t.taskID AND tc.userID = ?) AS answeredCount "
-                       + "FROM Task t WHERE t.taskID = ?";
-        double amount = 0.0;
-        boolean correctAnswer = false;
-        int groupID = -1;
-        boolean isMember = false;
-        boolean alreadyAnswered = false;
-
-        Connection con = null;
-        try {
-            con = DatabaseConnection.getConnection();
-            con.setAutoCommit(false);
-
-            try (PreparedStatement ps = con.prepareStatement(taskSql)) {
-                ps.setInt(1, userID);
-                ps.setInt(2, userID);
-                ps.setInt(3, taskID);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        groupID = rs.getInt("groupID");
-                        amount = rs.getDouble("amount");
-                        correctAnswer = rs.getBoolean("correctAnswer");
-                        isMember = rs.getInt("memberCount") > 0;
-                        alreadyAnswered = rs.getInt("answeredCount") > 0;
-                    } else {
-                        throw new SQLException("Task not found");
-                    }
-                }
-            }
-
-            if (!isMember) {
-                throw new SQLException("You must be a member of this group to answer its tasks");
-            }
-            if (alreadyAnswered) {
-                con.rollback();
-                con.setAutoCommit(true);
-                con.close();
-                return false;
-            }
-
-            // Record the answer
-            String insertSql = "INSERT INTO TaskCompletion (taskID, userID, answer) VALUES (?, ?, ?)";
-            try (PreparedStatement ps = con.prepareStatement(insertSql)) {
-                ps.setInt(1, taskID);
-                ps.setInt(2, userID);
-                ps.setBoolean(3, answer);
-                ps.executeUpdate();
-            }
-
-            // Award MadiBucks if the answer is correct
-            boolean isCorrect = answer == correctAnswer;
-            if (isCorrect && amount > 0) {
-                String creditSql = "UPDATE Account SET balance = balance + ? WHERE userID = ?";
-                try (PreparedStatement ps = con.prepareStatement(creditSql)) {
-                    ps.setDouble(1, amount);
-                    ps.setInt(2, userID);
-                    ps.executeUpdate();
-                }
-            }
-
-            con.commit();
-
-            // Expose the computed correctness to callers via a transient field if desired
-            if (groupID > 0) {
-                // nothing extra needed; caller can read Task details separately
-            }
-            return true;
-        } catch (SQLException e) {
-            if (con != null) {
-                try { con.rollback(); } catch (SQLException ex) { /* ignore */ }
-            }
-            throw e;
-        } finally {
-            if (con != null) {
-                try { con.setAutoCommit(true); con.close(); } catch (SQLException ex) { /* ignore */ }
-            }
-        }
-    }
-
-    /** Check whether a task belongs to the given group (used for validation). */
-    public boolean taskBelongsToGroup(int taskID, int groupID) throws SQLException {
-        String sql = "SELECT COUNT(*) AS c FROM Task WHERE taskID = ? AND groupID = ?";
+    // D501 View Tasks by Creator (READ) -> findByCreator(int createdBy)
+    public List<Task> findByCreator(int createdBy) throws SQLException {
+        String sql = "SELECT taskID, title, description, groupID, userID, amount, createdBy FROM Task WHERE createdBy = ?";
+        List<Task> tasks = new ArrayList<>();
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, taskID);
-            ps.setInt(2, groupID);
+            ps.setInt(1, createdBy);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt("c") > 0;
+                while (rs.next()) {
+                    Task task = new Task();
+                    task.setTaskID(rs.getInt("taskID"));
+                    task.setTitle(rs.getString("title"));
+                    task.setDescription(rs.getString("description"));
+                    task.setGroupID(rs.getInt("groupID"));
+                    
+                    int userID = rs.getInt("userID");
+                    if (!rs.wasNull()) {
+                        task.setUserID(userID);
+                    }
+                    
+                    task.setAmount(rs.getBigDecimal("amount"));
+                    task.setCreatedBy(rs.getInt("createdBy"));
+                    tasks.add(task);
+                }
             }
         }
+        return tasks;
     }
 }

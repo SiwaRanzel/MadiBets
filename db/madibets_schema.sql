@@ -21,7 +21,9 @@ CREATE TABLE User (
   surname   VARCHAR(100) NOT NULL,
   email     VARCHAR(255) NOT NULL UNIQUE,
   password  VARCHAR(255) NOT NULL,                 -- store a HASH, never plaintext (see notes)
-  userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL
+  userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
+  avatarPath VARCHAR(255),
+  createdDate DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE Student (
@@ -55,10 +57,10 @@ CREATE TABLE `Transaction` (                        -- backticked: TRANSACTION i
   transactionID INT AUTO_INCREMENT PRIMARY KEY,
   payoutAmount  DECIMAL(12,2) NOT NULL,
   description   VARCHAR(255),
-  `date`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `date`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- NOTE: 3.1 gives no link to an Account/User. See DESIGN NOTES #2.
-  -- , accountID INT NOT NULL,
-  -- , CONSTRAINT fk_txn_account FOREIGN KEY (accountID) REFERENCES Account(accountID)
+  accountID INT NOT NULL,
+  CONSTRAINT fk_txn_account FOREIGN KEY (accountID) REFERENCES Account(accountID)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -75,19 +77,33 @@ CREATE TABLE Event (
 
 CREATE TABLE Bet (
   betID         INT AUTO_INCREMENT PRIMARY KEY,
-  userID        INT NOT NULL,           -- proposer/placer (see DESIGN NOTES #1: market vs wager)
+  userID        INT NOT NULL,           -- proposer (wagers live in Wager, see DESIGN NOTES #1)
   eventID       INT,
   description   VARCHAR(255) NOT NULL,
   odds          DECIMAL(6,2),
-  amountToBeWon DECIMAL(12,2),
   outcome       ENUM('PENDING','YES','NO','CANCELLED') NOT NULL DEFAULT 'PENDING',
+  status        ENUM('PROPOSED','ACTIVE','GRADED','DELETED') NOT NULL DEFAULT 'PROPOSED',
   proposedDate  DATETIME,
-  placedDate    DATETIME,
   gradedDate    DATETIME,
   gradedBy      INT,                     -- admin userID
   CONSTRAINT fk_bet_user   FOREIGN KEY (userID)   REFERENCES User(userID),
   CONSTRAINT fk_bet_event  FOREIGN KEY (eventID)  REFERENCES Event(eventID),
   CONSTRAINT fk_bet_grader FOREIGN KEY (gradedBy) REFERENCES User(userID)
+) ENGINE=InnoDB;
+
+-- One student's stake on one market (design note #1 resolved: market/wager
+-- split so many students can wager on the same bet). Stake is stored
+-- explicitly, so refunds no longer need to be derived from payout/odds.
+CREATE TABLE Wager (
+  wagerID       INT AUTO_INCREMENT PRIMARY KEY,
+  betID         INT NOT NULL,
+  userID        INT NOT NULL,
+  stake         DECIMAL(12,2) NOT NULL,
+  amountToBeWon DECIMAL(12,2) NOT NULL,  -- stake x odds, frozen at placement
+  placedDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_wager_bet  FOREIGN KEY (betID)  REFERENCES Bet(betID) ON DELETE CASCADE,
+  CONSTRAINT fk_wager_user FOREIGN KEY (userID) REFERENCES User(userID),
+  CONSTRAINT uq_wager UNIQUE (betID, userID)   -- one wager per student per bet
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -126,18 +142,18 @@ CREATE TABLE GroupMember (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
--- Tasks (lecturer-set, reward MadiBucks).
--- Tasks belong to a specific Group and contain a True/False question.
+-- Tasks (lecturer-set, reward MadiBucks)
 -- ------------------------------------------------------------
 CREATE TABLE Task (
-  taskID     INT AUTO_INCREMENT PRIMARY KEY,
-  groupID    INT NOT NULL,                       -- the group this task belongs to
-  question   VARCHAR(1000) NOT NULL,             -- body of text / question
-  correctAnswer TINYINT(1) NOT NULL,             -- 0 = False, 1 = True
-  amount     DECIMAL(12,2) NOT NULL DEFAULT 0,   -- MadiBucks reward for a correct answer
-  createdBy  INT NOT NULL,                       -- lecturer userID
-  createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_task_group   FOREIGN KEY (groupID) REFERENCES `Group`(groupID) ON DELETE CASCADE,
+  taskID      INT AUTO_INCREMENT PRIMARY KEY,
+  title       VARCHAR(255) NOT NULL,
+  description VARCHAR(1000),
+  groupID     INT NOT NULL,                  -- Tasks are scoped to groups (D400/D500)
+  userID      INT,                           -- Optional specific assignee
+  amount      DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
+  createdBy   INT NOT NULL,                  -- lecturer userID
+  CONSTRAINT fk_task_group   FOREIGN KEY (groupID)   REFERENCES `Group`(groupID) ON DELETE CASCADE,
+  CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID) ON DELETE SET NULL,
   CONSTRAINT fk_task_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
 ) ENGINE=InnoDB;
 
@@ -145,12 +161,10 @@ CREATE TABLE TaskCompletion (
   completionID     INT AUTO_INCREMENT PRIMARY KEY,
   taskID           INT NOT NULL,
   userID           INT NOT NULL,
-  answer           TINYINT(1) NULL,              -- the student's True/False answer (NULL = not answered yet)
-  completionStatus ENUM('PENDING','COMPLETED','REJECTED') NOT NULL DEFAULT 'COMPLETED',
-  completionDate   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completionStatus ENUM('PENDING','COMPLETED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  completionDate   DATETIME,
   CONSTRAINT fk_tc_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE,
-  CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE,
-  CONSTRAINT uq_tc UNIQUE (taskID, userID)
+  CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -166,17 +180,25 @@ CREATE TABLE Query (
   CONSTRAINT fk_query_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE AccountDeletionRequest (
+  requestID   INT AUTO_INCREMENT PRIMARY KEY,
+  userID      INT NOT NULL,
+  requestDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status      ENUM('NEW','DONE','REJOIN') NOT NULL DEFAULT 'NEW',
+  CONSTRAINT fk_delreq_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ============================================================
 -- DESIGN NOTES (discuss as a team before building on this)
 -- ============================================================
--- 1. BET = MARKET + WAGER. The Bet table mixes the proposed market
---    (odds, eventID, proposedDate) with one user's wager (placedDate,
---    amountToBeWon, userID). Multiple students cannot bet on one market
---    under this shape. Consider splitting into Bet (market) + Wager
---    (wagerID, betID, userID, amountStaked, sidePicked, placedDate).
---    This affects B100, B400, B600, C400.
+-- 1. BET = MARKET + WAGER. RESOLVED 2026-08-10: split into Bet (market)
+--    + Wager (one row per student stake, UNIQUE per bet+user). Multiple
+--    students can now wager on the same market; settlement pays every
+--    winning wager. Existing DBs: run db/migrate_multi_wager.sql.
 -- 2. TRANSACTION has no owner in 3.1. B600/C400 need it. Uncomment the
 --    accountID FK above (or add userID) once the team agrees.
+-- 3. TASK has no groupID, but D400's narrative says tasks belong to a
+--    group. If tasks are group-scoped, add groupID + FK to `Group`.
 -- 4. BET TYPE (Academic/Sport/Social) appears in every bets UI but is not
 --    in 3.1. Add e.g. category ENUM('ACADEMIC','SPORT','SOCIAL') to Bet
 --    (or Event) if the demo needs the Type column.
