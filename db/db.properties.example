@@ -1,5 +1,8 @@
 # Copy this file to:  src/main/resources/db.properties
 # Then fill in YOUR local MySQL password. Keep port 3306 + db name identical across the team.
-db.url=jdbc:mysql://localhost:3306/madibets?useSSL=false&serverTimezone=UTC
+# allowPublicKeyRetrieval: needed for MySQL 8's caching_sha2_password auth when
+# SSL is off — without it, connections fail with "Public Key Retrieval is not
+# allowed" whenever MySQL's auth cache is cold (e.g. right after a reboot).
+db.url=jdbc:mysql://localhost:3306/madibets?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 db.user=root
 db.password=CHANGE_ME

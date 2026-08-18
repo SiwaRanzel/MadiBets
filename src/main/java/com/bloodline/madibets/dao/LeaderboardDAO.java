@@ -23,12 +23,18 @@ public class LeaderboardDAO {
     // Returns all bets placed by a given user, newest first.
     // ------------------------------------------------------------------
     public List<Map<String, Object>> findBetsByUser(int userID) throws SQLException {
-        // Market/wager split: a user's bet history is their Wager rows joined
-        // back to the market for description/odds/outcome.
-        String sql = "SELECT b.betID, b.description, b.odds, w.amountToBeWon, b.outcome, "
+        // Multi-outcome markets: a user's history is their Wager rows joined to
+        // the outcome they backed. The outcome column keeps its old UI values
+        // (YES = won, NO = lost) derived from whether their pick was the winner.
+        String sql = "SELECT b.betID, b.description, o.odds, w.amountToBeWon, "
+                   + "CASE WHEN b.outcome = 'PENDING' THEN 'PENDING' "
+                   + "     WHEN b.outcome = 'CANCELLED' THEN 'CANCELLED' "
+                   + "     WHEN w.outcomeID = b.winningOutcomeID THEN 'YES' ELSE 'NO' END AS outcome, "
+                   + "o.label AS pick, "
                    + "w.placedDate, b.gradedDate, e.eventDescription "
                    + "FROM Wager w "
                    + "JOIN Bet b ON w.betID = b.betID "
+                   + "JOIN BetOutcome o ON w.outcomeID = o.outcomeID "
                    + "LEFT JOIN Event e ON b.eventID = e.eventID "
                    + "WHERE w.userID = ? "
                    + "ORDER BY w.placedDate DESC";
@@ -44,6 +50,7 @@ public class LeaderboardDAO {
                     bet.put("odds", rs.getDouble("odds"));
                     bet.put("amountToBeWon", rs.getDouble("amountToBeWon"));
                     bet.put("outcome", rs.getString("outcome"));
+                    bet.put("pick", rs.getString("pick"));
                     bet.put("placedDate", rs.getString("placedDate"));
                     bet.put("gradedDate", rs.getString("gradedDate"));
                     bet.put("eventDescription", rs.getString("eventDescription"));
@@ -60,9 +67,10 @@ public class LeaderboardDAO {
     // Returns top N users with rank, name, balance, and bet stats.
     // ------------------------------------------------------------------
     public List<Map<String, Object>> getRankings(int limit, String sortBy) throws SQLException {
-        // Market/wager split: bet counts and wins come from the user's Wager rows.
+        // Multi-outcome markets: a win = the user's wager backed the winning outcome.
         String winsSub  = "(SELECT COUNT(*) FROM Wager w JOIN Bet b ON w.betID = b.betID "
-                        + "WHERE w.userID = u.userID AND b.outcome = 'YES')";
+                        + "WHERE w.userID = u.userID AND b.outcome = 'DECIDED' "
+                        + "AND w.outcomeID = b.winningOutcomeID)";
         String totalSub = "(SELECT COUNT(*) FROM Wager w WHERE w.userID = u.userID)";
         String orderClause;
         switch (sortBy) {
@@ -170,11 +178,12 @@ public class LeaderboardDAO {
     // C500 — Get user's bet stats (wins, losses, pending)
     // ------------------------------------------------------------------
     public Map<String, Object> getUserBetStats(int userID) throws SQLException {
-        // Market/wager split: stats count the user's Wager rows by market outcome.
+        // Multi-outcome markets: win = backed the winning outcome; loss = the
+        // market was decided and the pick was not the winner.
         String sql = "SELECT "
                    + "COUNT(*) AS totalBets, "
-                   + "SUM(CASE WHEN b.outcome = 'YES' THEN 1 ELSE 0 END) AS wins, "
-                   + "SUM(CASE WHEN b.outcome = 'NO' THEN 1 ELSE 0 END) AS losses, "
+                   + "SUM(CASE WHEN b.outcome = 'DECIDED' AND w.outcomeID = b.winningOutcomeID THEN 1 ELSE 0 END) AS wins, "
+                   + "SUM(CASE WHEN b.outcome = 'DECIDED' AND w.outcomeID <> b.winningOutcomeID THEN 1 ELSE 0 END) AS losses, "
                    + "SUM(CASE WHEN b.outcome = 'PENDING' THEN 1 ELSE 0 END) AS pending "
                    + "FROM Wager w JOIN Bet b ON w.betID = b.betID WHERE w.userID = ?";
         Map<String, Object> stats = new HashMap<>();

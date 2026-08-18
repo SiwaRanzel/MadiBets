@@ -10,7 +10,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 
 <body>
@@ -606,9 +607,10 @@
                         <table class="bets-table" style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr>
-                                    <th style="width: 130px;">Type</th>
+                                    <th style="width: 110px;">Type</th>
                                     <th>Description</th>
-                                    <th style="width: 140px; text-align: center;">Odds</th>
+                                    <th style="width: 150px;">Closes</th>
+                                    <th style="width: 300px;">Outcomes &amp; Odds</th>
                                 </tr>
                             </thead>
                             <tbody id="bets-table-body"></tbody>
@@ -623,7 +625,7 @@
                             Describe the bet you would like to propose. An admin will review it and assign the odds.</p>
                         <div class="form-field-group" style="max-width: 220px; margin-bottom: 15px;">
                             <label for="propose-type">Bet type</label>
-                            <select id="propose-type">
+                            <select id="propose-type" onchange="updateOutcomePlaceholders()">
                                 <option>Academics</option>
                                 <option>Sports</option>
                                 <option>Social</option>
@@ -635,6 +637,17 @@
                             <textarea id="propose-description" rows="4"
                                 placeholder="Include the bet type and make it detailed"
                                 style="width: 100%; background-color: #F8FAFC; border: 1px solid #D1D9E4; border-radius: 6px; padding: 12px 14px; font-family: var(--font-secondary); font-size: 1rem; color: #2A3B50; outline: none; resize: vertical;"></textarea>
+                        </div>
+                        <div class="form-field-group" style="margin-top: 15px;">
+                            <label>Possible outcomes (2&ndash;4) &mdash; an admin assigns the odds</label>
+                            <div id="propose-outcomes" style="display: flex; flex-direction: column; gap: 8px; max-width: 420px;">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Above 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Below 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Exactly 60% (optional)">
+                            </div>
+                            <button type="button" id="btn-add-outcome" onclick="addOutcomeField()"
+                                style="margin-top: 8px; background: none; border: none; color: #1B2F5E; font-weight: 600; cursor: pointer; padding: 0; font-size: 0.85rem;">
+                                + Add outcome</button>
                         </div>
                         <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
                             <button id="btn-submit-proposal" class="btn btn-gold-cta" onclick="submitProposal()">
@@ -1110,11 +1123,12 @@
                     <table class="bets-table" style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
-                                <th style="width: 110px;">Date</th>
-                                <th style="width: 110px;">Type</th>
+                                <th style="width: 100px;">Date</th>
+                                <th style="width: 100px;">Type</th>
                                 <th>Description</th>
-                                <th style="width: 120px;">Odds</th>
-                                <th style="width: 200px;">Action</th>
+                                <th style="width: 230px;">Outcomes &amp; Odds</th>
+                                <th style="width: 190px;">Wagering deadline</th>
+                                <th style="width: 170px;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="acct-proposed-body"></tbody>
@@ -1129,8 +1143,9 @@
                         <thead>
                             <tr>
                                 <th>Description</th>
-                                <th style="width: 80px; text-align: center;">Odds</th>
-                                <th style="width: 190px;">Wagers</th>
+                                <th style="width: 200px;">Outcomes</th>
+                                <th style="width: 160px;">Wagers</th>
+                                <th style="width: 140px;">Closes</th>
                                 <th style="width: 300px;">Grade / Retire</th>
                             </tr>
                         </thead>
@@ -1592,6 +1607,7 @@
                 <h2 style="font-family: var(--font-primary); font-size: 1.6rem; font-weight: 800; color: var(--color-nmu-navy); margin-bottom: 8px;">
                     How much is the wager?</h2>
                 <p id="wager-bet-desc" style="color: #2A3B50; font-size: 0.95rem; font-weight: 600; margin-bottom: 4px;"></p>
+                <p id="wager-bet-outcome" style="color: #1B2F5E; font-size: 0.9rem; font-weight: 700; margin-bottom: 4px;"></p>
                 <p id="wager-bet-payout" style="color: #6C7D93; font-size: 0.85rem; margin-bottom: 18px;"></p>
                 <input type="number" id="wager-amount" min="0.01" step="0.01" placeholder="Amount"
                     oninput="updateWagerPayout()"
@@ -1630,7 +1646,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 
 </html>
