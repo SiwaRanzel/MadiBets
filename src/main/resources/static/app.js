@@ -1448,14 +1448,19 @@ async function loadPendingRequests(userID) {
     }
 }
 
-// C200 — Send friend request by email
+// C200 — Send friend request by student number
 async function sendFriendRequest() {
-    const emailInput = document.getElementById('friend-email-input');
-    const email = emailInput ? emailInput.value.trim() : '';
+    const input = document.getElementById('friend-student-input');
+    const studentNo = input ? input.value.trim() : '';
     const btn = document.getElementById('btn-send-friend-request');
 
-    if (!email) {
-        showToast('Please enter an email address.', 'error');
+    if (!studentNo) {
+        showToast('Please enter a student number.', 'error');
+        return;
+    }
+
+    if (!/^\d{9}$/.test(studentNo)) {
+        showToast('Student number must be exactly 9 digits.', 'error');
         return;
     }
 
@@ -1465,12 +1470,12 @@ async function sendFriendRequest() {
     setButtonLoading(btn, true);
 
     try {
-        // First, look up the user by email
-        const lookupRes = await fetch(`${API_BASE}/users/lookup?email=${encodeURIComponent(email)}`);
+        // Look up the user by student number
+        const lookupRes = await fetch(`${API_BASE}/users/lookup?studentNo=${encodeURIComponent(studentNo)}`);
 
         if (!lookupRes.ok) {
             const errData = await lookupRes.json();
-            showToast(errData.error || 'User not found.', 'error');
+            showToast(errData.error || 'No user found with that student number.', 'error');
             return;
         }
 
@@ -1487,7 +1492,7 @@ async function sendFriendRequest() {
 
         if (response.ok) {
             showToast(data.message || 'Friend request sent!', 'success');
-            emailInput.value = '';
+            input.value = '';
         } else {
             showToast(data.error || 'Failed to send request.', 'error');
         }

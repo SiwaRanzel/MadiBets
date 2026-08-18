@@ -115,6 +115,23 @@ public class UserDAO {
         }
     }
 
+    /** Lookup by student number (C200 - friend request by student no). */
+    public User findByStudentNo(String studentNo) throws SQLException {
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, u.createdDate, "
+                   + "s.studentNo, l.staffNo "
+                   + "FROM User u "
+                   + "JOIN Student s ON u.userID = s.userID "
+                   + "LEFT JOIN Lecturer l ON u.userID = l.userID "
+                   + "WHERE s.studentNo = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, studentNo);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
     /** A300 View Profile (READ). */
     public User findById(int userID) throws SQLException {
         String sql = "SELECT u.userID, u.name, u.surname, u.email, u.password, u.userType, u.avatarPath, u.createdDate, "
