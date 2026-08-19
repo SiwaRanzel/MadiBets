@@ -122,6 +122,29 @@ public class GroupController {
         }
     }
 
+    @PostMapping("/{id}/leave")
+    public ResponseEntity<?> leaveGroup(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Cannot leave virtual group"));
+            }
+            if (body == null || !body.containsKey("userID")) {
+                return ResponseEntity.badRequest().body(Map.of("error", "userID required in body"));
+            }
+            int userID = (int) ((Number) body.get("userID")).intValue();
+            boolean removed = groupDAO.removeMember(id, userID);
+            if (removed) {
+                return ResponseEntity.ok(Map.of("success", true, "message", "You have left the group."));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "You are not a member of this group."));
+            }
+        } catch (ClassCastException cce) {
+            return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ------------------------------------------------------------------
     // Tasks scoped to a group (D400/D500)
     // ------------------------------------------------------------------

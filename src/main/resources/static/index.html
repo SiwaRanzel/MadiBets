@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 
 <body>
@@ -260,6 +260,17 @@
                             </svg>
                         </span>
                         <span class="menu-text">Friends</span>
+                    </a>
+                    <a href="#" class="menu-item" id="nav-task-student" data-label="Tasks"
+                        onclick="switchPanel('panel-task'); return false;">
+                        <span class="menu-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 11l3 3L22 4"/>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                            </svg>
+                        </span>
+                        <span class="menu-text">Tasks</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-help-student" data-label="Help"
                         onclick="switchPanel('panel-help'); return false;">
@@ -659,9 +670,45 @@
 
             <!-- ── Task Panel ── -->
             <div id="panel-task" class="hidden">
-                <div style="background: white; border-radius: 20px; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); text-align: center;">
-                    <h2 style="color: #1B2F5E; margin-bottom: 20px;">Tasks</h2>
-                    <p style="color: #6C7A9C;">This feature is currently under development.</p>
+                <!-- Lecturer View: Create Task -->
+                <div id="task-create-section" style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 25px; display: none;">
+                    <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Create Task</h3>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div style="display: flex; gap: 15px;">
+                            <div style="flex: 2;">
+                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Title</label>
+                                <input type="text" id="task-title" placeholder="e.g. Complete Quiz 3" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Reward (MB)</label>
+                                <input type="number" id="task-amount" placeholder="e.g. 50" min="1" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Description (optional)</label>
+                            <textarea id="task-description" rows="2" placeholder="Task details..." style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; resize: vertical;"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 15px; align-items: flex-end;">
+                            <div style="flex: 1;">
+                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Group</label>
+                                <select id="task-group-select" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; background: white;">
+                                    <option value="">Select a group...</option>
+                                </select>
+                            </div>
+                            <button onclick="handleCreateTask()" style="background: #1B2F5E; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; white-space: nowrap;">Create Task</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task List -->
+                <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Tasks</h3>
+                        <span id="task-count" style="color: #A0B2D6; font-size: 0.9rem; font-weight: 500;"></span>
+                    </div>
+                    <div id="task-list-container">
+                        <p style="color: #A0B2D6; font-size: 0.95rem; text-align: center; padding: 20px;">Loading tasks...</p>
+                    </div>
                 </div>
             </div>
 
@@ -1387,8 +1434,8 @@
                     <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Add Friend</h3>
                     <div style="display: flex; gap: 15px; align-items: flex-end;">
                         <div style="flex: 1;">
-                            <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;">Email Address</label>
-                            <input type="email" id="friend-email-input" placeholder="e.g. s221234567@mandela.ac.za" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
+                            <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;">Student Number</label>
+                            <input type="text" id="friend-student-input" placeholder="e.g. 221234567" pattern="\d{9}" maxlength="9" inputmode="numeric" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
                         </div>
                         <button id="btn-send-friend-request" onclick="sendFriendRequest()" style="background: #1B2F5E; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; white-space: nowrap; position: relative;"><span class="btn-text">Send Request</span></button>
                     </div>
@@ -1676,7 +1723,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 
 </html>

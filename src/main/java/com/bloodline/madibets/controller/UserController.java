@@ -39,14 +39,23 @@ public class UserController {
     }
 
     @GetMapping("/lookup")
-    public ResponseEntity<?> lookupByEmail(@RequestParam String email) {
+    public ResponseEntity<?> lookupUser(@RequestParam(required = false) String email,
+                                        @RequestParam(required = false) String studentNo) {
         try {
-            User u = userDAO.findByEmail(email);
+            User u = null;
+            if (studentNo != null && !studentNo.isBlank()) {
+                u = userDAO.findByStudentNo(studentNo);
+            } else if (email != null && !email.isBlank()) {
+                u = userDAO.findByEmail(email);
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "Provide email or studentNo."));
+            }
+
             if (u != null) {
                 u.setPassword(null);
                 return ResponseEntity.ok(u);
             } else {
-                return ResponseEntity.status(404).body(Map.of("error", "No user found with that email."));
+                return ResponseEntity.status(404).body(Map.of("error", "No user found."));
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));

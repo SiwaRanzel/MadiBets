@@ -235,6 +235,17 @@ public class GroupDAO {
         return members;
     }
 
+    /** D300 Leave Group (DELETE). Removes a member from a group. Cannot remove OWNER. */
+    public boolean removeMember(int groupID, int userID) throws SQLException {
+        String sql = "DELETE FROM GroupMember WHERE groupID = ? AND userID = ? AND role != 'OWNER'";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, groupID);
+            ps.setInt(2, userID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     private Group map(ResultSet rs) throws SQLException {
         Group g = new Group();
         g.setGroupID(rs.getInt("groupID"));
