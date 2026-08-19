@@ -10,6 +10,7 @@ public class Task {
     private Integer userID; // Can be null if assigned to the whole group
     private BigDecimal amount;
     private int createdBy;
+    private Boolean correctAnswer; // True/False answer for the task
 
     // Constructors
     public Task() {}
@@ -79,5 +80,13 @@ public class Task {
 
     public void setCreatedBy(int createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Boolean getCorrectAnswer() {
+        return correctAnswer;
+    }
+
+    public void setCorrectAnswer(Boolean correctAnswer) {
+        this.correctAnswer = correctAnswer;
     }
 }

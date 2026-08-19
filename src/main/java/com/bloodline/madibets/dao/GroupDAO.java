@@ -10,8 +10,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-/** Owner: Pieter (D-series). */
 public class GroupDAO {
 
     /** D100 Create Group (CREATE). Returns generated groupID or -1 on failure. */
@@ -97,8 +97,8 @@ public class GroupDAO {
     public List<Group> searchByNameOrId(String q) throws SQLException {
         List<Group> results = new ArrayList<>();
         if (q == null || q.isBlank()) {
-            // return all groups (limit 100)
-            String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` ORDER BY groupName LIMIT 100";
+            // return all groups (limit 100) — exclude default groups
+            String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` WHERE groupName NOT IN ('Overall', 'My Friends') ORDER BY groupName LIMIT 100";
             try (Connection con = DatabaseConnection.getConnection();
                  PreparedStatement ps = con.prepareStatement(sql);
                  ResultSet rs = ps.executeQuery()) {
@@ -121,7 +121,7 @@ public class GroupDAO {
         }
 
         String like = "%" + q + "%";
-        String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` WHERE groupName LIKE ? ORDER BY groupName LIMIT 100";
+        String sql = "SELECT groupID, groupName, description, createdBy, createdDate FROM `Group` WHERE groupName LIKE ? AND groupName NOT IN ('Overall', 'My Friends') ORDER BY groupName LIMIT 100";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, like);
@@ -197,6 +197,42 @@ public class GroupDAO {
                 return rs.next() && rs.getInt("c") > 0;
             }
         }
+    }
+
+    /** Count members in a group. */
+    public int getMemberCount(int groupID) throws SQLException {
+        String sql = "SELECT COUNT(*) AS c FROM GroupMember WHERE groupID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, groupID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("c") : 0;
+            }
+        }
+    }
+
+    /** List members of a group with their names and roles. */
+    public List<Map<String, Object>> findMembers(int groupID) throws SQLException {
+        List<Map<String, Object>> members = new ArrayList<>();
+        String sql = "SELECT u.userID, u.name, u.surname, u.email, gm.role "
+                   + "FROM GroupMember gm JOIN User u ON gm.userID = u.userID "
+                   + "WHERE gm.groupID = ? ORDER BY gm.role, u.name";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, groupID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("userID", rs.getInt("userID"));
+                    m.put("name", rs.getString("name"));
+                    m.put("surname", rs.getString("surname"));
+                    m.put("email", rs.getString("email"));
+                    m.put("role", rs.getString("role"));
+                    members.add(m);
+                }
+            }
+        }
+        return members;
     }
 
     private Group map(ResultSet rs) throws SQLException {

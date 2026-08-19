@@ -278,6 +278,9 @@ function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+let currentGroupID = null;
+let taskCorrectAnswer = true;
+
 async function loadGroupDetail(groupID) {
     try {
         const saved = sessionStorage.getItem('user');
@@ -291,46 +294,383 @@ async function loadGroupDetail(groupID) {
             return;
         }
 
+        currentGroupID = groupID;
+
         const detail = document.getElementById('group-detail');
         const placeholder = document.getElementById('group-detail-placeholder');
         placeholder.style.display = 'none';
         detail.style.display = 'block';
         detail.innerHTML = '';
 
-        const title = document.createElement('h3');
-        title.textContent = data.groupName || data.group_name || data.groupName || `Group ${groupID}`;
-        title.style.marginTop = '0';
-        detail.appendChild(title);
+        // ── Header: group name + description ──
+        const header = document.createElement('div');
+        header.className = 'group-detail-header';
 
-        const p = document.createElement('p');
-        p.style.color = '#6C7D93';
-        p.textContent = data.description || data.description || '';
-        detail.appendChild(p);
+        const title = document.createElement('h3');
+        title.className = 'group-detail-title';
+        title.textContent = data.groupName || `Group ${groupID}`;
+        header.appendChild(title);
+
+        const desc = document.createElement('p');
+        desc.className = 'group-detail-desc';
+        desc.textContent = data.description || 'No description provided.';
+        header.appendChild(desc);
 
         const meta = document.createElement('div');
-        meta.style = 'margin-top:12px; color:#6C7D93; font-size:0.9rem;';
-        meta.textContent = `Members: ${data.memberCount !== undefined ? data.memberCount : '—'}`;
-        detail.appendChild(meta);
+        meta.className = 'group-detail-meta';
+        meta.textContent = `👥 ${data.memberCount !== undefined ? data.memberCount : '—'} members`;
+        header.appendChild(meta);
 
-        // Join button only for real groups (id>0)
-        if (groupID > 0) {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-gold-cta';
-            btn.style = 'margin-top:16px; padding:10px 16px;';
-            btn.textContent = 'Join Group';
-            btn.onclick = async () => {
-                await joinGroup(groupID);
-            };
-            detail.appendChild(btn);
-        } else {
+        detail.appendChild(header);
+
+        // Virtual groups (0 / -1) keep a simple summary
+        if (groupID <= 0) {
             const info = document.createElement('div');
             info.style = 'margin-top:16px; color:#6C7D93;';
             info.textContent = 'This is a default group. Joining is not required.';
             detail.appendChild(info);
+            return;
+        }
+
+        // ── Body: members (left) + tasks (right) ──
+        const body = document.createElement('div');
+        body.className = 'group-detail-body';
+
+        // Members panel
+        const membersPanel = document.createElement('div');
+        membersPanel.className = 'group-members-panel';
+        const membersTitle = document.createElement('h4');
+        membersTitle.textContent = 'Members';
+        membersPanel.appendChild(membersTitle);
+
+        const members = data.members || [];
+        if (members.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'group-empty-state';
+            empty.textContent = 'No members yet.';
+            membersPanel.appendChild(empty);
+        } else {
+            members.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'group-member-row';
+
+                const avatar = document.createElement('div');
+                avatar.className = 'group-member-avatar';
+                avatar.textContent = ((m.name || '?')[0] + (m.surname || '?')[0]).toUpperCase();
+                row.appendChild(avatar);
+
+                const info = document.createElement('div');
+                info.className = 'group-member-info';
+
+                const name = document.createElement('div');
+                name.className = 'group-member-name';
+                name.textContent = `${m.name || ''} ${m.surname || ''}`.trim();
+                info.appendChild(name);
+
+                const role = document.createElement('div');
+                role.className = 'group-member-role';
+                role.textContent = m.role === 'OWNER' ? 'Owner' : 'Member';
+                info.appendChild(role);
+
+                row.appendChild(info);
+                membersPanel.appendChild(row);
+            });
+        }
+        body.appendChild(membersPanel);
+
+        // Tasks panel
+        const tasksPanel = document.createElement('div');
+        tasksPanel.className = 'group-tasks-panel';
+        const tasksTitle = document.createElement('h4');
+        tasksTitle.textContent = 'Tasks';
+        tasksPanel.appendChild(tasksTitle);
+
+        // Load tasks for this group
+        try {
+            const tasksResp = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
+            const tasksData = await tasksResp.json();
+            if (tasksResp.ok && Array.isArray(tasksData)) {
+                if (tasksData.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'group-empty-state';
+                    empty.textContent = 'No tasks yet.';
+                    tasksPanel.appendChild(empty);
+                } else {
+                    tasksData.forEach(task => {
+                        tasksPanel.appendChild(renderTaskCard(task, user));
+                    });
+                }
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'group-empty-state';
+                empty.textContent = 'Could not load tasks.';
+                tasksPanel.appendChild(empty);
+            }
+        } catch (err) {
+            console.error(err);
+            const empty = document.createElement('div');
+            empty.className = 'group-empty-state';
+            empty.textContent = 'Could not load tasks.';
+            tasksPanel.appendChild(empty);
+        }
+
+        body.appendChild(tasksPanel);
+        detail.appendChild(body);
+
+        // ── Actions: Join (non-members) / Create Task (lecturers) ──
+        const actions = document.createElement('div');
+        actions.className = 'group-detail-actions';
+
+        const isMember = data.isMember === true;
+        if (!isMember) {
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'group-join-btn';
+            joinBtn.textContent = 'Join Group';
+            joinBtn.onclick = async () => {
+                await joinGroup(groupID);
+            };
+            actions.appendChild(joinBtn);
+        }
+
+        if (user && user.userType === 'LECTURER') {
+            const createTaskBtn = document.createElement('button');
+            createTaskBtn.className = 'group-create-task-btn';
+            createTaskBtn.textContent = '+ Create Task';
+            createTaskBtn.onclick = () => openCreateTaskModal(groupID);
+            actions.appendChild(createTaskBtn);
+        }
+
+        if (actions.children.length > 0) {
+            detail.appendChild(actions);
         }
     } catch (err) {
         console.error(err);
         showToast('Error loading group detail', 'error');
+    }
+}
+
+function renderTaskCard(task, user) {
+    const card = document.createElement('div');
+    card.className = 'task-card';
+
+    const question = document.createElement('p');
+    question.className = 'task-card-question';
+    question.textContent = task.title || task.question || 'No question';
+    card.appendChild(question);
+
+    const reward = document.createElement('div');
+    reward.className = 'task-card-reward';
+    reward.textContent = `Reward: ${parseFloat(task.amount || 0).toFixed(2)} MB`;
+    card.appendChild(reward);
+
+    const answered = task.answered === true;
+    const isCorrect = task.isCorrect === true;
+
+    const toggle = document.createElement('div');
+    toggle.className = 'task-answer-toggle';
+
+    const trueBtn = document.createElement('button');
+    trueBtn.className = 'task-answer-btn';
+    trueBtn.textContent = 'True';
+    const falseBtn = document.createElement('button');
+    falseBtn.className = 'task-answer-btn';
+    falseBtn.textContent = 'False';
+
+    // ── Answer flow: select → confirm → locked ──
+    let selectedAnswer = null;
+    let confirmationPopup = null;
+
+    const selectAnswer = (value) => {
+        // Already answered — can't change
+        if (answered) return;
+        selectedAnswer = value;
+        trueBtn.classList.toggle('selected', value === true);
+        falseBtn.classList.toggle('selected', value === false);
+        // Show confirmation popup
+        showConfirmationPopup(value);
+    };
+
+    trueBtn.onclick = () => selectAnswer(true);
+    falseBtn.onclick = () => selectAnswer(false);
+
+    const showConfirmationPopup = (value) => {
+        // Remove existing popup if any
+        if (confirmationPopup) {
+            confirmationPopup.remove();
+        }
+
+        confirmationPopup = document.createElement('div');
+        confirmationPopup.className = 'task-confirm-popup';
+        confirmationPopup.innerHTML = `
+            <div class="task-confirm-popup-content">
+                <p>Are you sure you want to answer <strong>${value ? 'True' : 'False'}</strong>?</p>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;">
+                    <button type="button" class="btn task-confirm-yes" onclick="confirmAndSubmit(${value})">Confirm</button>
+                    <button type="button" class="btn" onclick="hideConfirmationPopup()">Cancel</button>
+                </div>
+            </div>
+        `;
+        card.appendChild(confirmationPopup);
+    };
+
+    const hideConfirmationPopup = () => {
+        if (confirmationPopup) {
+            confirmationPopup.remove();
+            confirmationPopup = null;
+        }
+    };
+
+    const confirmAndSubmit = (value) => {
+        submitTaskAnswer(task.taskID, value);
+        hideConfirmationPopup();
+    };
+
+    if (answered) {
+        trueBtn.disabled = true;
+        falseBtn.disabled = true;
+        // confirmBtn removed — answer is already confirmed via popup
+        if (task.isCorrect === true) {
+            trueBtn.classList.add('correct');
+        } else {
+            falseBtn.classList.add('incorrect');
+        }
+        const note = document.createElement('div');
+        note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
+        note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
+        card.appendChild(note);
+    }
+
+    toggle.appendChild(trueBtn);
+    toggle.appendChild(falseBtn);
+    card.appendChild(toggle);
+
+    if (answered) {
+        card.appendChild(note);
+    }
+
+    return card;
+}
+
+async function submitTaskAnswer(taskID, answer, confirmBtn) {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in to answer tasks.', 'error'); return; }
+    const user = JSON.parse(saved);
+    if (answer === null || answer === undefined) {
+        showToast('Please select True or False before confirming.', 'error');
+        return;
+    }
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Submitting...'; }
+
+    try {
+        const resp = await fetch(`${API_BASE}/tasks/${taskID}/answer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, answer })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            if (data.correct === true) {
+                showToast('Correct answer! MadiBucks awarded.', 'success');
+            } else if (data.correct === false) {
+                showToast('Incorrect answer. No MadiBucks awarded.', 'error');
+            } else {
+                showToast('Answer submitted!', 'success');
+            }
+            if (currentGroupID) loadGroupDetail(currentGroupID);
+        } else if (resp.status === 409) {
+            showToast('You have already answered this task.', 'error');
+            if (currentGroupID) loadGroupDetail(currentGroupID);
+        } else {
+            showToast(data.error || 'Failed to submit answer', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error submitting answer', 'error');
+    } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Answer'; }
+    }
+}
+
+// ── Create Task Modal (lecturer only) ──
+function openCreateTaskModal(groupID) {
+    currentGroupID = groupID;
+    document.getElementById('new-task-question').value = '';
+    document.getElementById('new-task-amount').value = '50';
+    taskCorrectAnswer = true;
+    setTaskCorrectAnswer(true);
+    document.getElementById('create-task-modal').classList.remove('hidden');
+}
+
+// Decrease task reward amount by 1 (min 1)
+function decreaseTaskAmount() {
+    const input = document.getElementById('new-task-amount');
+    const val = parseInt(input.value) || 50;
+    input.value = Math.max(1, val - 1);
+}
+
+// Increase task reward amount by 1
+function increaseTaskAmount() {
+    const input = document.getElementById('new-task-amount');
+    const val = parseInt(input.value) || 50;
+    input.value = val + 1;
+}
+
+function closeCreateTaskModal(event) {
+    if (event && event.target && event.target.id !== 'create-task-modal') {
+        return;
+    }
+    const modal = document.getElementById('create-task-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function setTaskCorrectAnswer(value) {
+    taskCorrectAnswer = value;
+    const trueBtn = document.getElementById('task-answer-true');
+    const falseBtn = document.getElementById('task-answer-false');
+    if (trueBtn && falseBtn) {
+        trueBtn.classList.toggle('selected', value === true);
+        falseBtn.classList.toggle('selected', value === false);
+    }
+}
+
+async function createTask() {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in to create tasks.', 'error'); return; }
+    const user = JSON.parse(saved);
+    if (user.userType !== 'LECTURER') {
+        showToast('Only lecturers can create tasks.', 'error');
+        return;
+    }
+
+    const question = document.getElementById('new-task-question').value.trim();
+    const amount = parseFloat(document.getElementById('new-task-amount').value) || 50;
+    if (!question) {
+        showToast('Please enter a question.', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/groups/${currentGroupID}/tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question,
+                correctAnswer: taskCorrectAnswer,
+                amount,
+                createdBy: user.userID
+            })
+        });
+        const data = await resp.json();
+        if (resp.status === 201) {
+            showToast('Task created successfully!', 'success');
+            closeCreateTaskModal();
+            loadGroupDetail(currentGroupID);
+        } else {
+            showToast(data.error || 'Failed to create task', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error creating task', 'error');
     }
 }
 
@@ -2405,7 +2745,7 @@ window.confirmDeleteUser = async function() {
                 showToast('User deleted successfully.', 'success');
                 closeUserProfileModal();
                 // Refresh the table
-                loadUserManagementTable();
+                loadUserManagementData();
             } else {
                 const errData = await res.json();
                 showToast(errData.error || 'Failed to delete user.', 'error');

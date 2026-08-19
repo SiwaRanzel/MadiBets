@@ -1016,6 +1016,310 @@ body {
 }
 
 /* -------------------------------------------------------------
+ * GROUP DETAIL SCREEN (members + tasks)
+ * ------------------------------------------------------------- */
+.group-detail-header {
+    border-bottom: 1px solid #F0F2F5;
+    padding-bottom: 18px;
+    margin-bottom: 20px;
+}
+
+.group-detail-title {
+    font-family: var(--font-primary);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-nmu-navy);
+    margin: 0 0 6px 0;
+}
+
+.group-detail-desc {
+    color: var(--color-text-muted);
+    font-size: 0.92rem;
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+}
+
+.group-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: #A0B2D6;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.group-detail-body {
+    display: flex;
+    gap: 20px;
+    min-height: 320px;
+}
+
+.group-members-panel {
+    flex: 0 0 240px;
+    background: #F8FAFC;
+    border: 1px solid #E6EDF7;
+    border-radius: 12px;
+    padding: 16px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.group-members-panel h4 {
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-nmu-navy);
+    margin: 0 0 12px 0;
+}
+
+.group-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 6px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.group-member-row:hover {
+    background: #F0F4FA;
+}
+
+.group-member-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-nmu-navy);
+    color: var(--color-nmu-gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-primary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.group-member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.group-member-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.group-member-role {
+    font-size: 0.72rem;
+    color: #A0B2D6;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.group-tasks-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.group-tasks-panel h4 {
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-nmu-navy);
+    margin: 0;
+}
+
+.task-card {
+    background: #F8FAFC;
+    border: 1px solid #E6EDF7;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.task-card-question {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text-dark);
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+}
+
+.task-card-reward {
+    font-size: 0.78rem;
+    color: #A0B2D6;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.task-answer-toggle {
+    display: flex;
+    gap: 10px;
+}
+
+.task-answer-btn {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 8px;
+    border: 1.5px solid #D1D9E4;
+    background: white;
+    color: var(--color-text-dark);
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.task-answer-btn:hover:not(:disabled) {
+    border-color: var(--color-nmu-navy);
+    background: rgba(27, 47, 94, 0.05);
+}
+
+.task-answer-btn.selected {
+    background: var(--color-nmu-navy);
+    border-color: var(--color-nmu-navy);
+    color: white;
+}
+
+.task-answer-btn.correct {
+    background: #28A745;
+    border-color: #28A745;
+    color: white;
+}
+
+.task-answer-btn.incorrect {
+    background: var(--color-crimson);
+    border-color: var(--color-crimson);
+    color: white;
+}
+
+.task-answer-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.task-answered-note {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #28A745;
+}
+
+.task-answered-note.incorrect {
+    color: var(--color-crimson);
+}
+
+/* Confirmation popup */
+.task-confirm-popup {
+    position: absolute;
+    bottom: -140px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border: 1px solid #D1D9E4;
+    border-radius: 8px;
+    padding: 20px;
+    width: 280px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    font-size: 0.875rem;
+}
+
+.task-confirm-popup-content {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.task-confirm-popup-content p {
+    margin: 0 0 12px 0;
+    color: var(--color-text-dark);
+}
+
+.task-confirm-yes {
+    background: var(--color-nmu-navy);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.task-confirm-yes:hover {
+    background: #1a356e;
+}
+
+.task-confirm-yes:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.task-confirm-yes:focus {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.group-detail-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.group-join-btn {
+    background: var(--color-nmu-gold);
+    color: var(--color-nmu-navy);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.group-join-btn:hover {
+    background: #E0921B;
+    transform: translateY(-1px);
+}
+
+.group-create-task-btn {
+    background: var(--color-nmu-navy);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.group-create-task-btn:hover {
+    background: #243d76;
+    transform: translateY(-1px);
+}
+
+.group-empty-state {
+    color: #A0B2D6;
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 30px 10px;
+}
+
+/* -------------------------------------------------------------
  * 5. HELP PAGE PANEL
  * ------------------------------------------------------------- */
 .help-grid {

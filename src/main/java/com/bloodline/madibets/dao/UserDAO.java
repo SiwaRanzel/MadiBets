@@ -231,6 +231,18 @@ public class UserDAO {
         }
     }
 
+    /** Get the userType of a user (used for role checks). */
+    public String getUserType(int userID) throws SQLException {
+        String sql = "SELECT userType FROM User WHERE userID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("userType") : null;
+            }
+        }
+    }
+
     public double getAccountBalance(int userID) throws SQLException {
         String sql = "SELECT balance FROM Account WHERE userID = ?";
         try (Connection con = DatabaseConnection.getConnection();
