@@ -150,13 +150,76 @@ public class TaskDAO {
     }
 
     // Update completion status (lecturer approves/rejects)
+    // If approved (COMPLETED), credits the student's account with the task reward.
     public boolean updateCompletionStatus(int completionID, String status) throws SQLException {
-        String sql = "UPDATE TaskCompletion SET completionStatus = ? WHERE completionID = ?";
+        Connection con = null;
+        try {
+            con = DatabaseConnection.getConnection();
+            con.setAutoCommit(false);
+
+            // Update the completion status
+            String updateSql = "UPDATE TaskCompletion SET completionStatus = ? WHERE completionID = ?";
+            try (PreparedStatement ps = con.prepareStatement(updateSql)) {
+                ps.setString(1, status);
+                ps.setInt(2, completionID);
+                int rows = ps.executeUpdate();
+                if (rows == 0) {
+                    con.rollback();
+                    return false;
+                }
+            }
+
+            // If approved, credit the student's balance
+            if ("COMPLETED".equalsIgnoreCase(status)) {
+                // Get userID and task amount from the completion
+                String lookupSql = "SELECT tc.userID, t.amount FROM TaskCompletion tc "
+                                 + "JOIN Task t ON tc.taskID = t.taskID WHERE tc.completionID = ?";
+                int userID = -1;
+                BigDecimal reward = BigDecimal.ZERO;
+                try (PreparedStatement ps = con.prepareStatement(lookupSql)) {
+                    ps.setInt(1, completionID);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            userID = rs.getInt("userID");
+                            reward = rs.getBigDecimal("amount");
+                        }
+                    }
+                }
+
+                if (userID > 0 && reward.compareTo(BigDecimal.ZERO) > 0) {
+                    String creditSql = "UPDATE Account SET balance = balance + ? WHERE userID = ?";
+                    try (PreparedStatement ps = con.prepareStatement(creditSql)) {
+                        ps.setBigDecimal(1, reward);
+                        ps.setInt(2, userID);
+                        ps.executeUpdate();
+                    }
+                }
+            }
+
+            con.commit();
+            return true;
+        } catch (SQLException e) {
+            if (con != null) {
+                try { con.rollback(); } catch (SQLException ex) { /* ignore */ }
+            }
+            throw e;
+        } finally {
+            if (con != null) {
+                try { con.setAutoCommit(true); con.close(); } catch (SQLException ex) { /* ignore */ }
+            }
+        }
+    }
+
+    // Get completion status for a specific user on a specific task
+    public String getCompletionStatus(int taskID, int userID) throws SQLException {
+        String sql = "SELECT completionStatus FROM TaskCompletion WHERE taskID = ? AND userID = ?";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setString(1, status);
-            ps.setInt(2, completionID);
-            return ps.executeUpdate() > 0;
+            ps.setInt(1, taskID);
+            ps.setInt(2, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("completionStatus") : null;
+            }
         }
     }
 }

@@ -106,4 +106,15 @@ public class TaskController {
             return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));
         }
     }
+
+    @GetMapping("/{taskID}/status")
+    public ResponseEntity<?> getMyCompletionStatus(@PathVariable int taskID, @RequestParam int userID) {
+        try {
+            String status = taskDAO.getCompletionStatus(taskID, userID);
+            return ResponseEntity.ok(Map.of("status", status != null ? status : "NOT_SUBMITTED"));
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));
+        }
+    }
 }

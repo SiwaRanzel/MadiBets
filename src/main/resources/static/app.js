@@ -511,7 +511,7 @@ function switchPanel(panelId) {
         'panel-friends':            'nav-friends',
         'panel-leaderboard':        ['nav-leaderboard', 'nav-leaderboard-lecturer'],
         'panel-bets':               'nav-bets',
-        'panel-task':               'nav-task-lecturer',
+        'panel-task':               ['nav-task-lecturer', 'nav-task-student'],
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -3079,18 +3079,39 @@ async function loadStudentTasks(userID) {
             return;
         }
 
-        container.innerHTML = allTasks.map(t => `
-            <div style="padding: 18px 20px; background: #F8FAFC; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="flex: 1;">
-                    <div style="font-weight: 700; color: #1B2F5E; margin-bottom: 4px;">${escapeHtml(t.title)}</div>
-                    <div style="font-size: 0.85rem; color: #6C7D93;">${t.description ? escapeHtml(t.description) : 'No description'} <span style="color:#A0B2D6;">| ${escapeHtml(t._groupName)}</span></div>
+        // Check completion status for each task
+        const taskStatuses = await Promise.all(
+            allTasks.map(t => fetch(`${API_BASE}/tasks/${t.taskID}/status?userID=${userID}`).then(r => r.json()).catch(() => ({ status: 'NOT_SUBMITTED' })))
+        );
+
+        container.innerHTML = allTasks.map((t, i) => {
+            const status = taskStatuses[i].status;
+            let actionHtml;
+            if (status === 'COMPLETED') {
+                actionHtml = `<span style="background: #E2E8F0; color: #6C7D93; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Completed</span>`;
+            } else if (status === 'PENDING') {
+                actionHtml = `<span style="background: #FFF9E6; color: #F5A623; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Submitted</span>`;
+            } else if (status === 'REJECTED') {
+                actionHtml = `<span style="background: #FEE2E2; color: #D9534F; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Rejected</span>`;
+            } else {
+                actionHtml = `<button onclick="submitTaskCompletion(${t.taskID})" style="background: #28A745; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Complete</button>`;
+            }
+
+            const rowOpacity = status === 'COMPLETED' ? 'opacity: 0.6;' : '';
+
+            return `
+                <div style="padding: 18px 20px; background: #F8FAFC; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; ${rowOpacity}">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700; color: #1B2F5E; margin-bottom: 4px;">${escapeHtml(t.title)}</div>
+                        <div style="font-size: 0.85rem; color: #6C7D93;">${t.description ? escapeHtml(t.description) : 'No description'} <span style="color:#A0B2D6;">| ${escapeHtml(t._groupName)}</span></div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <span style="background: #E0F2E9; color: #28A745; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.amount} MB</span>
+                        ${actionHtml}
+                    </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="background: #E0F2E9; color: #28A745; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.amount} MB</span>
-                    <button onclick="submitTaskCompletion(${t.taskID})" style="background: #28A745; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Complete</button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (err) {
         container.innerHTML = '<p style="color: #D9534F; text-align: center; padding: 20px;">Error loading tasks.</p>';
         console.error(err);
@@ -3111,6 +3132,7 @@ async function submitTaskCompletion(taskID) {
         const data = await resp.json();
         if (resp.ok) {
             showToast(data.message || 'Task submitted for review!', 'success');
+            loadStudentTasks(user.userID); // Refresh to show "Submitted" status
         } else {
             showToast(data.error || 'Failed to submit task.', 'error');
         }
