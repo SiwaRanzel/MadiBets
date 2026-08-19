@@ -152,6 +152,12 @@ function validateRegField(input) {
         case 'reg-staff-no':
             if (val.length === 0 && document.getElementById('reg-usertype').value === 'LECTURER') {
                 msg = 'Staff number is required.';
+            } else if (val.length > 0 && !/^\d{7}$/.test(val)) {
+                if (!/^\d+$/.test(val)) {
+                    msg = 'Staff number must contain only digits.';
+                } else {
+                    msg = 'Staff number must be exactly 7 digits (currently ' + val.length + ').';
+                }
             }
             break;
 
@@ -1076,7 +1082,13 @@ async function handleRegister(event) {
     const surname = document.getElementById('reg-surname').value;
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
+    const confirmPassword = document.getElementById('reg-confirm-password').value;
     const userType = document.getElementById('reg-usertype').value;
+
+    if (password !== confirmPassword) {
+        showToast('Passwords do not match.', 'error');
+        return;
+    }
 
     // Only allow @mandela.ac.za email addresses
     if (!email.toLowerCase().endsWith('@mandela.ac.za')) {
@@ -1312,11 +1324,15 @@ async function confirmDelete() {
     const user = JSON.parse(sessionStorage.getItem('user'));
     if (!user) return;
 
-    const confirmAction = confirm("Are you sure you want to permanently delete your MadiBets account? This cannot be undone.");
+    // Find the delete button that triggered this before await
+    const btn = typeof event !== 'undefined' && event && event.target ? event.target.closest('button') : null;
+
+    const confirmAction = await showConfirmModal(
+        'Delete Account?', 
+        'Are you sure you want to permanently delete your MadiBets account? This cannot be undone.'
+    );
     if (!confirmAction) return;
 
-    // Find the delete button that triggered this
-    const btn = event && event.target ? event.target.closest('button') : null;
     setButtonLoading(btn, true);
 
     try {
@@ -2457,7 +2473,11 @@ async function reinstateUser(reqId) {
 }
 
 async function deleteUserPermanently(userId) {
-    if (!confirm('Are you absolutely sure you want to permanently delete this user? This cannot be undone.')) return;
+    const confirmed = await showConfirmModal(
+        'Delete User?', 
+        'Are you sure you want to delete this user? This action cannot be undone and will remove all associated bets and account data.'
+    );
+    if (!confirmed) return;
     
     try {
         const response = await fetch(`${API_BASE}/users/${userId}`, {

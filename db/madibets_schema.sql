@@ -99,14 +99,12 @@ CREATE TABLE BetOutcome (
   outcomeID INT AUTO_INCREMENT PRIMARY KEY,
   betID     INT NOT NULL,
   label     VARCHAR(100) NOT NULL,
-  odds      DECIMAL(6,2),               -- NULL until the admin prices it (B300)
-  position  INT NOT NULL DEFAULT 0,     -- display order
+  odds      DECIMAL(6,2),
+  position  INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_outcome_bet FOREIGN KEY (betID) REFERENCES Bet(betID) ON DELETE CASCADE,
   CONSTRAINT uq_outcome UNIQUE (betID, label)
 ) ENGINE=InnoDB;
 
-ALTER TABLE Bet
-  ADD CONSTRAINT fk_bet_winner FOREIGN KEY (winningOutcomeID) REFERENCES BetOutcome(outcomeID);
 
 -- One student's stake on one outcome of one market (design note #1 resolved:
 -- market/wager split so many students can wager on the same bet). Stake is

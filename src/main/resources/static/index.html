@@ -125,7 +125,9 @@
                 </div>
                 <div id="lecturer-field" class="form-field-group hidden">
                     <label for="reg-staff-no">Staff No.</label>
-                    <input type="text" id="reg-staff-no" placeholder="e.g. 2212346" onblur="validateRegField(this)">
+                    <input type="text" id="reg-staff-no" placeholder="e.g. 2212346" pattern="\d{7}" minlength="7"
+                        maxlength="7" inputmode="numeric" title="Staff number must be exactly 7 digits"
+                        onblur="validateRegField(this)" oninput="validateRegField(this)">
                     <span class="field-error" id="err-reg-staff-no"></span>
                 </div>
 
@@ -1129,7 +1131,6 @@
                 <div style="background: white; border-radius: 20px; padding: 20px 30px; display: flex; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
                     <button class="um-tab-btn active" onclick="switchUMTab('STUDENT', this)">Students</button>
                     <button class="um-tab-btn" onclick="switchUMTab('LECTURER', this)">Lecturer</button>
-                    <button class="um-tab-btn" onclick="switchUMTab('ADMIN', this)">Administrators</button>
                 </div>
 
                 <!-- Main Content -->

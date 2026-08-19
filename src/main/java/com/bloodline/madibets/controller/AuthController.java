@@ -45,9 +45,14 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Student number must be exactly 9 digits."));
             }
         }
-        if ("LECTURER".equalsIgnoreCase(user.getUserType()) &&
-            (user.getStaffNo() == null || user.getStaffNo().isBlank())) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Staff number is required."));
+        if ("LECTURER".equalsIgnoreCase(user.getUserType())) {
+            String staffNo = user.getStaffNo();
+            if (staffNo == null || staffNo.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Staff number is required."));
+            }
+            if (!staffNo.matches("\\d{7}")) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Staff number must be exactly 7 digits."));
+            }
         }
 
         try {
