@@ -101,4 +101,62 @@ public class TaskDAO {
         }
         return tasks;
     }
+
+    // Submit a task completion (student marks task as done)
+    public boolean submitCompletion(int taskID, int userID) throws SQLException {
+        String sql = "INSERT INTO TaskCompletion (taskID, userID, completionStatus, completionDate) VALUES (?, ?, 'PENDING', NOW())";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, taskID);
+            ps.setInt(2, userID);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            // Unique constraint or duplicate
+            if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    // Get all completions for a task (for lecturer review)
+    public List<java.util.Map<String, Object>> getCompletions(int taskID) throws SQLException {
+        String sql = "SELECT tc.completionID, tc.taskID, tc.userID, tc.completionStatus, tc.completionDate, "
+                   + "u.name, u.surname, s.studentNo "
+                   + "FROM TaskCompletion tc "
+                   + "JOIN User u ON tc.userID = u.userID "
+                   + "LEFT JOIN Student s ON tc.userID = s.userID "
+                   + "WHERE tc.taskID = ? ORDER BY tc.completionDate DESC";
+        List<java.util.Map<String, Object>> results = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, taskID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("completionID", rs.getInt("completionID"));
+                    row.put("taskID", rs.getInt("taskID"));
+                    row.put("userID", rs.getInt("userID"));
+                    row.put("completionStatus", rs.getString("completionStatus"));
+                    row.put("completionDate", rs.getString("completionDate"));
+                    row.put("name", rs.getString("name") + " " + rs.getString("surname"));
+                    row.put("studentNo", rs.getString("studentNo"));
+                    results.add(row);
+                }
+            }
+        }
+        return results;
+    }
+
+    // Update completion status (lecturer approves/rejects)
+    public boolean updateCompletionStatus(int completionID, String status) throws SQLException {
+        String sql = "UPDATE TaskCompletion SET completionStatus = ? WHERE completionID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, status);
+            ps.setInt(2, completionID);
+            return ps.executeUpdate() > 0;
+        }
+    }
 }
