@@ -29,4 +29,44 @@ public class TaskController {
             return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));
         }
     }
+
+    /** POST /api/tasks/{id}/answer — submit a True/False answer for a task. */
+    @PostMapping("/{id}/answer")
+    public ResponseEntity<?> answerTask(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        try {
+            Object userIDRaw = body.get("userID");
+            if (!(userIDRaw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
+            }
+            Object answerRaw = body.get("answer");
+            if (!(answerRaw instanceof Boolean)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "answer must be true or false"));
+            }
+
+            int userID = ((Number) userIDRaw).intValue();
+            boolean answer = (Boolean) answerRaw;
+
+            int result = taskDAO.answerTask(id, userID, answer);
+            if (result == 1) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "correct", true,
+                        "message", "Correct answer! MadiBucks awarded."
+                ));
+            } else if (result == 0) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "correct", false,
+                        "message", "Incorrect answer. No MadiBucks awarded."
+                ));
+            } else {
+                return ResponseEntity.status(409).body(Map.of("error", "You have already answered this task."));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

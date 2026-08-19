@@ -1,19 +1,16 @@
 package com.bloodline.madibets.controller;
 
 import com.bloodline.madibets.dao.GroupDAO;
+import com.bloodline.madibets.dao.TaskDAO;
 import com.bloodline.madibets.model.Group;
+import com.bloodline.madibets.model.Task;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.bloodline.madibets.config.DatabaseConnection;
 
 @RestController
 @RequestMapping("/api/groups")
@@ -21,6 +18,7 @@ import com.bloodline.madibets.config.DatabaseConnection;
 public class GroupController {
 
     private final GroupDAO groupDAO = new GroupDAO();
+    private final TaskDAO taskDAO = new TaskDAO();
 
     @PostMapping("")
     public ResponseEntity<?> createGroup(@RequestBody Group g) {
@@ -52,24 +50,16 @@ public class GroupController {
             }
             
             if (userId != null) {
-                Map<String,Object> overall = Map.of(
-                        "groupID", 0,
-                        "groupName", "Overall",
-                        "description", "All registered users (excluding admin)",
-                        "virtual", true
-                );
-                Map<String,Object> myfriends = Map.of(
-                        "groupID", -1,
-                        "groupName", "My Friends",
-                        "description", "Your friends",
-                        "virtual", true
-                );
-                out.add(overall);
-                out.add(myfriends);
+                // Only real groups the user belongs to — no virtual "Overall"/"My Friends" groups.
                 out.addAll(groupDAO.findByUser(userId));
             }
 
             if (q == null || q.isBlank()) {
+                // No search term: return all groups (limit 100) so the admin
+                // dashboard and group list always show something.
+                if (userId == null) {
+                    out.addAll(groupDAO.searchByNameOrId(null));
+                }
                 return ResponseEntity.ok(out);
             }
 
@@ -84,44 +74,6 @@ public class GroupController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getGroup(@PathVariable int id, @RequestParam(required = false) Integer userId) {
         try {
-            if (id == 0) {
-                // Overall virtual group: provide summary
-                int count = 0;
-                try (Connection con = DatabaseConnection.getConnection();
-                     PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS c FROM User WHERE userType <> 'ADMIN'")) {
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) count = rs.getInt("c");
-                    }
-                }
-                Map<String,Object> resp = new HashMap<>();
-                resp.put("groupID", 0);
-                resp.put("groupName", "Overall");
-                resp.put("description", "All registered users (excluding admin)");
-                resp.put("memberCount", count);
-                return ResponseEntity.ok(resp);
-            } else if (id == -1) {
-                // My Friends virtual group: compute friend count for userId
-                if (userId == null) {
-                    return ResponseEntity.badRequest().body(Map.of("error", "userId required for My Friends"));
-                }
-                int count = 0;
-                String sql = "SELECT COUNT(*) AS c FROM Friendship WHERE (requesterID = ? OR addresseID = ?) AND status = 'ACCEPTED'";
-                try (Connection con = DatabaseConnection.getConnection();
-                     PreparedStatement ps = con.prepareStatement(sql)) {
-                    ps.setInt(1, userId);
-                    ps.setInt(2, userId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) count = rs.getInt("c");
-                    }
-                }
-                Map<String,Object> resp = new HashMap<>();
-                resp.put("groupID", -1);
-                resp.put("groupName", "My Friends");
-                resp.put("description", "Your friends");
-                resp.put("memberCount", count);
-                return ResponseEntity.ok(resp);
-            }
-
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
 
@@ -149,20 +101,92 @@ public class GroupController {
     public ResponseEntity<?> joinGroup(@PathVariable int id, @RequestBody Map<String, Object> body) {
         try {
             if (id <= 0) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Cannot join virtual group"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
             }
             if (body == null || !body.containsKey("userID")) {
                 return ResponseEntity.badRequest().body(Map.of("error", "userID required in body"));
             }
-            int userID = (int) ((Number) body.get("userID")).intValue();
+            Object raw = body.get("userID");
+            if (!(raw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
+            }
+            int userID = ((Number) raw).intValue();
             boolean added = groupDAO.addMember(id, userID);
             if (added) {
                 return ResponseEntity.ok(Map.of("success", true));
             } else {
                 return ResponseEntity.status(409).body(Map.of("error", "Already a member"));
             }
-        } catch (ClassCastException cce) {
-            return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tasks scoped to a group (D400/D500)
+    // ------------------------------------------------------------------
+
+    /** GET /api/groups/{id}/tasks?userId=N — list tasks with the user's answer status. */
+    @GetMapping("/{id}/tasks")
+    public ResponseEntity<?> getGroupTasks(@PathVariable int id,
+                                           @RequestParam(required = false) Integer userId) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
+            }
+            if (userId == null) {
+                // No user context: return plain tasks without answer status
+                return ResponseEntity.ok(taskDAO.findByGroup(id));
+            }
+            return ResponseEntity.ok(taskDAO.findByGroupWithStatus(id, userId));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** POST /api/groups/{id}/tasks — create a task in a group (lecturer only). */
+    @PostMapping("/{id}/tasks")
+    public ResponseEntity<?> createGroupTask(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
+            }
+            String question = body.get("question") instanceof String s ? s.trim() : null;
+            if (question == null || question.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Question is required"));
+            }
+            Object correctRaw = body.get("correctAnswer");
+            if (!(correctRaw instanceof Boolean)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "correctAnswer must be true or false"));
+            }
+            Object amountRaw = body.get("amount");
+            if (!(amountRaw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "amount must be numeric"));
+            }
+            Object createdByRaw = body.get("createdBy");
+            if (!(createdByRaw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "createdBy must be numeric"));
+            }
+            int createdBy = ((Number) createdByRaw).intValue();
+
+            // Lecturer must be a member of the group to create tasks for it
+            if (!groupDAO.isMember(id, createdBy)) {
+                return ResponseEntity.status(403).body(Map.of("error", "You must be a member of this group to create tasks."));
+            }
+
+            Task task = new Task();
+            task.setTitle(question);
+            task.setDescription(question);
+            task.setGroupID(id);
+            task.setAmount(new java.math.BigDecimal(String.valueOf(amountRaw)));
+            task.setCreatedBy(createdBy);
+            task.setCorrectAnswer((Boolean) correctRaw);
+
+            Task saved = taskDAO.create(task);
+            return ResponseEntity.status(201).body(Map.of(
+                    "taskID", saved.getTaskID(),
+                    "message", "Task created successfully!"
+            ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }

@@ -455,7 +455,7 @@ function renderTaskCard(task, user) {
 
     const question = document.createElement('p');
     question.className = 'task-card-question';
-    question.textContent = task.question || 'No question';
+    question.textContent = task.title || task.question || 'No question';
     card.appendChild(question);
 
     const reward = document.createElement('div');
@@ -463,7 +463,7 @@ function renderTaskCard(task, user) {
     reward.textContent = `Reward: ${parseFloat(task.amount || 0).toFixed(2)} MB`;
     card.appendChild(reward);
 
-    const answered = task.answered !== null && task.answered !== undefined;
+    const answered = task.answered === true;
     const isCorrect = task.isCorrect === true;
 
     const toggle = document.createElement('div');
@@ -476,17 +476,68 @@ function renderTaskCard(task, user) {
     falseBtn.className = 'task-answer-btn';
     falseBtn.textContent = 'False';
 
+    // ── Answer flow: select → confirm → locked ──
+    let selectedAnswer = null;
+    let confirmationPopup = null;
+
+    const selectAnswer = (value) => {
+        // Already answered — can't change
+        if (answered) return;
+        selectedAnswer = value;
+        trueBtn.classList.toggle('selected', value === true);
+        falseBtn.classList.toggle('selected', value === false);
+        // Show confirmation popup
+        showConfirmationPopup(value);
+    };
+
+    trueBtn.onclick = () => selectAnswer(true);
+    falseBtn.onclick = () => selectAnswer(false);
+
+    const showConfirmationPopup = (value) => {
+        // Remove existing popup if any
+        if (confirmationPopup) {
+            confirmationPopup.remove();
+        }
+
+        confirmationPopup = document.createElement('div');
+        confirmationPopup.className = 'task-confirm-popup';
+        confirmationPopup.innerHTML = `
+            <div class="task-confirm-popup-content">
+                <p>Are you sure you want to answer <strong>${value ? 'True' : 'False'}</strong>?</p>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;">
+                    <button type="button" class="btn task-confirm-yes" onclick="confirmAndSubmit(${value})">Confirm</button>
+                    <button type="button" class="btn" onclick="hideConfirmationPopup()">Cancel</button>
+                </div>
+            </div>
+        `;
+        card.appendChild(confirmationPopup);
+    };
+
+    const hideConfirmationPopup = () => {
+        if (confirmationPopup) {
+            confirmationPopup.remove();
+            confirmationPopup = null;
+        }
+    };
+
+    const confirmAndSubmit = (value) => {
+        submitTaskAnswer(task.taskID, value);
+        hideConfirmationPopup();
+    };
+
     if (answered) {
         trueBtn.disabled = true;
         falseBtn.disabled = true;
-        if (task.answered === true) {
-            trueBtn.classList.add(isCorrect ? 'correct' : 'incorrect');
+        // confirmBtn removed — answer is already confirmed via popup
+        if (task.isCorrect === true) {
+            trueBtn.classList.add('correct');
         } else {
-            falseBtn.classList.add(isCorrect ? 'correct' : 'incorrect');
+            falseBtn.classList.add('incorrect');
         }
-    } else {
-        trueBtn.onclick = () => submitTaskAnswer(task.taskID, true);
-        falseBtn.onclick = () => submitTaskAnswer(task.taskID, false);
+        const note = document.createElement('div');
+        note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
+        note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
+        card.appendChild(note);
     }
 
     toggle.appendChild(trueBtn);
@@ -494,19 +545,21 @@ function renderTaskCard(task, user) {
     card.appendChild(toggle);
 
     if (answered) {
-        const note = document.createElement('div');
-        note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
-        note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
         card.appendChild(note);
     }
 
     return card;
 }
 
-async function submitTaskAnswer(taskID, answer) {
+async function submitTaskAnswer(taskID, answer, confirmBtn) {
     const saved = sessionStorage.getItem('user');
     if (!saved) { showToast('You must be logged in to answer tasks.', 'error'); return; }
     const user = JSON.parse(saved);
+    if (answer === null || answer === undefined) {
+        showToast('Please select True or False before confirming.', 'error');
+        return;
+    }
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Submitting...'; }
 
     try {
         const resp = await fetch(`${API_BASE}/tasks/${taskID}/answer`, {
@@ -516,7 +569,13 @@ async function submitTaskAnswer(taskID, answer) {
         });
         const data = await resp.json();
         if (resp.ok) {
-            showToast('Answer submitted!', 'success');
+            if (data.correct === true) {
+                showToast('Correct answer! MadiBucks awarded.', 'success');
+            } else if (data.correct === false) {
+                showToast('Incorrect answer. No MadiBucks awarded.', 'error');
+            } else {
+                showToast('Answer submitted!', 'success');
+            }
             if (currentGroupID) loadGroupDetail(currentGroupID);
         } else if (resp.status === 409) {
             showToast('You have already answered this task.', 'error');
@@ -527,6 +586,8 @@ async function submitTaskAnswer(taskID, answer) {
     } catch (err) {
         console.error(err);
         showToast('Server error submitting answer', 'error');
+    } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Answer'; }
     }
 }
 
@@ -534,10 +595,24 @@ async function submitTaskAnswer(taskID, answer) {
 function openCreateTaskModal(groupID) {
     currentGroupID = groupID;
     document.getElementById('new-task-question').value = '';
-    document.getElementById('new-task-amount').value = '0';
+    document.getElementById('new-task-amount').value = '50';
     taskCorrectAnswer = true;
     setTaskCorrectAnswer(true);
     document.getElementById('create-task-modal').classList.remove('hidden');
+}
+
+// Decrease task reward amount by 1 (min 1)
+function decreaseTaskAmount() {
+    const input = document.getElementById('new-task-amount');
+    const val = parseInt(input.value) || 50;
+    input.value = Math.max(1, val - 1);
+}
+
+// Increase task reward amount by 1
+function increaseTaskAmount() {
+    const input = document.getElementById('new-task-amount');
+    const val = parseInt(input.value) || 50;
+    input.value = val + 1;
 }
 
 function closeCreateTaskModal(event) {
@@ -568,7 +643,7 @@ async function createTask() {
     }
 
     const question = document.getElementById('new-task-question').value.trim();
-    const amount = parseFloat(document.getElementById('new-task-amount').value) || 0;
+    const amount = parseFloat(document.getElementById('new-task-amount').value) || 50;
     if (!question) {
         showToast('Please enter a question.', 'error');
         return;
@@ -2670,7 +2745,7 @@ window.confirmDeleteUser = async function() {
                 showToast('User deleted successfully.', 'success');
                 closeUserProfileModal();
                 // Refresh the table
-                loadUserManagementTable();
+                loadUserManagementData();
             } else {
                 const errData = await res.json();
                 showToast(errData.error || 'Failed to delete user.', 'error');

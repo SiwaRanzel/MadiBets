@@ -1218,6 +1218,58 @@ body {
     color: var(--color-crimson);
 }
 
+/* Confirmation popup */
+.task-confirm-popup {
+    position: absolute;
+    bottom: -140px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border: 1px solid #D1D9E4;
+    border-radius: 8px;
+    padding: 20px;
+    width: 280px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    font-size: 0.875rem;
+}
+
+.task-confirm-popup-content {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.task-confirm-popup-content p {
+    margin: 0 0 12px 0;
+    color: var(--color-text-dark);
+}
+
+.task-confirm-yes {
+    background: var(--color-nmu-navy);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.task-confirm-yes:hover {
+    background: #1a356e;
+}
+
+.task-confirm-yes:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.task-confirm-yes:focus {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
 .group-detail-actions {
     display: flex;
     gap: 10px;
