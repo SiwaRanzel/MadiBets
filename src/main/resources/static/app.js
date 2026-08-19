@@ -2031,11 +2031,13 @@ async function loadBetsPanel() {
             // Unpriced outcomes (odds null — only on pre-migration bets) are
             // not wagerable, so they get no button.
             const action = b.open
-                ? (b.outcomes || []).filter(o => o.odds != null).map(o =>
+                ? `<div class="bet-outcome-stack">` +
+                    (b.outcomes || []).filter(o => o.odds != null).map(o =>
                     `<button class="bet-action-btn bet-outcome-btn"
                         onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
                         <span class="bet-outcome-label">${escapeHtml(o.label)}</span>
-                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('')
+                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('') +
+                  `</div>`
                 : '<span class="bet-taken-pill">Closed — awaiting grading</span>';
             tbody.innerHTML += `
                 <tr>
