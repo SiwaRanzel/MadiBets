@@ -2064,3 +2064,34 @@ body {
     outline: none;
 }
 .propose-outcome-input:focus { border-color: #1B2F5E; }
+
+/* Added (optional) outcome fields: the input spans the full column width
+   (same length as the two base fields) and the remove button hangs off to
+   the side, outside the column. */
+.propose-outcome-row {
+    position: relative;
+}
+.propose-outcome-row .propose-outcome-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.propose-outcome-remove {
+    position: absolute;
+    right: -42px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 1.15rem;
+    line-height: 1;
+    color: #6C7D93;
+    cursor: pointer;
+}
+.propose-outcome-remove:hover {
+    background: #FDECEA;
+    border-color: #D9534F;
+    color: #D9534F;
+}
