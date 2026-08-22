@@ -393,6 +393,8 @@ async function loadGroupDetail(groupID) {
                 const name = document.createElement('div');
                 name.className = 'group-member-name';
                 name.textContent = `${m.name || ''} ${m.surname || ''}`.trim();
+                name.style.cursor = 'pointer';
+                name.onclick = () => showUserPopup(m.userID);
                 info.appendChild(name);
 
                 const role = document.createElement('div');
@@ -1795,9 +1797,10 @@ async function loadFriendsList(userID) {
         container.innerHTML = friends.map(f => {
             // Show the OTHER person's name (not your own)
             const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
+            const friendId = f.requesterID === userID ? f.addresseID : f.requesterID;
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="showUserPopup(${friendId})">
                         <div style="width: 40px; height: 40px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
@@ -2145,7 +2148,7 @@ async function loadRankings(sortBy) {
             return `
                 <tr style="border-bottom: 1px solid #F0F2F5; ${rowBg}">
                     <td style="padding: 14px 10px;">${rankBadge}</td>
-                    <td style="padding: 14px 10px; color: #1B2F5E; font-weight: ${isCurrentUser ? '700' : '500'};">${r.name}${isCurrentUser ? ' (You)' : ''}</td>
+                    <td style="padding: 14px 10px; color: #1B2F5E; font-weight: ${isCurrentUser ? '700' : '500'}; cursor: pointer;" onclick="showUserPopup(${r.userID})">${r.name}${isCurrentUser ? ' (You)' : ''}</td>
                     <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${parseFloat(r.balance).toFixed(2)} MB</td>
                     <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${r.totalBets}</td>
                     <td style="text-align: center; padding: 14px 10px; color: #28A745; font-weight: 600;">${r.betsWon}</td>
@@ -2759,10 +2762,10 @@ let currentSelectedUserId = null;
 window.openUserProfileModal = async function() {
     if (!currentSelectedUserId) return;
     
-    const detailsContainer = document.getElementById('user-profile-details');
+    const detailsContainer = document.getElementById('admin-user-profile-details');
     detailsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px;">Loading details...</div>';
     
-    document.getElementById('user-profile-modal').classList.remove('hidden');
+    document.getElementById('admin-user-profile-modal').classList.remove('hidden');
     
     try {
         const res = await fetch(`${API_BASE}/users/${currentSelectedUserId}`);
@@ -2800,6 +2803,10 @@ window.openUserProfileModal = async function() {
     }
 }
 
+window.closeAdminUserProfileModal = function() {
+    document.getElementById('admin-user-profile-modal').classList.add('hidden');
+}
+
 window.closeUserProfileModal = function() {
     document.getElementById('user-profile-modal').classList.add('hidden');
 }
@@ -2820,7 +2827,7 @@ window.confirmDeleteUser = async function() {
             });
             if (res.ok) {
                 showToast('User deleted successfully.', 'success');
-                closeUserProfileModal();
+                closeAdminUserProfileModal();
                 // Refresh the table
                 loadUserManagementData();
             } else {
@@ -3576,4 +3583,31 @@ async function updateCompletion(completionID, status) {
         showToast('Network error.', 'error');
         console.error(err);
     }
+}
+
+
+async function showUserPopup(userId) {
+    try {
+        const res = await fetch(`${API_BASE}/users/${userId}`);
+        if (res.ok) {
+            const data = await res.json();
+            const u = data.user;
+            
+            document.getElementById('user-profile-avatar').src = u.avatarPath || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%231B2F5E' width='100' height='100' rx='50'/%3E%3Ccircle cx='50' cy='38' r='16' fill='%23F5A623'/%3E%3Cpath d='M20 85c0-16 13-28 30-28s30 12 30 28' fill='%23F5A623'/%3E%3C/svg%3E";
+            document.getElementById('user-profile-name').textContent = `${u.name} ${u.surname}`;
+            document.getElementById('user-profile-madibucks').textContent = `${parseFloat(data.balance).toFixed(2)} MB`;
+            
+            document.getElementById('user-profile-modal').classList.remove('hidden');
+        } else {
+            showToast('User not found', 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error loading user profile', 'error');
+    }
+}
+
+function closeUserProfileModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('user-profile-modal').classList.add('hidden');
 }

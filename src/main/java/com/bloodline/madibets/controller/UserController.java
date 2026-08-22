@@ -135,19 +135,21 @@ public class UserController {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
             }
+
+            // Save to filesystem (primary storage)
             Path uploadDir = Paths.get("uploads", "avatars").toAbsolutePath();
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }
 
-            // Delete ALL old avatar files for this user by scanning the directory
+            // Delete old avatar files for this user
             String prefix = id + "_avatar";
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(uploadDir, prefix + ".*")) {
                 for (Path oldFile : stream) {
                     Files.deleteIfExists(oldFile);
                 }
             } catch (IOException ignored) {
-                // Directory might not exist yet on first upload, that's fine
+                // Directory might not exist yet on first upload
             }
 
             // Save new avatar as {userId}_avatar.{ext}
@@ -159,10 +161,17 @@ public class UserController {
             String filename = id + "_avatar" + ext;
             Path filePath = uploadDir.resolve(filename);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-            
+
             String avatarUrl = "/uploads/avatars/" + filename;
             boolean updated = userDAO.updateAvatar(id, avatarUrl);
-            
+
+            // Also save to database (best-effort, won't fail if columns don't exist)
+            try {
+                userDAO.updateAvatarData(id, file.getBytes(), file.getContentType());
+            } catch (Exception ignored) {
+                // DB columns may not exist yet — that's fine, filesystem copy succeeded
+            }
+
             if (updated) {
                 return ResponseEntity.ok(Map.of("success", true, "avatarUrl", avatarUrl));
             } else {
@@ -170,6 +179,22 @@ public class UserController {
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id:\\d+}/avatar-image")
+    public ResponseEntity<?> getAvatarImage(@PathVariable int id) {
+        try {
+            com.bloodline.madibets.model.AvatarData avatar = userDAO.getAvatarData(id);
+            if (avatar != null && avatar.getData() != null) {
+                return ResponseEntity.ok()
+                        .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, avatar.getContentType() != null ? avatar.getContentType() : "image/jpeg")
+                        .body(avatar.getData());
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 

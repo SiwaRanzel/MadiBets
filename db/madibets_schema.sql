@@ -23,6 +23,8 @@ CREATE TABLE User (
   password  VARCHAR(255) NOT NULL,                 -- store a HASH, never plaintext (see notes)
   userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
   avatarPath VARCHAR(255),
+  avatarData LONGBLOB,
+  avatarType VARCHAR(50),
   createdDate DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

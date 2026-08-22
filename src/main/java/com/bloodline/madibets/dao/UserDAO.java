@@ -180,6 +180,7 @@ public class UserDAO {
         }
     }
 
+    /** Update avatar path */
     public boolean updateAvatar(int userID, String avatarPath) throws SQLException {
         String sql = "UPDATE User SET avatarPath=? WHERE userID=?";
         try (Connection con = DatabaseConnection.getConnection();
@@ -187,6 +188,37 @@ public class UserDAO {
             ps.setString(1, avatarPath);
             ps.setInt(2, userID);
             return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** Update avatar data and content type in the database */
+    public boolean updateAvatarData(int userID, byte[] avatarData, String avatarType) throws SQLException {
+        String sql = "UPDATE User SET avatarData=?, avatarType=? WHERE userID=?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setBytes(1, avatarData);
+            ps.setString(2, avatarType);
+            ps.setInt(3, userID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** Fetch the avatar data for a user */
+    public com.bloodline.madibets.model.AvatarData getAvatarData(int userID) throws SQLException {
+        String sql = "SELECT avatarData, avatarType FROM User WHERE userID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, userID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    byte[] data = rs.getBytes("avatarData");
+                    String type = rs.getString("avatarType");
+                    if (data != null) {
+                        return new com.bloodline.madibets.model.AvatarData(data, type);
+                    }
+                }
+                return null;
+            }
         }
     }
 
