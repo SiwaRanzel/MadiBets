@@ -1106,12 +1106,12 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span style="color: #A0B2D6; font-size: 0.85rem;">The page you're on</span>
-                            <select style="border: 1px solid #E8EEF8; border-radius: 6px; padding: 5px 10px; outline: none; font-weight: 600; color: #1B2F5E;">
+                            <select disabled style="border: 1px solid #E8EEF8; border-radius: 6px; padding: 5px 10px; outline: none; font-weight: 600; color: #1B2F5E; opacity: 0.6; cursor: not-allowed; background: white;">
                                 <option>1</option>
                             </select>
                             <div style="display: flex; gap: 5px;">
-                                <button style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #A0B2D6;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-                                <button style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1B2F5E;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                                <button disabled style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: not-allowed; color: #A0B2D6; opacity: 0.5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+                                <button disabled style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: not-allowed; color: #A0B2D6; opacity: 0.5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
                             </div>
                         </div>
                     </div>
@@ -1179,12 +1179,12 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span style="color: #A0B2D6; font-size: 0.85rem;">The page you're on</span>
-                            <select style="border: 1px solid #E8EEF8; border-radius: 6px; padding: 5px 10px; outline: none; font-weight: 600; color: #1B2F5E; background: white;">
+                            <select disabled style="border: 1px solid #E8EEF8; border-radius: 6px; padding: 5px 10px; outline: none; font-weight: 600; color: #1B2F5E; opacity: 0.6; cursor: not-allowed; background: white;">
                                 <option>1</option>
                             </select>
                             <div style="display: flex; gap: 5px;">
-                                <button style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #A0B2D6;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-                                <button style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1B2F5E;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                                <button disabled style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: not-allowed; color: #A0B2D6; opacity: 0.5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+                                <button disabled style="border: none; background: white; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: not-allowed; color: #A0B2D6; opacity: 0.5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
                             </div>
                         </div>
                     </div>
@@ -1319,12 +1319,12 @@
                         <span id="query-pagination-info">1 - 0 of 0</span>
                         <div class="admin-pagination-controls">
                             <span class="pagination-label">The page you're on</span>
-                            <select class="pagination-select">
+                            <select disabled class="pagination-select" style="opacity: 0.6; cursor: not-allowed;">
                                 <option>1</option>
                             </select>
                             <div class="pagination-btns">
-                                <button class="pagination-btn" disabled>&larr;</button>
-                                <button class="pagination-btn" disabled>&rarr;</button>
+                                <button class="pagination-btn" disabled style="opacity: 0.5; cursor: not-allowed;">&larr;</button>
+                                <button class="pagination-btn" disabled style="opacity: 0.5; cursor: not-allowed;">&rarr;</button>
                             </div>
                         </div>
                     </div>
@@ -1716,7 +1716,7 @@
         </div>
     </div>
 
-    <!-- Admin User Profile Modal (full details + delete) -->
+    <!-- Admin User Profile Modal (full details + delete + update) -->
     <div id="admin-user-profile-modal" class="about-modal-overlay hidden" onclick="if(event.target===this) closeAdminUserProfileModal()">
         <div class="about-modal-content" style="max-width: 500px; padding: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 25px; border-bottom: 1px solid #F0F2F5;">
@@ -1726,13 +1726,36 @@
                 </button>
             </div>
             <div style="padding: 25px;">
-                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 12px; margin-bottom: 25px; font-size: 0.95rem; color: #1B2F5E;" id="admin-user-profile-details">
-                    <!-- Populated by JS -->
+                <!-- Read-only details view -->
+                <div id="admin-user-profile-view">
+                    <div style="display: grid; grid-template-columns: 130px 1fr; gap: 12px; margin-bottom: 25px; font-size: 0.95rem; color: #1B2F5E;" id="admin-user-profile-details">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 12px; border-top: 1px solid #F0F2F5; padding-top: 25px;">
+                        <button id="admin-user-profile-update-btn" onclick="showAdminUpdateForm()" style="background: #EEF2FF; color: #1B2F5E; border: 1px solid #C7D2FE; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#E0E7FF'" onmouseout="this.style.background='#EEF2FF'">
+                            Update Details
+                        </button>
+                        <button id="admin-user-profile-delete-btn" onclick="confirmDeleteUser()" style="background: #FFF0F0; color: #D9534F; border: 1px solid #FFD6D6; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#FFE0E0'" onmouseout="this.style.background='#FFF0F0'">
+                            Delete User
+                        </button>
+                    </div>
                 </div>
-                <div style="display: flex; justify-content: center; border-top: 1px solid #F0F2F5; padding-top: 25px;">
-                    <button id="admin-user-profile-delete-btn" onclick="confirmDeleteUser()" style="background: #FFF0F0; color: #D9534F; border: 1px solid #FFD6D6; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#FFE0E0'" onmouseout="this.style.background='#FFF0F0'">
-                        Delete User
-                    </button>
+                <!-- Edit form (hidden by default) -->
+                <div id="admin-user-profile-edit" style="display: none;">
+                    <form id="admin-update-user-form" onsubmit="handleAdminUpdateUser(event)">
+                        <div class="form-field-group" style="margin-bottom: 15px;">
+                            <label for="admin-edit-name" style="display: block; font-weight: 600; color: #1B2F5E; margin-bottom: 6px; font-size: 0.9rem;">Name</label>
+                            <input type="text" id="admin-edit-name" required placeholder="Enter name" style="width: 100%; padding: 10px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#1B2F5E'" onblur="this.style.borderColor='#E2E8F0'">
+                        </div>
+                        <div class="form-field-group" style="margin-bottom: 20px;">
+                            <label for="admin-edit-surname" style="display: block; font-weight: 600; color: #1B2F5E; margin-bottom: 6px; font-size: 0.9rem;">Surname</label>
+                            <input type="text" id="admin-edit-surname" required placeholder="Enter surname" style="width: 100%; padding: 10px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#1B2F5E'" onblur="this.style.borderColor='#E2E8F0'">
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #F0F2F5; padding-top: 20px;">
+                            <button type="button" onclick="cancelAdminUpdateForm()" style="background: #F8FAFC; color: #6C7D93; border: 1px solid #E2E8F0; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;">Cancel</button>
+                            <button type="submit" id="btn-admin-save-user" class="btn btn-gold-cta" style="padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem;"><span class="btn-text">Save Changes</span></button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

@@ -1724,7 +1724,7 @@ function renderUMTable() {
         if (filteredUsers.length === 0) {
             pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
         } else {
-            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1 - ${filteredUsers.length}</span> of ${filteredUsers.length}`;
+            pageInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of 1`;
         }
     }
 
@@ -2281,7 +2281,7 @@ function renderQueryTable(queries) {
     });
 
     if (paginationInfo) {
-        paginationInfo.textContent = `1 - ${queries.length} of ${queries.length}`;
+        paginationInfo.innerHTML = queries.length === 0 ? `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0` : `<span style="font-weight: 700; color: #1B2F5E;">1</span> of 1`;
     }
 }
 
@@ -2434,7 +2434,7 @@ function renderDeleteRequests(requestsToRender) {
         if (count === 0) {
             paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`;
         } else {
-            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of ${count}`;
+            paginationInfo.innerHTML = `<span style="font-weight: 700; color: #1B2F5E;">1</span> of 1`;
         }
     }
 
@@ -2758,12 +2758,19 @@ window.hideAdminLineTooltip = function() {
  * ============================================================= */
 
 let currentSelectedUserId = null;
+let currentSelectedUserData = null;
 
 window.openUserProfileModal = async function() {
     if (!currentSelectedUserId) return;
     
     const detailsContainer = document.getElementById('admin-user-profile-details');
     detailsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px;">Loading details...</div>';
+    
+    // Ensure we're showing the read-only view, not the edit form
+    const viewDiv = document.getElementById('admin-user-profile-view');
+    const editDiv = document.getElementById('admin-user-profile-edit');
+    if (viewDiv) viewDiv.style.display = 'block';
+    if (editDiv) editDiv.style.display = 'none';
     
     document.getElementById('admin-user-profile-modal').classList.remove('hidden');
     
@@ -2773,6 +2780,7 @@ window.openUserProfileModal = async function() {
         
         if (res.ok && data.user) {
             const u = data.user;
+            currentSelectedUserData = u;
             const balance = typeof data.balance === 'number' ? data.balance.toFixed(2) : '0.00';
             const role = u.userType || 'N/A';
             const idField = role === 'STUDENT' ? 'Student No.' : (role === 'LECTURER' ? 'Staff No.' : 'User ID');
@@ -2805,6 +2813,10 @@ window.openUserProfileModal = async function() {
 
 window.closeAdminUserProfileModal = function() {
     document.getElementById('admin-user-profile-modal').classList.add('hidden');
+    const viewDiv = document.getElementById('admin-user-profile-view');
+    const editDiv = document.getElementById('admin-user-profile-edit');
+    if (viewDiv) viewDiv.style.display = 'block';
+    if (editDiv) editDiv.style.display = 'none';
 }
 
 window.closeUserProfileModal = function() {
@@ -2827,7 +2839,7 @@ window.confirmDeleteUser = async function() {
             });
             if (res.ok) {
                 showToast('User deleted successfully.', 'success');
-                closeAdminUserProfileModal();
+                window.closeAdminUserProfileModal();
                 // Refresh the table
                 loadUserManagementData();
             } else {
@@ -2840,6 +2852,69 @@ window.confirmDeleteUser = async function() {
         }
     }
 }
+
+window.showAdminUpdateForm = function() {
+    if (!currentSelectedUserData) return;
+
+    // Pre-fill the form with current values
+    document.getElementById('admin-edit-name').value = currentSelectedUserData.name || '';
+    document.getElementById('admin-edit-surname').value = currentSelectedUserData.surname || '';
+
+    // Switch to edit mode
+    document.getElementById('admin-user-profile-view').style.display = 'none';
+    document.getElementById('admin-user-profile-edit').style.display = 'block';
+}
+
+window.cancelAdminUpdateForm = function() {
+    // Switch back to view mode
+    document.getElementById('admin-user-profile-view').style.display = 'block';
+    document.getElementById('admin-user-profile-edit').style.display = 'none';
+}
+
+window.handleAdminUpdateUser = async function(event) {
+    event.preventDefault();
+    if (!currentSelectedUserId || !currentSelectedUserData) return;
+
+    const name = document.getElementById('admin-edit-name').value.trim();
+    const surname = document.getElementById('admin-edit-surname').value.trim();
+
+    if (!name || !surname) {
+        showToast('Name and surname are required.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-admin-save-user');
+    if (btn) setButtonLoading(btn, true);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${currentSelectedUserId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                surname,
+                email: currentSelectedUserData.email
+            })
+        });
+
+        if (response.ok) {
+            showToast('User details updated successfully!', 'success');
+            // Refresh the modal with updated data
+            await window.openUserProfileModal();
+            // Also refresh the user management table
+            loadUserManagementData();
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Failed to update user details.', 'error');
+        }
+    } catch (err) {
+        showToast('Network error while updating user.', 'error');
+        console.error(err);
+    } finally {
+        if (btn) setButtonLoading(btn, false);
+    }
+}
+
 
 /* =============================================================
  * B-SERIES: BETS PANEL + ACCOUNTING SYSTEM (Kieran)
@@ -3611,3 +3686,5 @@ function closeUserProfileModal(event) {
     if (event && event.target !== event.currentTarget) return;
     document.getElementById('user-profile-modal').classList.add('hidden');
 }
+
+
