@@ -229,36 +229,71 @@ function debouncedSearchGroups() {
     }, 300);
 }
 
-async function searchGroups(q) {
+async function loadMyGroups() {
     const saved = sessionStorage.getItem('user');
     const user = saved ? JSON.parse(saved) : null;
+    const container = document.getElementById('my-groups-list');
+    if (!container) return;
+    if (!user) {
+        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:40px 8px;">Please log in to see your groups.</p>';
+        return;
+    }
     try {
-        let url = `${API_BASE}/groups`;
-        const params = new URLSearchParams();
-        if (q && q.length > 0) {
-            params.set('q', q);
-        }
-        if (user) {
-            params.set('userId', user.userID);
-        }
-        if ([...params].length > 0) {
-            url += `?${params.toString()}`;
-        }
-        const resp = await fetch(url);
+        const resp = await fetch(`${API_BASE}/groups?userId=${user.userID}`);
         const data = await resp.json();
-        if (resp.ok) {
-            renderGroupList(data);
-        } else {
-            showToast(data.error || 'Failed to load groups', 'error');
+        if (!resp.ok) {
+            container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
+            return;
         }
+        renderGroupList(data, container);
     } catch (err) {
         console.error(err);
-        showToast('Server error loading groups', 'error');
+        container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
     }
 }
 
-function renderGroupList(items) {
-    const container = document.getElementById('groups-list');
+async function searchGroups(q) {
+    const saved = sessionStorage.getItem('user');
+    const user = saved ? JSON.parse(saved) : null;
+    const container = document.getElementById('search-results-list');
+    if (!container) return;
+    const qTrim = (q || '').trim();
+    if (!qTrim) {
+        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:24px 8px; font-size:0.9rem;">Type a group name to find groups you haven\'t joined.</p>';
+        return;
+    }
+    try {
+        const resp = await fetch(`${API_BASE}/groups?q=${encodeURIComponent(qTrim)}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to load groups');
+
+        // Find the groups the user already belongs to so we can exclude them.
+        let joined = [];
+        if (user) {
+            const jr = await fetch(`${API_BASE}/groups?userId=${user.userID}`);
+            if (jr.ok) joined = await jr.json();
+        }
+        const joinedIds = new Set((joined || []).map(g => (g.groupID !== undefined ? g.groupID : g.groupId) || 0));
+        const notJoined = (Array.isArray(data) ? data : []).filter(g => {
+            const id = g.groupID !== undefined ? g.groupID : g.groupId || 0;
+            return id > 0 && !joinedIds.has(id);
+        });
+        renderGroupList(notJoined, container);
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:24px 8px; font-size:0.9rem;">Failed to load groups.</p>';
+    }
+}
+
+// Refresh both the "My Groups" list and the search results.
+function refreshGroups() {
+    loadMyGroups();
+    const input = document.getElementById('group-search');
+    const q = input ? input.value.trim() : '';
+    searchGroups(q);
+}
+
+function renderGroupList(items, container) {
     container.innerHTML = '';
     if (!items || items.length === 0) {
         container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:40px 8px;">No groups found.</p>';
@@ -331,27 +366,27 @@ async function loadGroupDetail(groupID) {
 
         // Join/Leave buttons only for real groups (id>0)
         if (groupID > 0) {
+            const isMember = data.isMember === true;
             const btnContainer = document.createElement('div');
             btnContainer.style = 'margin-top:16px; display:flex; gap:10px;';
 
-            const joinBtn = document.createElement('button');
-            joinBtn.className = 'btn btn-gold-cta';
-            joinBtn.style = 'padding:10px 16px;';
-            joinBtn.textContent = 'Join Group';
-            joinBtn.onclick = async () => {
-                await joinGroup(groupID);
-            };
-            btnContainer.appendChild(joinBtn);
 
-            const leaveBtn = document.createElement('button');
-            leaveBtn.style = 'padding:10px 16px; background: none; border: 1px solid #D9534F; color: #D9534F; border-radius: 8px; font-weight: 600; cursor: pointer;';
-            leaveBtn.textContent = 'Leave Group';
-            leaveBtn.onclick = async () => {
-                await leaveGroup(groupID);
-            };
-            btnContainer.appendChild(leaveBtn);
 
-            detail.appendChild(btnContainer);
+            if (isMember) {
+                const leaveBtn = document.createElement('button');
+                leaveBtn.style = 'padding:10px 16px; background: none; border: 1px solid #D9534F; color: #D9534F; border-radius: 8px; font-weight: 600; cursor: pointer;';
+                leaveBtn.textContent = 'Leave Group';
+                leaveBtn.onclick = async () => {
+                    await leaveGroup(groupID);
+                };
+                btnContainer.appendChild(leaveBtn);
+            }
+
+            if (btnContainer.children.length > 0) {
+                if (btnContainer.children.length > 0) {
+                detail.appendChild(btnContainer);
+            }
+            }
         } else {
             const info = document.createElement('div');
             info.style = 'margin-top:16px; color:#6C7D93;';
@@ -751,7 +786,7 @@ async function createGroup() {
         if (resp.status === 201) {
             showToast('Group created successfully!', 'success');
             closeCreateGroupModal();
-            searchGroups('');
+            refreshGroups();
         } else {
             showToast(data.error || 'Failed to create group', 'error');
         }
@@ -775,7 +810,7 @@ async function joinGroup(groupID) {
         if (resp.ok) {
             showToast('Joined group successfully', 'success');
             loadGroupDetail(groupID);
-            searchGroups('');
+            refreshGroups();
         } else if (resp.status === 409) {
             showToast('You are already a member of this group.', 'error');
         } else {
@@ -805,7 +840,7 @@ async function leaveGroup(groupID) {
         if (resp.ok) {
             showToast('You have left the group.', 'success');
             loadGroupDetail(groupID);
-            searchGroups('');
+            refreshGroups();
         } else {
             showToast(data.error || 'Failed to leave group.', 'error');
         }
@@ -822,7 +857,7 @@ document.addEventListener('click', (e) => {
     if (pg && !pg.classList.contains('hidden')) {
         // load once
         if (!pg.dataset.loaded) {
-            searchGroups('');
+            refreshGroups();
             pg.dataset.loaded = '1';
         }
     }
@@ -850,7 +885,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets', 'panel-task'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -881,7 +916,6 @@ function switchPanel(panelId) {
         'panel-friends':            'nav-friends',
         'panel-leaderboard':        ['nav-leaderboard', 'nav-leaderboard-lecturer'],
         'panel-bets':               'nav-bets',
-        'panel-task':               ['nav-task-lecturer', 'nav-task-student'],
     };
     const mapped = navMap[panelId];
     if (Array.isArray(mapped)) {
@@ -901,7 +935,7 @@ function switchPanel(panelId) {
     } else if (panelId === 'panel-leaderboard') {
         loadLeaderboardData();
     } else if (panelId === 'panel-groups') {
-        searchGroups('');
+        refreshGroups();
     } else if (panelId === 'panel-query') {
         loadAdminQueries();
     } else if (panelId === 'panel-delete-request') {
@@ -914,8 +948,6 @@ function switchPanel(panelId) {
         loadBetsPanel();
     } else if (panelId === 'panel-accounting') {
         loadAccountingPanel();
-    } else if (panelId === 'panel-task') {
-        loadTaskPanel();
     }
 }
 
@@ -3300,302 +3332,6 @@ async function deleteBetUI(betID) {
     acctCall(() => fetch(`${API_BASE}/bets/${betID}?adminUserID=${adminID()}`, {
         method: 'DELETE'
     }), `Bet #${betID} deleted.`);
-}
-
-
-// ══════════════════════════════════════════════════════════════
-// ── Task Panel Logic (D400, D500) ───────────────────────────
-// ══════════════════════════════════════════════════════════════
-
-async function loadTaskPanel() {
-    const user = JSON.parse(sessionStorage.getItem('user'));
-    if (!user) return;
-
-    const isLecturer = user.userType === 'LECTURER';
-    const createSection = document.getElementById('task-create-section');
-
-    // Show create form for lecturers only
-    if (createSection) {
-        createSection.style.display = isLecturer ? 'block' : 'none';
-    }
-
-    // Load group dropdown for lecturer
-    if (isLecturer) {
-        await loadTaskGroupOptions(user.userID);
-        await loadLecturerTasks(user.userID);
-    } else {
-        await loadStudentTasks(user.userID);
-    }
-}
-
-async function loadTaskGroupOptions(lecturerID) {
-    const select = document.getElementById('task-group-select');
-    if (!select) return;
-
-    try {
-        const resp = await fetch(`${API_BASE}/groups?createdBy=${lecturerID}`);
-        const groups = await resp.json();
-
-        select.innerHTML = '<option value="">Select a group...</option>';
-        if (resp.ok && groups.length > 0) {
-            groups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.groupID;
-                opt.textContent = g.groupName;
-                select.appendChild(opt);
-            });
-        }
-    } catch (err) {
-        console.error('Failed to load groups for task form:', err);
-    }
-}
-
-async function handleCreateTask() {
-    const user = JSON.parse(sessionStorage.getItem('user'));
-    if (!user) return;
-
-    const title = document.getElementById('task-title').value.trim();
-    const description = document.getElementById('task-description').value.trim();
-    const amount = document.getElementById('task-amount').value;
-    const groupID = document.getElementById('task-group-select').value;
-
-    if (!title) { showToast('Task title is required.', 'error'); return; }
-    if (!amount || amount <= 0) { showToast('Reward amount must be greater than 0.', 'error'); return; }
-    if (!groupID) { showToast('Please select a group.', 'error'); return; }
-
-    try {
-        const resp = await fetch(`${API_BASE}/tasks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title,
-                description,
-                amount: parseFloat(amount),
-                groupID: parseInt(groupID),
-                createdBy: user.userID
-            })
-        });
-
-        const data = await resp.json();
-        if (resp.ok || resp.status === 201) {
-            showToast('Task created successfully!', 'success');
-            document.getElementById('task-title').value = '';
-            document.getElementById('task-description').value = '';
-            document.getElementById('task-amount').value = '';
-            document.getElementById('task-group-select').value = '';
-            loadLecturerTasks(user.userID);
-        } else {
-            showToast(data.error || 'Failed to create task.', 'error');
-        }
-    } catch (err) {
-        showToast('Network error.', 'error');
-        console.error(err);
-    }
-}
-
-async function loadLecturerTasks(lecturerID) {
-    const container = document.getElementById('task-list-container');
-    const countEl = document.getElementById('task-count');
-    if (!container) return;
-
-    try {
-        const resp = await fetch(`${API_BASE}/tasks?createdBy=${lecturerID}`);
-        const tasks = await resp.json();
-
-        if (!resp.ok) {
-            container.innerHTML = '<p style="color: #D9534F; text-align: center; padding: 20px;">Failed to load tasks.</p>';
-            return;
-        }
-
-        if (countEl) countEl.textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
-
-        if (tasks.length === 0) {
-            container.innerHTML = '<p style="color: #A0B2D6; text-align: center; padding: 20px;">No tasks created yet. Use the form above to create one.</p>';
-            return;
-        }
-
-        container.innerHTML = tasks.map(t => `
-            <div style="padding: 18px 20px; background: #F8FAFC; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="flex: 1;">
-                    <div style="font-weight: 700; color: #1B2F5E; margin-bottom: 4px;">${escapeHtml(t.title)}</div>
-                    <div style="font-size: 0.85rem; color: #6C7D93;">${t.description ? escapeHtml(t.description) : 'No description'}</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="background: #E0F2E9; color: #28A745; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.amount} MB</span>
-                    <button onclick="viewTaskCompletions(${t.taskID})" style="background: #1B2F5E; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Review</button>
-                </div>
-            </div>
-        `).join('');
-    } catch (err) {
-        container.innerHTML = '<p style="color: #D9534F; text-align: center; padding: 20px;">Error loading tasks.</p>';
-        console.error(err);
-    }
-}
-
-async function loadStudentTasks(userID) {
-    const container = document.getElementById('task-list-container');
-    const countEl = document.getElementById('task-count');
-    if (!container) return;
-
-    try {
-        // Get groups the student belongs to, then fetch tasks for each
-        const groupsResp = await fetch(`${API_BASE}/groups?userId=${userID}`);
-        const groups = await groupsResp.json();
-
-        if (!groupsResp.ok) {
-            container.innerHTML = '<p style="color: #D9534F; text-align: center; padding: 20px;">Failed to load tasks.</p>';
-            return;
-        }
-
-        // Filter to real groups only (not virtual ones with id <= 0)
-        const realGroups = groups.filter(g => (g.groupID || g.groupId || 0) > 0);
-
-        let allTasks = [];
-        for (const g of realGroups) {
-            const gid = g.groupID || g.groupId;
-            const taskResp = await fetch(`${API_BASE}/tasks?groupID=${gid}`);
-            if (taskResp.ok) {
-                const tasks = await taskResp.json();
-                tasks.forEach(t => { t._groupName = g.groupName || g.group_name || ''; });
-                allTasks = allTasks.concat(tasks);
-            }
-        }
-
-        if (countEl) countEl.textContent = `${allTasks.length} task${allTasks.length !== 1 ? 's' : ''} available`;
-
-        if (allTasks.length === 0) {
-            container.innerHTML = '<p style="color: #A0B2D6; text-align: center; padding: 20px;">No tasks available. Join a group to see tasks from your lecturers.</p>';
-            return;
-        }
-
-        // Check completion status for each task
-        const taskStatuses = await Promise.all(
-            allTasks.map(t => fetch(`${API_BASE}/tasks/${t.taskID}/status?userID=${userID}`).then(r => r.json()).catch(() => ({ status: 'NOT_SUBMITTED' })))
-        );
-
-        container.innerHTML = allTasks.map((t, i) => {
-            const status = taskStatuses[i].status;
-            let actionHtml;
-            if (status === 'COMPLETED') {
-                actionHtml = `<span style="background: #E2E8F0; color: #6C7D93; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Completed</span>`;
-            } else if (status === 'PENDING') {
-                actionHtml = `<span style="background: #FFF9E6; color: #F5A623; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Submitted</span>`;
-            } else if (status === 'REJECTED') {
-                actionHtml = `<span style="background: #FEE2E2; color: #D9534F; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">Rejected</span>`;
-            } else {
-                actionHtml = `<button onclick="submitTaskCompletion(${t.taskID})" style="background: #28A745; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Complete</button>`;
-            }
-
-            const rowOpacity = status === 'COMPLETED' ? 'opacity: 0.6;' : '';
-
-            return `
-                <div style="padding: 18px 20px; background: #F8FAFC; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; ${rowOpacity}">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 700; color: #1B2F5E; margin-bottom: 4px;">${escapeHtml(t.title)}</div>
-                        <div style="font-size: 0.85rem; color: #6C7D93;">${t.description ? escapeHtml(t.description) : 'No description'} <span style="color:#A0B2D6;">| ${escapeHtml(t._groupName)}</span></div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <span style="background: #E0F2E9; color: #28A745; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${t.amount} MB</span>
-                        ${actionHtml}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (err) {
-        container.innerHTML = '<p style="color: #D9534F; text-align: center; padding: 20px;">Error loading tasks.</p>';
-        console.error(err);
-    }
-}
-
-async function submitTaskCompletion(taskID) {
-    const user = JSON.parse(sessionStorage.getItem('user'));
-    if (!user) return;
-
-    try {
-        const resp = await fetch(`${API_BASE}/tasks/${taskID}/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userID: user.userID })
-        });
-
-        const data = await resp.json();
-        if (resp.ok) {
-            showToast(data.message || 'Task submitted for review!', 'success');
-            loadStudentTasks(user.userID); // Refresh to show "Submitted" status
-        } else {
-            showToast(data.error || 'Failed to submit task.', 'error');
-        }
-    } catch (err) {
-        showToast('Network error.', 'error');
-        console.error(err);
-    }
-}
-
-async function viewTaskCompletions(taskID) {
-    try {
-        const resp = await fetch(`${API_BASE}/tasks/${taskID}/completions`);
-        const completions = await resp.json();
-
-        if (!resp.ok) {
-            showToast('Failed to load completions.', 'error');
-            return;
-        }
-
-        if (completions.length === 0) {
-            showToast('No submissions yet for this task.', 'error');
-            return;
-        }
-
-        // Replace task list with completions view temporarily
-        const container = document.getElementById('task-list-container');
-        container.innerHTML = `
-            <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="color: #1B2F5E; margin: 0;">Submissions (${completions.length})</h4>
-                <button onclick="loadTaskPanel()" style="background: #F0F2F5; color: #1B2F5E; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Back to Tasks</button>
-            </div>
-            ${completions.map(c => `
-                <div style="padding: 15px 20px; background: #F8FAFC; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 600; color: #1B2F5E;">${c.name}</div>
-                        <div style="font-size: 0.85rem; color: #6C7D93;">${c.studentNo || 'N/A'} | ${c.completionDate || 'N/A'}</div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        ${c.completionStatus === 'PENDING' ? `
-                            <button onclick="updateCompletion(${c.completionID}, 'COMPLETED')" style="background: #28A745; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Approve</button>
-                            <button onclick="updateCompletion(${c.completionID}, 'REJECTED')" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Reject</button>
-                        ` : `
-                            <span style="background: ${c.completionStatus === 'COMPLETED' ? '#E0F2E9' : '#FEE2E2'}; color: ${c.completionStatus === 'COMPLETED' ? '#28A745' : '#D9534F'}; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${c.completionStatus}</span>
-                        `}
-                    </div>
-                </div>
-            `).join('')}
-        `;
-    } catch (err) {
-        showToast('Error loading completions.', 'error');
-        console.error(err);
-    }
-}
-
-async function updateCompletion(completionID, status) {
-    try {
-        const resp = await fetch(`${API_BASE}/tasks/completions/${completionID}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-        });
-
-        if (resp.ok) {
-            showToast(status === 'COMPLETED' ? 'Task approved!' : 'Task rejected.', 'success');
-            // Refresh the completions view
-            const user = JSON.parse(sessionStorage.getItem('user'));
-            if (user) loadLecturerTasks(user.userID);
-        } else {
-            showToast('Failed to update status.', 'error');
-        }
-    } catch (err) {
-        showToast('Network error.', 'error');
-        console.error(err);
-    }
 }
 
 
