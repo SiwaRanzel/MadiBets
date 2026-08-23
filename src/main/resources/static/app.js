@@ -493,8 +493,13 @@ function renderTaskCard(task, user) {
     reward.textContent = `Reward: ${parseFloat(task.amount || 0).toFixed(2)} MB`;
     card.appendChild(reward);
 
-    const answered = task.answered === true;
-    const isCorrect = task.isCorrect === true;
+    const isAnswered = task.answered === true;
+    const correctAnswer = task.correctAnswer;
+    
+    // Initially hide the answer feedback - will be shown after answering
+    const answerFeedback = document.createElement('div');
+    answerFeedback.className = 'task-answer-feedback';
+    answerFeedback.style = 'margin-top: 8px; padding: 8px; display: none; border-radius: 4px;';
 
     const toggle = document.createElement('div');
     toggle.className = 'task-answer-toggle';
@@ -555,19 +560,27 @@ function renderTaskCard(task, user) {
         hideConfirmationPopup();
     };
 
-    if (answered) {
+    if (isAnswered) {
         trueBtn.disabled = true;
         falseBtn.disabled = true;
-        // confirmBtn removed — answer is already confirmed via popup
-        if (task.isCorrect === true) {
+        
+        // Show feedback based on correct answer
+        answerFeedback.style.display = 'block';
+        
+        const isCorrect = correctAnswer === true;
+        if (isCorrect) {
             trueBtn.classList.add('correct');
         } else {
             falseBtn.classList.add('incorrect');
         }
+        
         const note = document.createElement('div');
         note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
         note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
-        card.appendChild(note);
+        answerFeedback.appendChild(note);
+    } else {
+        // Initially hide feedback - buttons remain interactive
+        answerFeedback.style.display = 'none';
     }
 
     toggle.appendChild(trueBtn);
