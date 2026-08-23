@@ -24,10 +24,13 @@ public class FriendshipDAO {
     public List<Friendship> findFriends(int userID) throws SQLException {
         String sql = "SELECT f.friendshipID, f.requesterID, f.addresseID, f.status, "
                    + "u1.name AS requesterName, u1.surname AS requesterSurname, "
-                   + "u2.name AS addresseName, u2.surname AS addresseSurname "
+                   + "u2.name AS addresseName, u2.surname AS addresseSurname, "
+                   + "s1.studentNo AS requesterStudentNo, s2.studentNo AS addresseStudentNo "
                    + "FROM Friendship f "
                    + "JOIN User u1 ON f.requesterID = u1.userID "
                    + "JOIN User u2 ON f.addresseID = u2.userID "
+                   + "LEFT JOIN Student s1 ON f.requesterID = s1.userID "
+                   + "LEFT JOIN Student s2 ON f.addresseID = s2.userID "
                    + "WHERE (f.requesterID = ? OR f.addresseID = ?) "
                    + "AND f.status = 'ACCEPTED'";
         List<Friendship> friends = new ArrayList<>();
@@ -163,6 +166,8 @@ public class FriendshipDAO {
         f.setStatus(rs.getString("status"));
         f.setRequesterName(rs.getString("requesterName") + " " + rs.getString("requesterSurname"));
         f.setAddresseName(rs.getString("addresseName") + " " + rs.getString("addresseSurname"));
+        try { f.setRequesterStudentNo(rs.getString("requesterStudentNo")); } catch (SQLException e) { /* column not in this query */ }
+        try { f.setAddresseStudentNo(rs.getString("addresseStudentNo")); } catch (SQLException e) { /* column not in this query */ }
         return f;
     }
 }
