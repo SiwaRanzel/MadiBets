@@ -667,6 +667,7 @@ async function handleLogin(event) {
             sessionStorage.setItem('user', JSON.stringify(data.user));
             showToast('Welcome to MadiBets!', 'success');
             loadDashboardData(data.user, data.balance);
+            checkLoginNotifications(data.user.userID);
         } else {
             showToast(data.error || 'Login failed. Please check credentials.', 'error');
         }
@@ -1512,6 +1513,46 @@ async function removeFriend(friendshipID) {
     } catch (err) {
         showToast('Network error.', 'error');
         console.error(err);
+    }
+}
+
+// ── Login notifications (B400: users are informed of graded bet outcomes) ──
+let notifUserID = null;
+
+async function checkLoginNotifications(userID) {
+    try {
+        const res = await fetch(`${API_BASE}/notifications/${userID}`);
+        const data = await res.json();
+        if (!res.ok) return;
+        const notifs = data.notifications || [];
+        if (notifs.length === 0) return;
+
+        notifUserID = userID;
+        const list = document.getElementById('notif-list');
+        list.innerHTML = notifs.map(n => {
+            const won = n.message.startsWith('You won');
+            const refund = n.message.startsWith('Bet cancelled');
+            const accent = won ? '#28A745' : refund ? '#B8860B' : '#D9534F';
+            const when = n.createdDate ? String(n.createdDate).slice(0, 16).replace('T', ' ') : '';
+            return `
+                <div style="border-left: 3px solid ${accent}; background: #F8FAFC; border-radius: 0 8px 8px 0; padding: 10px 14px;">
+                    <div style="color: #2A3B50; font-size: 0.9rem;">${escapeHtml(n.message)}</div>
+                    <div style="color: #A0B2D6; font-size: 0.75rem; margin-top: 3px;">${when}</div>
+                </div>`;
+        }).join('');
+        document.getElementById('notif-modal').classList.remove('hidden');
+    } catch (err) {
+        console.error('Failed to load notifications:', err);
+    }
+}
+
+function closeNotifModal() {
+    document.getElementById('notif-modal').classList.add('hidden');
+    // Flag them seen only once the user has actually had them on screen.
+    if (notifUserID !== null) {
+        fetch(`${API_BASE}/notifications/${notifUserID}/seen`, { method: 'POST' })
+            .catch(err => console.error('Failed to mark notifications seen:', err));
+        notifUserID = null;
     }
 }
 
