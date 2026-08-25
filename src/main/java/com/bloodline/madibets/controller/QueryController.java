@@ -42,6 +42,22 @@ public class QueryController {
         }
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteQuery(@PathVariable int id) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid query id."));
+            }
+            boolean deleted = queryDAO.delete(id);
+            if (deleted) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping
     public ResponseEntity<?> submitQuery(@RequestBody Query query) {
         if (query == null || query.getTitle() == null || query.getTitle().isBlank() ||

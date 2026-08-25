@@ -368,7 +368,7 @@ async function loadGroupDetail(groupID) {
         if (groupID > 0) {
             const isMember = data.isMember === true;
             const btnContainer = document.createElement('div');
-            btnContainer.style = 'margin-top:16px; display:flex; gap:10px;';
+            btnContainer.style = 'margin-bottom:18px; display:flex; gap:10px;';
 
 
 
@@ -383,9 +383,7 @@ async function loadGroupDetail(groupID) {
             }
 
             if (btnContainer.children.length > 0) {
-                if (btnContainer.children.length > 0) {
                 detail.appendChild(btnContainer);
-            }
             }
         } else {
             const info = document.createElement('div');
@@ -497,7 +495,7 @@ async function loadGroupDetail(groupID) {
             actions.appendChild(joinBtn);
         }
 
-        if (user && user.userType === 'LECTURER') {
+        if (isMember && user && user.userType === 'LECTURER') {
             const createTaskBtn = document.createElement('button');
             createTaskBtn.className = 'group-create-task-btn';
             createTaskBtn.textContent = '+ Create Task';
@@ -529,9 +527,9 @@ function renderTaskCard(task, user) {
     card.appendChild(reward);
 
     const isAnswered = task.answered === true;
-    const correctAnswer = task.correctAnswer;
-    
-    // Initially hide the answer feedback - will be shown after answering
+    const isCorrect = task.isCorrect === true;
+
+    // Answer feedback block (hidden until the student answers)
     const answerFeedback = document.createElement('div');
     answerFeedback.className = 'task-answer-feedback';
     answerFeedback.style = 'margin-top: 8px; padding: 8px; display: none; border-radius: 4px;';
@@ -550,39 +548,6 @@ function renderTaskCard(task, user) {
     let selectedAnswer = null;
     let confirmationPopup = null;
 
-    const selectAnswer = (value) => {
-        // Already answered — can't change
-        if (answered) return;
-        selectedAnswer = value;
-        trueBtn.classList.toggle('selected', value === true);
-        falseBtn.classList.toggle('selected', value === false);
-        // Show confirmation popup
-        showConfirmationPopup(value);
-    };
-
-    trueBtn.onclick = () => selectAnswer(true);
-    falseBtn.onclick = () => selectAnswer(false);
-
-    const showConfirmationPopup = (value) => {
-        // Remove existing popup if any
-        if (confirmationPopup) {
-            confirmationPopup.remove();
-        }
-
-        confirmationPopup = document.createElement('div');
-        confirmationPopup.className = 'task-confirm-popup';
-        confirmationPopup.innerHTML = `
-            <div class="task-confirm-popup-content">
-                <p>Are you sure you want to answer <strong>${value ? 'True' : 'False'}</strong>?</p>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;">
-                    <button type="button" class="btn task-confirm-yes" onclick="confirmAndSubmit(${value})">Confirm</button>
-                    <button type="button" class="btn" onclick="hideConfirmationPopup()">Cancel</button>
-                </div>
-            </div>
-        `;
-        card.appendChild(confirmationPopup);
-    };
-
     const hideConfirmationPopup = () => {
         if (confirmationPopup) {
             confirmationPopup.remove();
@@ -595,36 +560,81 @@ function renderTaskCard(task, user) {
         hideConfirmationPopup();
     };
 
+    const selectAnswer = (value) => {
+        // Already answered --- can't change
+        if (isAnswered) return;
+        selectedAnswer = value;
+        trueBtn.classList.toggle('selected', value === true);
+        falseBtn.classList.toggle('selected', value === false);
+        showConfirmationPopup(value);
+    };
+
+    trueBtn.onclick = () => selectAnswer(true);
+    falseBtn.onclick = () => selectAnswer(false);
+
+    const showConfirmationPopup = (value) => {
+        // Remove existing popup if any
+        hideConfirmationPopup();
+
+        confirmationPopup = document.createElement('div');
+        confirmationPopup.className = 'task-confirm-popup';
+
+        const content = document.createElement('div');
+        content.className = 'task-confirm-popup-content';
+
+        const msg = document.createElement('p');
+        msg.appendChild(document.createTextNode('Are you sure you want to answer '));
+        const strong = document.createElement('strong');
+        strong.textContent = value ? 'True' : 'False';
+        msg.appendChild(strong);
+        msg.appendChild(document.createTextNode('?'));
+        content.appendChild(msg);
+
+        const btnRow = document.createElement('div');
+        btnRow.style = 'display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;';
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.className = 'task-confirm-yes';
+        confirmBtn.textContent = 'Confirm Answer';
+        confirmBtn.onclick = () => confirmAndSubmit(value);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'task-confirm-cancel';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = hideConfirmationPopup;
+
+        btnRow.appendChild(confirmBtn);
+        btnRow.appendChild(cancelBtn);
+        content.appendChild(btnRow);
+        confirmationPopup.appendChild(content);
+        card.appendChild(confirmationPopup);
+    };
+
     if (isAnswered) {
         trueBtn.disabled = true;
         falseBtn.disabled = true;
-        
-        // Show feedback based on correct answer
+
+        // Show feedback based on whether the answer was right
         answerFeedback.style.display = 'block';
-        
-        const isCorrect = correctAnswer === true;
+
         if (isCorrect) {
             trueBtn.classList.add('correct');
         } else {
             falseBtn.classList.add('incorrect');
         }
-        
+
         const note = document.createElement('div');
         note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
         note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
         answerFeedback.appendChild(note);
-    } else {
-        // Initially hide feedback - buttons remain interactive
-        answerFeedback.style.display = 'none';
     }
 
     toggle.appendChild(trueBtn);
     toggle.appendChild(falseBtn);
     card.appendChild(toggle);
-
-    if (answered) {
-        card.appendChild(note);
-    }
+    card.appendChild(answerFeedback);
 
     return card;
 }
@@ -2270,6 +2280,8 @@ function changeLeaderboardSort(sortBy, btnEl) {
 }
 
 
+let adminQueriesCache = [];
+
 // ── Admin Query Management ──
 
 async function loadAdminQueries() {
@@ -2285,6 +2297,7 @@ async function loadAdminQueries() {
                 badge.textContent = openQueries.length;
                 badge.style.display = openQueries.length > 0 ? 'inline-flex' : 'none';
             }
+            adminQueriesCache = queries;
         } else {
             console.error('Failed to load queries');
         }
@@ -2310,7 +2323,7 @@ function renderQueryTable(queries) {
             <td class="query-row-title">${q.title}</td>
             <td class="query-row-email">${q.email}</td>
             <td><span class="status-pill ${q.resolvedStatus.toLowerCase()}">${q.resolvedStatus}</span></td>
-            <td><button class="admin-view-query-btn" onclick="alert('${q.description.replace(/'/g, "\\'")}')">View</button></td>
+            <td><button class="admin-view-query-btn" onclick="viewQuery(${q.queryID})">View</button></td>
             <td>
                 <div class="admin-option-dropdown">
                     <button class="admin-option-trigger" onclick="toggleQueryOptions(event, ${q.queryID})">
@@ -2321,6 +2334,7 @@ function renderQueryTable(queries) {
                     </div>
                 </div>
             </td>
+            <td><button class="admin-delete-query-btn" onclick="deleteQuery(${q.queryID})">Delete</button></td>
         `;
         list.appendChild(row);
     });
@@ -2328,6 +2342,36 @@ function renderQueryTable(queries) {
     if (paginationInfo) {
         paginationInfo.textContent = `1 - ${queries.length} of ${queries.length}`;
     }
+}
+
+function viewQuery(queryID) {
+    const q = adminQueriesCache.find(item => item.queryID === queryID);
+    if (!q) {
+        showToast('Query not found.', 'error');
+        return;
+    }
+
+    const titleEl = document.getElementById('query-view-title');
+    const metaEl = document.getElementById('query-view-meta');
+    const bodyEl = document.getElementById('query-view-body');
+    const closeBtn = document.getElementById('query-view-close');
+
+    titleEl.textContent = q.title || 'Query';
+
+    const date = q.queryDate ? new Date(q.queryDate) : null;
+    const dateStr = date && !isNaN(date) ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const fromStr = q.email ? `From: ${q.email}` : '';
+    metaEl.textContent = [dateStr, fromStr].filter(Boolean).join(' · ');
+
+    bodyEl.textContent = q.description || 'No description provided.';
+
+    if (closeBtn) closeBtn.focus();
+    document.getElementById('query-view-modal').classList.remove('hidden');
+}
+
+function closeQueryViewModal() {
+    const modal = document.getElementById('query-view-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 function toggleQueryOptions(event, queryID) {
@@ -2366,6 +2410,28 @@ async function resolveQuery(queryID) {
         }
     } catch (error) {
         showToast('Error updating query status', 'error');
+        console.error(error);
+    }
+}
+
+async function deleteQuery(queryID) {
+    const confirmed = await showConfirmModal('Delete Query', 'Are you sure you want to delete this query? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/queries/${queryID}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showToast('Query deleted', 'success');
+            loadAdminQueries();
+        } else {
+            const data = await response.json().catch(() => ({}));
+            showToast(data.error || 'Failed to delete query', 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting query', 'error');
         console.error(error);
     }
 }

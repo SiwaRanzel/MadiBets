@@ -59,4 +59,14 @@ public class QueryDAO {
             return ps.executeUpdate() > 0;
         }
     }
+
+    /** Delete a support query. Returns true if a row was removed. */
+    public boolean delete(int queryID) throws SQLException {
+        String sql = "DELETE FROM `Query` WHERE queryID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, queryID);
+            return ps.executeUpdate() > 0;
+        }
+    }
 }

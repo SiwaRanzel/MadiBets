@@ -1,5 +1,6 @@
 package com.bloodline.madibets.controller;
 
+import com.bloodline.madibets.dao.GroupDAO;
 import com.bloodline.madibets.dao.TaskDAO;
 import com.bloodline.madibets.model.Task;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class TaskController {
 
     private final TaskDAO taskDAO = new TaskDAO();
+    private final GroupDAO groupDAO = new GroupDAO();
 
     @GetMapping
     public ResponseEntity<?> getTasks(@RequestParam(required = false) Integer createdBy,
@@ -49,6 +51,11 @@ public class TaskController {
             }
             if (task.getCreatedBy() <= 0) {
                 return ResponseEntity.badRequest().body(Map.of("error", "createdBy is required."));
+            }
+
+            // Lecturer must be a member of the group to create tasks for it
+            if (!groupDAO.isMember(task.getGroupID(), task.getCreatedBy())) {
+                return ResponseEntity.status(403).body(Map.of("error", "You must be a member of this group to create tasks."));
             }
 
             Task created = taskDAO.create(task);
