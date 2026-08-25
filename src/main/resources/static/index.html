@@ -263,17 +263,6 @@
                         </span>
                         <span class="menu-text">Friends</span>
                     </a>
-                    <a href="#" class="menu-item" id="nav-task-student" data-label="Tasks"
-                        onclick="switchPanel('panel-task'); return false;">
-                        <span class="menu-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M9 11l3 3L22 4"/>
-                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                            </svg>
-                        </span>
-                        <span class="menu-text">Tasks</span>
-                    </a>
                     <a href="#" class="menu-item" id="nav-help-student" data-label="Help"
                         onclick="switchPanel('panel-help'); return false;">
                         <span class="menu-icon">
@@ -302,18 +291,6 @@
                             </svg>
                         </span>
                         <span class="menu-text">Dashboard</span>
-                    </a>
-                    <a href="#" class="menu-item" id="nav-task-lecturer" data-label="Task"
-                        onclick="switchPanel('panel-task'); return false;">
-                        <span class="menu-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                            </svg>
-                        </span>
-                        <span class="menu-text">Task</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-account-lecturer" data-label="Account"
                         onclick="switchPanel('panel-account'); return false;">
@@ -670,49 +647,6 @@
                 </div>
             </div>
 
-            <!-- ── Task Panel ── -->
-            <div id="panel-task" class="hidden">
-                <!-- Lecturer View: Create Task -->
-                <div id="task-create-section" style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 25px; display: none;">
-                    <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Create Task</h3>
-                    <div style="display: flex; flex-direction: column; gap: 15px;">
-                        <div style="display: flex; gap: 15px;">
-                            <div style="flex: 2;">
-                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Title</label>
-                                <input type="text" id="task-title" placeholder="e.g. Complete Quiz 3" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
-                            </div>
-                            <div style="flex: 1;">
-                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Reward (MB)</label>
-                                <input type="number" id="task-amount" placeholder="e.g. 50" min="1" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
-                            </div>
-                        </div>
-                        <div>
-                            <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Description (optional)</label>
-                            <textarea id="task-description" rows="2" placeholder="Task details..." style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; resize: vertical;"></textarea>
-                        </div>
-                        <div style="display: flex; gap: 15px; align-items: flex-end;">
-                            <div style="flex: 1;">
-                                <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">Group</label>
-                                <select id="task-group-select" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none; background: white;">
-                                    <option value="">Select a group...</option>
-                                </select>
-                            </div>
-                            <button onclick="handleCreateTask()" style="background: #1B2F5E; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; white-space: nowrap;">Create Task</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Task List -->
-                <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Tasks</h3>
-                        <span id="task-count" style="color: #A0B2D6; font-size: 0.9rem; font-weight: 500;"></span>
-                    </div>
-                    <div id="task-list-container">
-                        <p style="color: #A0B2D6; font-size: 0.95rem; text-align: center; padding: 20px;">Loading tasks...</p>
-                    </div>
-                </div>
-            </div>
 
             <!-- ── Lecturer Dashboard Panel ── -->
             <div id="panel-dashboard-lecturer" class="hidden">
@@ -1750,7 +1684,6 @@
         </div>
     </div>
 
-<<<<<<< HEAD
     <!-- User Profile Modal (regular users: avatar + name + MadiBucks) -->
     <div id="user-profile-modal" class="about-modal-overlay hidden" onclick="if(event.target===this) closeUserProfileModal()">
         <div class="about-modal-content" style="max-width: 380px; padding: 30px 25px; text-align: center;">
