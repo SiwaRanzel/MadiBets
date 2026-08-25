@@ -706,13 +706,21 @@
             <div id="panel-groups" class="hidden">
                 <div style="display:flex; gap: 24px;">
                     <div style="flex: 1; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div style="margin-bottom:12px;">
                             <h3 style="margin:0; color:#1B2F5E;">Groups</h3>
-                            <input id="group-search" type="text" placeholder="Search groups by name or id" style="padding:8px 12px; border-radius:8px; border:1px solid #E6EDF7; width:300px;" oninput="debouncedSearchGroups()">
                         </div>
 
-                        <div id="groups-list" style="min-height:300px;">
-                            <!-- Groups will be rendered here -->
+                        <div id="my-groups-list" style="min-height:200px;">
+                                <!-- Groups user is member of will be rendered here -->
+                            </div>
+                        
+                        <!-- Bottom left box: Search Groups -->
+                        <div style="padding: 16px; border-top: 1px solid #E6EDF7; border-bottom: 1px solid #E6EDF7;">
+                            <h3 style="margin:0; color:#1B2F5E; font-size:1rem; margin-bottom:12px;">Search Groups</h3>
+                            <input id="group-search" type="text" placeholder="Search groups by name or id" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #E6EDF7; box-sizing:border-box; font-size:0.9rem;" oninput="debouncedSearchGroups()">
+                            <div id="search-results-list" style="min-height:60px; margin-top:12px; max-height:220px; overflow-y:auto;">
+                                <p style="color:#6C7D93; text-align:center; padding:24px 8px; font-size:0.9rem;">Type a group name to find groups you haven't joined.</p>
+                            </div>
                         </div>
                     </div>
 
