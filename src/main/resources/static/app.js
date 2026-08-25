@@ -1066,6 +1066,7 @@ async function handleLogin(event) {
             sessionStorage.setItem('user', JSON.stringify(data.user));
             showToast('Welcome to MadiBets!', 'success');
             loadDashboardData(data.user, data.balance);
+            checkLoginNotifications(data.user.userID);
         } else {
             showToast(data.error || 'Login failed. Please check credentials.', 'error');
         }
@@ -1255,6 +1256,7 @@ function loadDashboardData(user, balance) {
         switchPanel('panel-dashboard-admin');
         loadAdminQueries();
         loadDeleteRequests();
+        refreshAccountingBadge();
     } else if (isLecturer) {
         switchPanel('panel-dashboard-lecturer');
     } else {
@@ -1978,6 +1980,46 @@ async function removeFriend(friendshipID) {
     } catch (err) {
         showToast('Network error.', 'error');
         console.error(err);
+    }
+}
+
+// ── Login notifications (B400: users are informed of graded bet outcomes) ──
+let notifUserID = null;
+
+async function checkLoginNotifications(userID) {
+    try {
+        const res = await fetch(`${API_BASE}/notifications/${userID}`);
+        const data = await res.json();
+        if (!res.ok) return;
+        const notifs = data.notifications || [];
+        if (notifs.length === 0) return;
+
+        notifUserID = userID;
+        const list = document.getElementById('notif-list');
+        list.innerHTML = notifs.map(n => {
+            const won = n.message.startsWith('You won');
+            const refund = n.message.startsWith('Bet cancelled');
+            const accent = won ? '#28A745' : refund ? '#B8860B' : '#D9534F';
+            const when = n.createdDate ? String(n.createdDate).slice(0, 16).replace('T', ' ') : '';
+            return `
+                <div style="border-left: 3px solid ${accent}; background: #F8FAFC; border-radius: 0 8px 8px 0; padding: 10px 14px;">
+                    <div style="color: #2A3B50; font-size: 0.9rem;">${escapeHtml(n.message)}</div>
+                    <div style="color: #A0B2D6; font-size: 0.75rem; margin-top: 3px;">${when}</div>
+                </div>`;
+        }).join('');
+        document.getElementById('notif-modal').classList.remove('hidden');
+    } catch (err) {
+        console.error('Failed to load notifications:', err);
+    }
+}
+
+function closeNotifModal() {
+    document.getElementById('notif-modal').classList.add('hidden');
+    // Flag them seen only once the user has actually had them on screen.
+    if (notifUserID !== null) {
+        fetch(`${API_BASE}/notifications/${notifUserID}/seen`, { method: 'POST' })
+            .catch(err => console.error('Failed to mark notifications seen:', err));
+        notifUserID = null;
     }
 }
 
@@ -2945,6 +2987,9 @@ function switchBetsTab(tab) {
     document.getElementById('bets-tab-propose').classList.toggle('active', tab === 'propose');
     document.getElementById('bets-list-view').classList.toggle('hidden', tab !== 'place');
     document.getElementById('bets-propose-view').classList.toggle('hidden', tab !== 'propose');
+    // The search box only filters the open-bets list — hide it on the propose form.
+    const search = document.getElementById('bets-search');
+    if (search) search.classList.toggle('hidden', tab !== 'place');
     if (tab === 'place') loadBetsPanel();
 }
 
@@ -2976,11 +3021,13 @@ async function loadBetsPanel() {
             // Unpriced outcomes (odds null — only on pre-migration bets) are
             // not wagerable, so they get no button.
             const action = b.open
-                ? (b.outcomes || []).filter(o => o.odds != null).map(o =>
+                ? `<div class="bet-outcome-stack">` +
+                    (b.outcomes || []).filter(o => o.odds != null).map(o =>
                     `<button class="bet-action-btn bet-outcome-btn"
                         onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
                         <span class="bet-outcome-label">${escapeHtml(o.label)}</span>
-                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('')
+                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('') +
+                  `</div>`
                 : '<span class="bet-taken-pill">Closed — awaiting grading</span>';
             tbody.innerHTML += `
                 <tr>
@@ -3088,10 +3135,10 @@ async function submitWager() {
 // rugby examples. Index = outcome slot; slots past the list fall back to
 // "Another outcome".
 const OUTCOME_EXAMPLES = {
-    'Academics':  ['e.g. Above 60%', 'e.g. Below 60%', 'e.g. Exactly 60% (optional)'],
-    'Sports':     ['e.g. Madibaz win', 'e.g. Wits win', 'e.g. Draw (optional)'],
-    'Social':     ['e.g. Over 100 attend', 'e.g. Under 100 attend', 'e.g. Exactly 100 (optional)'],
-    'Class Room': ['e.g. Lecture happens', 'e.g. Lecture cancelled', 'e.g. Moved online (optional)'],
+    'Academics':  ['e.g. Above 60%', 'e.g. Below 60%', 'e.g. Exactly 60%'],
+    'Sports':     ['e.g. Madibaz win', 'e.g. Wits win', 'e.g. Draw'],
+    'Social':     ['e.g. Over 100 attend', 'e.g. Under 100 attend', 'e.g. Exactly 100'],
+    'Class Room': ['e.g. Lecture happens', 'e.g. Lecture cancelled', 'e.g. Moved online'],
 };
 
 function updateOutcomePlaceholders() {
@@ -3102,18 +3149,48 @@ function updateOutcomePlaceholders() {
     });
 }
 
+/** The add button disappears at the 4-outcome cap instead of erroring. */
+function updateAddOutcomeBtn() {
+    const count = document.querySelectorAll('.propose-outcome-input').length;
+    document.getElementById('btn-add-outcome').classList.toggle('hidden', count >= 4);
+}
+
 function addOutcomeField() {
     const container = document.getElementById('propose-outcomes');
-    if (container.querySelectorAll('.propose-outcome-input').length >= 4) {
-        showToast('A bet can have at most 4 outcomes.', 'error');
-        return;
-    }
+    if (container.querySelectorAll('.propose-outcome-input').length >= 4) return;
+    // Added fields are optional, so each comes with its own remove (×) button.
+    const row = document.createElement('div');
+    row.className = 'propose-outcome-row';
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'propose-outcome-input';
     input.maxLength = 100;
-    container.appendChild(input);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'propose-outcome-remove';
+    remove.title = 'Remove this outcome';
+    remove.textContent = '×';
+    remove.onclick = () => removeOutcomeField(remove);
+    row.appendChild(input);
+    row.appendChild(remove);
+    container.appendChild(row);
     updateOutcomePlaceholders();
+    updateAddOutcomeBtn();
+    input.focus();
+}
+
+function removeOutcomeField(btn) {
+    btn.closest('.propose-outcome-row').remove();
+    updateOutcomePlaceholders();
+    updateAddOutcomeBtn();
+}
+
+/** Back to the two base fields (used after a successful submission). */
+function resetOutcomeFields() {
+    document.querySelectorAll('.propose-outcome-row').forEach(r => r.remove());
+    document.querySelectorAll('.propose-outcome-input').forEach(i => { i.value = ''; });
+    updateOutcomePlaceholders();
+    updateAddOutcomeBtn();
 }
 
 async function submitProposal() {
@@ -3146,7 +3223,7 @@ async function submitProposal() {
         if (res.ok) {
             showToast('Proposal sent to the admins for review!', 'success');
             document.getElementById('propose-description').value = '';
-            document.querySelectorAll('.propose-outcome-input').forEach(i => { i.value = ''; });
+            resetOutcomeFields();
             switchBetsTab('place');
         } else {
             showToast(data.error || 'Failed to submit proposal.', 'error');
@@ -3182,7 +3259,28 @@ async function loadAccountingPanel() {
 
 let acctCache = {};   // betID -> bet (with outcomes), for approve/grade handlers
 
+/** Sidebar bubble on "Accounting System": proposals awaiting review.
+ *  Same pattern as the Delete Request badge — hidden at zero. */
+function setAccountingBadge(count) {
+    const badge = document.getElementById('accounting-badge');
+    if (!badge) return;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+/** Standalone refresh for login/init, when the accounting panel is not open. */
+async function refreshAccountingBadge() {
+    try {
+        const res = await fetch(`${API_BASE}/bets/proposed`);
+        const data = await res.json();
+        if (res.ok) setAccountingBadge((data.bets || []).length);
+    } catch (err) {
+        console.error('Failed to refresh accounting badge:', err);
+    }
+}
+
 function renderProposedTable(bets) {
+    setAccountingBadge(bets.length);
     const tbody = document.getElementById('acct-proposed-body');
     document.getElementById('acct-proposed-empty').classList.toggle('hidden', bets.length > 0);
     tbody.innerHTML = '';

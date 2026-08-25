@@ -4,6 +4,7 @@ import com.bloodline.madibets.config.DatabaseConnection;
 import com.bloodline.madibets.dao.AccountDAO;
 import com.bloodline.madibets.dao.BetDAO;
 import com.bloodline.madibets.dao.EventDAO;
+import com.bloodline.madibets.dao.NotificationDAO;
 import com.bloodline.madibets.dao.UserDAO;
 import com.bloodline.madibets.model.Bet;
 import com.bloodline.madibets.model.BetOutcome;
@@ -41,6 +42,7 @@ public class BetService {
     private final EventDAO eventDAO = new EventDAO();
     private final AccountDAO accountDAO = new AccountDAO();
     private final UserDAO userDAO = new UserDAO();   // read-only use: B300 admin check
+    private final NotificationDAO notificationDAO = new NotificationDAO();
 
     /**
      * B700: the bets a student can currently wager on, outcomes and deadline
@@ -252,15 +254,35 @@ public class BetService {
                     throw new IllegalArgumentException(
                             "Could not grade bet " + betID + " — check the winning outcome and try again.");
                 }
+                // outcomeID -> label, for the settlement notifications below
+                Map<Integer, String> labels = new java.util.HashMap<>();
+                for (BetOutcome o : b.getOutcomes()) {
+                    labels.put(o.getOutcomeID(), o.getLabel());
+                }
+                String winnerLabel = cancelled ? null : labels.get(winningOutcomeID);
                 for (Wager w : betDAO.findWagersByBet(con, betID)) {
+                    // Settle the money, then queue the login notification (B400 step 3:
+                    // "Users are informed of the outcome") — same transaction, so the
+                    // message can never describe a payout that did not happen.
                     if (cancelled) {
                         payOut(con, w.getUserID(), w.getStake(),
                                 "B600: bet " + betID + " cancelled, stake refunded to user " + w.getUserID());
+                        notificationDAO.insert(con, w.getUserID(),
+                                "Bet cancelled: '" + b.getDescription() + "' — your stake of "
+                                + w.getStake() + " MB was refunded.");
                     } else if (w.getOutcomeID() == winningOutcomeID) {
                         payOut(con, w.getUserID(), w.getAmountToBeWon(),
                                 "B600: bet " + betID + " won, paid user " + w.getUserID());
+                        notificationDAO.insert(con, w.getUserID(),
+                                "You won! '" + winnerLabel + "' came in on '" + b.getDescription()
+                                + "' — " + w.getAmountToBeWon() + " MB paid to your account.");
+                    } else {
+                        // losing wagers: stake already left the account at placement
+                        notificationDAO.insert(con, w.getUserID(),
+                                "Bet settled: '" + b.getDescription() + "' ended '" + winnerLabel
+                                + "'. Your pick '" + labels.getOrDefault(w.getOutcomeID(), "?")
+                                + "' did not come in.");
                     }
-                    // losing wagers: stake already left the account at placement
                 }
                 con.commit();
             } catch (SQLException | RuntimeException e) {

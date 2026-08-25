@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 
 <body>
@@ -417,6 +417,7 @@
                             </svg>
                         </span>
                         <span class="menu-text">Accounting System</span>
+                        <span class="nav-badge" id="accounting-badge" style="display: none;">0</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-admin-groups" data-label="Groups"
                         onclick="switchPanel('panel-groups'); return false;">
@@ -656,7 +657,6 @@
                             <div id="propose-outcomes" style="display: flex; flex-direction: column; gap: 8px; max-width: 420px;">
                                 <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Above 60%">
                                 <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Below 60%">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Exactly 60% (optional)">
                             </div>
                             <button type="button" id="btn-add-outcome" onclick="addOutcomeField()"
                                 style="margin-top: 8px; background: none; border: none; color: #1B2F5E; font-weight: 600; cursor: pointer; padding: 0; font-size: 0.85rem;">
@@ -1700,6 +1700,7 @@
         </div>
     </div>
 
+<<<<<<< HEAD
     <!-- User Profile Modal (regular users: avatar + name + MadiBucks) -->
     <div id="user-profile-modal" class="about-modal-overlay hidden" onclick="if(event.target===this) closeUserProfileModal()">
         <div class="about-modal-content" style="max-width: 380px; padding: 30px 25px; text-align: center;">
@@ -1761,9 +1762,33 @@
         </div>
     </div>
 
+    <!-- Login notifications (B400: users are informed of graded bet outcomes) -->
+    <div id="notif-modal" class="about-modal-overlay hidden" onclick="if(event.target===this) closeNotifModal()">
+        <div class="about-modal-content" style="max-width: 520px;">
+            <div style="padding: 36px 40px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F5A623"
+                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                        <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                    </svg>
+                    <h2 style="font-family: var(--font-primary); font-size: 1.5rem; font-weight: 800; color: var(--color-nmu-navy); margin: 0;">
+                        While you were away</h2>
+                </div>
+                <p style="color: #6C7D93; font-size: 0.88rem; margin-bottom: 16px;">
+                    Your bets were graded:</p>
+                <div id="notif-list" style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+                <div style="display: flex; justify-content: flex-end; margin-top: 22px;">
+                    <button class="btn btn-gold-cta" onclick="closeNotifModal()">
+                        <span class="btn-text">Got it</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=7"></script>
 </body>
 
 </html>

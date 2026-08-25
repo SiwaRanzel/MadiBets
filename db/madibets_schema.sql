@@ -208,6 +208,18 @@ CREATE TABLE AccountDeletionRequest (
   CONSTRAINT fk_delreq_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Login-time messages for students (e.g. B400/B600: how their wager settled).
+-- Written inside the settlement transaction; shown once at next login, then
+-- flagged seen.
+CREATE TABLE Notification (
+  notificationID INT AUTO_INCREMENT PRIMARY KEY,
+  userID         INT NOT NULL,
+  message        VARCHAR(255) NOT NULL,
+  createdDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  seen           TINYINT(1) NOT NULL DEFAULT 0,
+  CONSTRAINT fk_notif_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ============================================================
 -- DESIGN NOTES (discuss as a team before building on this)
 -- ============================================================
