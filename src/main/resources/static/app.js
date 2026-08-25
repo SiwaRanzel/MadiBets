@@ -895,7 +895,7 @@ function showView(viewId) {
 }
 
 // Dashboard Panel Switcher (Dashboard / Help / etc.)
-const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-reports', 'panel-settings', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets'];
+const PANELS = ['panel-dashboard', 'panel-dashboard-lecturer', 'panel-groups', 'panel-help', 'panel-dashboard-admin', 'panel-delete-request', 'panel-user-management', 'panel-accounting', 'panel-admin-groups', 'panel-query', 'panel-account', 'panel-friends', 'panel-leaderboard', 'panel-bets'];
 
 function switchPanel(panelId) {
     PANELS.forEach(id => {
@@ -918,8 +918,7 @@ function switchPanel(panelId) {
         'panel-user-management':    'nav-user-management',
         'panel-accounting':         'nav-accounting',
         'panel-admin-groups':       'nav-admin-groups',
-        'panel-reports':            'nav-reports',
-        'panel-settings':           'nav-settings',
+
         'panel-query':              'nav-query',
         'panel-help':               ['nav-help-student', 'nav-help-lecturer'],
         'panel-account':            ['nav-account-student', 'nav-account-lecturer'],
