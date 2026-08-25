@@ -1388,8 +1388,8 @@
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <span style="color: #A0B2D6; font-size: 0.85rem; margin-right: 8px;">Sort by:</span>
                             <button class="lb-sort-btn lb-sort-active" id="lb-sort-balance" onclick="changeLeaderboardSort('balance', this)">MadiBucks</button>
-                            <button class="lb-sort-btn" id="lb-sort-wins" onclick="changeLeaderboardSort('wins', this)">Most Wins</button>
-                            <button class="lb-sort-btn" id="lb-sort-totalBets" onclick="changeLeaderboardSort('totalBets', this)">Most Bets</button>
+                            <button class="lb-sort-btn" id="lb-sort-wins" onclick="changeLeaderboardSort('wins', this)">Most Bets Won</button>
+                            <button class="lb-sort-btn" id="lb-sort-totalBets" onclick="changeLeaderboardSort('totalBets', this)">Most Bets Placed</button>
                         </div>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
@@ -1410,7 +1410,23 @@
 
                 <!-- Bet History -->
                 <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
-                    <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Your Bet History</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                        <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Your Bet History</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="bet-history-type-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                <option value="all">All Types</option>
+                                <option value="Academics">Academics</option>
+                                <option value="Sports">Sports</option>
+                                <option value="Social">Social</option>
+                                <option value="Class Room">Class Room</option>
+                            </select>
+                            <select id="bet-history-status-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                <option value="all">All Status</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr style="border-bottom: 1px solid #F0F2F5;">
@@ -1430,15 +1446,45 @@
 
             <!-- ── Friends Panel (Jason C-series) ── -->
             <div id="panel-friends" class="hidden dashboard-panel">
-                <!-- Add Friend Section -->
+                <!-- Add Friend Button + Browse Section -->
                 <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 25px;">
-                    <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Add Friend</h3>
-                    <div style="display: flex; gap: 15px; align-items: flex-end;">
-                        <div style="flex: 1;">
-                            <label style="display: block; color: #1B2F5E; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;">Student Number</label>
-                            <input type="text" id="friend-student-input" placeholder="e.g. 221234567" pattern="\d{9}" maxlength="9" inputmode="numeric" style="width: 100%; padding: 12px 15px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Find Students</h3>
+                        <button id="btn-toggle-browse" onclick="toggleBrowseStudents()" style="background: #1B2F5E; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Add Friend</button>
+                    </div>
+
+                    <!-- Browse/Search area (hidden by default, shown when Add Friend clicked) -->
+                    <div id="browse-students-section" style="display: none;">
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <div style="position: relative; flex: 1;">
+                                <svg style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #A0B2D6;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" id="browse-search-input" placeholder="Search by name or student number..." oninput="searchStudents()" style="width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.95rem; color: #1B2F5E; outline: none;">
+                            </div>
                         </div>
-                        <button id="btn-send-friend-request" onclick="sendFriendRequest()" style="background: #1B2F5E; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; white-space: nowrap; position: relative;"><span class="btn-text">Send Request</span></button>
+                        <!-- Search Results / Student List -->
+                        <div id="browse-students-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
+                            <p style="color: #A0B2D6; font-size: 0.9rem; text-align: center; padding: 10px;">Type a name or student number to search...</p>
+                        </div>
+                    </div>
+
+                    <!-- Student Profile View (shown when a student is clicked) -->
+                    <div id="student-profile-view" style="display: none;">
+                        <div style="background: #F8FAFC; border-radius: 12px; padding: 24px; display: flex; align-items: center; gap: 20px;">
+                            <div style="width: 60px; height: 60px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                                </svg>
+                            </div>
+                            <div style="flex: 1;">
+                                <h4 id="profile-view-name" style="color: #1B2F5E; font-size: 1.1rem; font-weight: 700; margin: 0 0 4px 0;">Student Name</h4>
+                                <p id="profile-view-studentno" style="color: #6C7D93; font-size: 0.85rem; margin: 0 0 2px 0;">Student No: 123456789</p>
+                                <p id="profile-view-email" style="color: #A0B2D6; font-size: 0.85rem; margin: 0;">email@mandela.ac.za</p>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <button id="btn-profile-send-request" onclick="sendFriendRequestFromProfile()" style="background: #28A745; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Send Friend Request</button>
+                                <button onclick="closeProfileView()" style="background: #F0F2F5; color: #6C7D93; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 0.85rem; cursor: pointer;">Back to Search</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1452,9 +1498,13 @@
 
                 <!-- Friends List Section -->
                 <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">My Friends</h3>
                         <span id="friends-count" style="color: #A0B2D6; font-size: 0.9rem; font-weight: 500;">0 friends</span>
+                    </div>
+                    <div style="position: relative; margin-bottom: 16px;">
+                        <svg style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #A0B2D6;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="friends-search-input" placeholder="Search by name or student number..." oninput="filterFriendsList()" style="width: 100%; padding: 11px 15px 11px 40px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.9rem; color: #1B2F5E; outline: none;">
                     </div>
                     <div id="friends-list-container" style="display: flex; flex-direction: column; gap: 12px;">
                         <p style="color: #A0B2D6; font-size: 0.95rem;">You haven't added any friends yet.</p>

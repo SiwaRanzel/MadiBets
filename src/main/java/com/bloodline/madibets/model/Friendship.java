@@ -14,6 +14,8 @@ public class Friendship {
     // Optional: store the friend's name for display purposes (not in DB, populated by joins)
     private String requesterName;
     private String addresseName;
+    private String requesterStudentNo;
+    private String addresseStudentNo;
 
     public Friendship() {}
 
@@ -36,4 +38,8 @@ public class Friendship {
     public void setRequesterName(String v)    { this.requesterName = v; }
     public String getAddresseName()           { return addresseName; }
     public void setAddresseName(String v)     { this.addresseName = v; }
+    public String getRequesterStudentNo()     { return requesterStudentNo; }
+    public void setRequesterStudentNo(String v) { this.requesterStudentNo = v; }
+    public String getAddresseStudentNo()      { return addresseStudentNo; }
+    public void setAddresseStudentNo(String v) { this.addresseStudentNo = v; }
 }

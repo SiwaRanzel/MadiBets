@@ -1774,10 +1774,19 @@ async function loadFriendsData() {
 }
 
 // C100 — Load accepted friends list
+let cachedFriendsList = [];
+let cachedFriendsUserID = null;
+
 async function loadFriendsList(userID) {
     const container = document.getElementById('friends-list-container');
     const countEl = document.getElementById('friends-count');
     if (!container) return;
+
+    // Clear search when reloading
+    const searchInput = document.getElementById('friends-search-input');
+    if (searchInput) searchInput.value = '';
+
+    cachedFriendsUserID = userID;
 
     try {
         const response = await fetch(`${API_BASE}/friends/${userID}`);
@@ -1788,6 +1797,8 @@ async function loadFriendsList(userID) {
             return;
         }
 
+        cachedFriendsList = friends;
+
         if (friends.length === 0) {
             container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">You haven't added any friends yet.</p>`;
             if (countEl) countEl.textContent = '0 friends';
@@ -1795,29 +1806,68 @@ async function loadFriendsList(userID) {
         }
 
         if (countEl) countEl.textContent = `${friends.length} friend${friends.length !== 1 ? 's' : ''}`;
-
-        container.innerHTML = friends.map(f => {
-            // Show the OTHER person's name (not your own)
-            const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
-            const friendId = f.requesterID === userID ? f.addresseID : f.requesterID;
-            return `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
-                    <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="showUserPopup(${friendId})">
-                        <div style="width: 40px; height: 40px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                            </svg>
-                        </div>
-                        <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${friendName}</span>
-                    </div>
-                    <button onclick="removeFriend(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Remove</button>
-                </div>
-            `;
-        }).join('');
+        renderFriendsList(friends, userID);
     } catch (err) {
         container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading friends.</p>`;
         console.error(err);
     }
+}
+
+function renderFriendsList(friends, userID) {
+    const container = document.getElementById('friends-list-container');
+    if (!container) return;
+
+    if (friends.length === 0) {
+        container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">No friends match your search.</p>`;
+        return;
+    }
+
+    container.innerHTML = friends.map(f => {
+        const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
+        const friendStudentNo = f.requesterID === userID ? (f.addresseStudentNo || '') : (f.requesterStudentNo || '');
+        const friendId = f.requesterID === userID ? f.addresseID : f.requesterID;
+        const isOnline = Math.random() > 0.5;
+        const statusDot = isOnline
+            ? `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #28A745; margin-right: 5px;"></span><span style="color: #28A745; font-size: 0.75rem; font-weight: 600;">Online</span>`
+            : `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #D9534F; margin-right: 5px;"></span><span style="color: #D9534F; font-size: 0.75rem; font-weight: 600;">Offline</span>`;
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="showUserPopup(${friendId})">
+                    <div style="width: 40px; height: 40px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span style="color: #1B2F5E; font-weight: 600; font-size: 0.95rem; display: block;">${friendName}</span>
+                        ${friendStudentNo ? `<span style="color: #A0B2D6; font-size: 0.8rem;">${friendStudentNo}</span>` : ''}
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <div style="display: flex; align-items: center;">${statusDot}</div>
+                    <button onclick="removeFriend(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Unfriend</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterFriendsList() {
+    const query = document.getElementById('friends-search-input').value.trim().toLowerCase();
+    const userID = cachedFriendsUserID;
+
+    if (!query) {
+        renderFriendsList(cachedFriendsList, userID);
+        return;
+    }
+
+    const filtered = cachedFriendsList.filter(f => {
+        const friendName = (f.requesterID === userID ? f.addresseName : f.requesterName) || '';
+        const friendStudentNo = (f.requesterID === userID ? (f.addresseStudentNo || '') : (f.requesterStudentNo || ''));
+        return friendName.toLowerCase().includes(query) || friendStudentNo.includes(query);
+    });
+
+    renderFriendsList(filtered, userID);
 }
 
 // C100 — Load pending friend requests
@@ -1861,56 +1911,118 @@ async function loadPendingRequests(userID) {
     }
 }
 
-// C200 — Send friend request by student number
-async function sendFriendRequest() {
-    const input = document.getElementById('friend-student-input');
-    const studentNo = input ? input.value.trim() : '';
-    const btn = document.getElementById('btn-send-friend-request');
+// C200 — Browse & Add Friend (profile-based flow)
+let selectedProfileUser = null;
 
-    if (!studentNo) {
-        showToast('Please enter a student number.', 'error');
-        return;
+function toggleBrowseStudents() {
+    const section = document.getElementById('browse-students-section');
+    const profileView = document.getElementById('student-profile-view');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        profileView.style.display = 'none';
+        document.getElementById('browse-search-input').focus();
+    } else {
+        section.style.display = 'none';
+        profileView.style.display = 'none';
     }
+}
 
-    if (!/^\d{9}$/.test(studentNo)) {
-        showToast('Student number must be exactly 9 digits.', 'error');
-        return;
-    }
+let searchDebounce = null;
+function searchStudents() {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(async () => {
+        const query = document.getElementById('browse-search-input').value.trim();
+        const container = document.getElementById('browse-students-list');
+        if (!container) return;
 
-    const user = JSON.parse(sessionStorage.getItem('user'));
-    if (!user) return;
-
-    setButtonLoading(btn, true);
-
-    try {
-        // Look up the user by student number
-        const lookupRes = await fetch(`${API_BASE}/users/lookup?studentNo=${encodeURIComponent(studentNo)}`);
-
-        if (!lookupRes.ok) {
-            const errData = await lookupRes.json();
-            showToast(errData.error || 'No user found with that student number.', 'error');
+        if (query.length < 2) {
+            container.innerHTML = '<p style="color: #A0B2D6; font-size: 0.9rem; text-align: center; padding: 10px;">Type at least 2 characters to search...</p>';
             return;
         }
 
-        const targetUser = await lookupRes.json();
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        if (!user) return;
 
-        // Now send the friend request
+        try {
+            const resp = await fetch(`${API_BASE}/users/all`);
+            if (!resp.ok) { container.innerHTML = '<p style="color:#D9534F; text-align:center;">Failed to load users.</p>'; return; }
+            const allUsers = await resp.json();
+
+            // Filter by search term (name, surname, studentNo) and exclude self
+            const q = query.toLowerCase();
+            const results = allUsers.filter(u =>
+                u.userID !== user.userID &&
+                u.userType === 'STUDENT' &&
+                (`${u.name} ${u.surname}`.toLowerCase().includes(q) ||
+                 (u.studentNo && u.studentNo.includes(q)))
+            );
+
+            if (results.length === 0) {
+                container.innerHTML = '<p style="color: #A0B2D6; font-size: 0.9rem; text-align: center; padding: 10px;">No students found.</p>';
+                return;
+            }
+
+            container.innerHTML = results.slice(0, 10).map(u => `
+                <div onclick="viewStudentProfile(${u.userID}, '${escapeHtml(u.name)} ${escapeHtml(u.surname)}', '${u.studentNo || 'N/A'}', '${escapeHtml(u.email)}')" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #F8FAFC; border-radius: 10px; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='#EEF2F7'" onmouseout="this.style.background='#F8FAFC'">
+                    <div style="width: 36px; height: 36px; background: #1B2F5E; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="color: #1B2F5E; font-weight: 600; font-size: 0.9rem;">${escapeHtml(u.name)} ${escapeHtml(u.surname)}</div>
+                        <div style="color: #A0B2D6; font-size: 0.8rem;">${u.studentNo || ''}</div>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = '<p style="color:#D9534F; text-align:center;">Error searching users.</p>';
+            console.error(err);
+        }
+    }, 300);
+}
+
+function viewStudentProfile(userID, name, studentNo, email) {
+    selectedProfileUser = { userID, name, studentNo, email };
+    document.getElementById('profile-view-name').textContent = name;
+    document.getElementById('profile-view-studentno').textContent = 'Student No: ' + studentNo;
+    document.getElementById('profile-view-email').textContent = email;
+    document.getElementById('browse-students-section').style.display = 'none';
+    document.getElementById('student-profile-view').style.display = 'block';
+}
+
+function closeProfileView() {
+    document.getElementById('student-profile-view').style.display = 'none';
+    document.getElementById('browse-students-section').style.display = 'block';
+    selectedProfileUser = null;
+}
+
+async function sendFriendRequestFromProfile() {
+    if (!selectedProfileUser) return;
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) return;
+
+    const btn = document.getElementById('btn-profile-send-request');
+    setButtonLoading(btn, true);
+
+    try {
         const response = await fetch(`${API_BASE}/friends/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requesterID: user.userID, addresseID: targetUser.userID })
+            body: JSON.stringify({ requesterID: user.userID, addresseID: selectedProfileUser.userID })
         });
 
         const data = await response.json();
 
         if (response.ok) {
             showToast(data.message || 'Friend request sent!', 'success');
-            input.value = '';
+            closeProfileView();
+            document.getElementById('browse-students-section').style.display = 'none';
+            loadFriendsData();
         } else {
             showToast(data.error || 'Failed to send request.', 'error');
         }
     } catch (err) {
-        showToast('Network error. Please try again.', 'error');
+        showToast('Network error.', 'error');
         console.error(err);
     } finally {
         setButtonLoading(btn, false);
@@ -2204,9 +2316,17 @@ async function loadRankings(sortBy) {
 }
 
 // C400 — Load bet history table
+let cachedBetHistory = [];
+
 async function loadBetHistory(userID) {
     const tbody = document.getElementById('bet-history-table-body');
     if (!tbody) return;
+
+    // Reset filters
+    const typeFilter = document.getElementById('bet-history-type-filter');
+    const statusFilter = document.getElementById('bet-history-status-filter');
+    if (typeFilter) typeFilter.value = 'all';
+    if (statusFilter) statusFilter.value = 'all';
 
     try {
         const response = await fetch(`${API_BASE}/leaderboard/history/${userID}`);
@@ -2217,43 +2337,76 @@ async function loadBetHistory(userID) {
             return;
         }
 
-        if (bets.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = bets.map(b => {
-            let statusColor, statusBg;
-            switch (b.outcome) {
-                case 'YES':
-                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
-                case 'NO':
-                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
-                case 'CANCELLED':
-                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
-                default:
-                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
-            }
-
-            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
-            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
-
-            return `
-                <tr style="border-bottom: 1px solid #F0F2F5;">
-                    <td style="padding: 14px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
-                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
-                    <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
-                    <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${dateStr}</td>
-                    <td style="text-align: center; padding: 14px 10px;">
-                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        cachedBetHistory = bets;
+        renderBetHistory(bets);
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Error loading bet history.</td></tr>`;
         console.error(err);
     }
+}
+
+function filterBetHistory() {
+    const typeVal = document.getElementById('bet-history-type-filter').value;
+    const statusVal = document.getElementById('bet-history-status-filter').value;
+
+    let filtered = cachedBetHistory;
+
+    if (typeVal !== 'all') {
+        filtered = filtered.filter(b => {
+            const desc = (b.description || b.eventDescription || '').toLowerCase();
+            const type = typeVal.toLowerCase();
+            return desc.includes(type);
+        });
+    }
+
+    if (statusVal !== 'all') {
+        if (statusVal === 'PENDING') {
+            filtered = filtered.filter(b => b.outcome === 'PENDING' || b.outcome === null);
+        } else if (statusVal === 'completed') {
+            filtered = filtered.filter(b => b.outcome === 'YES' || b.outcome === 'NO' || b.outcome === 'CANCELLED');
+        }
+    }
+
+    renderBetHistory(filtered);
+}
+
+function renderBetHistory(bets) {
+    const tbody = document.getElementById('bet-history-table-body');
+    if (!tbody) return;
+
+    if (bets.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets match the selected filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = bets.map(b => {
+        let statusColor, statusBg;
+        switch (b.outcome) {
+            case 'YES':
+                statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
+            case 'NO':
+                statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
+            case 'CANCELLED':
+                statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
+            default:
+                statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
+        }
+
+        const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
+        const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
+
+        return `
+            <tr style="border-bottom: 1px solid #F0F2F5;">
+                <td style="padding: 14px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
+                <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
+                <td style="text-align: center; padding: 14px 10px; color: #1B2F5E; font-weight: 600;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
+                <td style="text-align: center; padding: 14px 10px; color: #6C7D93;">${dateStr}</td>
+                <td style="text-align: center; padding: 14px 10px;">
+                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Switch leaderboard sort criteria
