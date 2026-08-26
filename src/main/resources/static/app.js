@@ -1,5 +1,5 @@
 // Base API URL config
-const API_BASE = 'http://localhost:8081/api';
+const API_BASE = 'http://localhost:8080/api';
 
 // ── Button Loading Spinner Utility ──
 function setButtonLoading(buttonEl, isLoading) {
@@ -1240,7 +1240,7 @@ function loadDashboardData(user, balance) {
     const sidebarSvg = document.getElementById('sidebar-avatar-svg');
 
     if (user.avatarPath) {
-        const imgUrl = `http://localhost:8081${user.avatarPath}?t=${new Date().getTime()}`;
+        const imgUrl = `http://localhost:8080${user.avatarPath}?t=${new Date().getTime()}`;
         // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
         
         if (sidebarImg && sidebarSvg) {
@@ -1441,7 +1441,7 @@ async function loadAccountData() {
             const sidebarSvg = document.getElementById('sidebar-avatar-svg');
 
             if (u.avatarPath) {
-                const imgUrl = `http://localhost:8081${u.avatarPath}?t=${new Date().getTime()}`;
+                const imgUrl = `http://localhost:8080${u.avatarPath}?t=${new Date().getTime()}`;
                 // if (headerAvatar) headerAvatar.src = imgUrl; // Ensure it stays as logo
                 
                 if (sidebarImg && sidebarSvg) {
@@ -1479,7 +1479,7 @@ async function loadAccountData() {
                 `;
 
                 // Fetch real data from backend
-                fetch(`http://localhost:8081/api/tasks?createdBy=${u.userID}`)
+                fetch(`http://localhost:8080/api/tasks?createdBy=${u.userID}`)
                     .then(res => res.json())
                     .then(data => {
                         let tasks = [];
@@ -1607,7 +1607,7 @@ async function uploadSelectedAvatar() {
         
         if (response.ok && data.avatarUrl) {
             showToast('Avatar updated successfully!', 'success');
-            const imgUrl = `http://localhost:8081${data.avatarUrl}?t=${new Date().getTime()}`;
+            const imgUrl = `http://localhost:8080${data.avatarUrl}?t=${new Date().getTime()}`;
             
             // Update UI
             const headerAvatar = document.getElementById('header-avatar');
