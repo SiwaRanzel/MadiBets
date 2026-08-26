@@ -1051,13 +1051,15 @@ async function handleLogin(event) {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const btn = document.getElementById('btn-login');
+    const userType = document.querySelector('.role-btn.active').id === 'type-student' ? 'STUDENT' : 'LECTURER';
+
     setButtonLoading(btn, true);
 
     try {
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, userType })
         });
 
         const data = await response.json();
