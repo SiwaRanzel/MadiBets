@@ -2478,26 +2478,46 @@ let adminQueriesCache = [];
 
 // ── Admin Query Management ──
 
+// Client-side filter state layered on top of adminQueriesCache
+let queryStatusFilter = 'ALL';   // 'ALL' | 'OPEN' | 'RESOLVED'
+let querySearchTerm = '';
+
 async function loadAdminQueries() {
+    initQueryFilters();
     try {
         const response = await fetch(`${API_BASE}/queries`);
         const queries = await response.json();
         
         if (response.ok) {
-            renderQueryTable(queries);
+            adminQueriesCache = queries;
+            // Badge always reflects ALL open queries, not the filtered view
             const openQueries = queries.filter(q => q.resolvedStatus === 'OPEN');
             const badge = document.getElementById('query-badge');
             if (badge) {
                 badge.textContent = openQueries.length;
                 badge.style.display = openQueries.length > 0 ? 'inline-flex' : 'none';
             }
-            adminQueriesCache = queries;
+            applyQueryFilters();
         } else {
             console.error('Failed to load queries');
         }
     } catch (error) {
         console.error('Error loading queries:', error);
     }
+}
+
+// Apply the active search term + status filter to the cache and render
+function applyQueryFilters() {
+    const term = querySearchTerm.trim().toLowerCase();
+    const filtered = adminQueriesCache.filter(q => {
+        const matchesStatus = queryStatusFilter === 'ALL' || q.resolvedStatus === queryStatusFilter;
+        if (!matchesStatus) return false;
+        if (!term) return true;
+        const title = (q.title || '').toLowerCase();
+        const email = (q.email || '').toLowerCase();
+        return title.includes(term) || email.includes(term);
+    });
+    renderQueryTable(filtered);
 }
 
 function renderQueryTable(queries) {
@@ -2524,7 +2544,9 @@ function renderQueryTable(queries) {
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div id="query-options-${q.queryID}" class="admin-dropdown-menu">
-                        <div class="admin-dropdown-item" onclick="resolveQuery(${q.queryID})">Resolved</div>
+                        ${q.resolvedStatus === 'OPEN'
+                            ? `<div class="admin-dropdown-item" onclick="setQueryStatus(${q.queryID}, 'RESOLVED')">Mark as Resolved</div>`
+                            : `<div class="admin-dropdown-item" onclick="setQueryStatus(${q.queryID}, 'OPEN')">Reopen (Change to Open)</div>`}
                     </div>
                 </div>
             </td>
@@ -2534,7 +2556,10 @@ function renderQueryTable(queries) {
     });
 
     if (paginationInfo) {
-        paginationInfo.innerHTML = queries.length === 0 ? `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0` : `<span style="font-weight: 700; color: #1B2F5E;">1</span> of 1`;
+        const count = queries.length;
+        paginationInfo.innerHTML = count === 0
+            ? `<span style="font-weight: 700; color: #1B2F5E;">0</span> of 0`
+            : `<span style="font-weight: 700; color: #1B2F5E;">${count}</span> of ${count}`;
     }
 }
 
@@ -2570,7 +2595,7 @@ function closeQueryViewModal() {
 
 function toggleQueryOptions(event, queryID) {
     event.stopPropagation();
-    // Close all other dropdowns
+    // Close all other dropdowns (including the filter menu)
     document.querySelectorAll('.admin-dropdown-menu').forEach(menu => {
         if (menu.id !== `query-options-${queryID}`) {
             menu.classList.remove('show');
@@ -2587,19 +2612,66 @@ document.addEventListener('click', () => {
     });
 });
 
-async function resolveQuery(queryID) {
+// ── Query search & status filter ──
+
+function initQueryFilters() {
+    const searchInput = document.getElementById('query-search-input');
+    if (searchInput && !searchInput.dataset.bound) {
+        searchInput.addEventListener('input', (e) => {
+            querySearchTerm = e.target.value || '';
+            applyQueryFilters();
+        });
+        searchInput.dataset.bound = 'true';
+    }
+}
+
+function toggleFilterMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('query-filter-menu');
+    if (!menu) return;
+    // Close row option dropdowns when opening the filter menu
+    document.querySelectorAll('.admin-dropdown-menu').forEach(m => {
+        if (m.id !== 'query-filter-menu') m.classList.remove('show');
+    });
+    menu.classList.toggle('show');
+}
+
+function setQueryStatusFilter(value) {
+    queryStatusFilter = value;
+
+    // Update the Filters button label to reflect the active filter
+    const labelEl = document.getElementById('query-filter-label');
+    if (labelEl) {
+        labelEl.textContent = value === 'ALL' ? 'Filters' : (value === 'OPEN' ? 'Open' : 'Resolved');
+    }
+
+    // Highlight the active option
+    document.querySelectorAll('#query-filter-menu .admin-dropdown-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.value === value);
+    });
+
+    const menu = document.getElementById('query-filter-menu');
+    if (menu) menu.classList.remove('show');
+
+    applyQueryFilters();
+}
+
+async function setQueryStatus(queryID, status) {
     try {
         const response = await fetch(`${API_BASE}/queries/${queryID}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'RESOLVED' })
+            body: JSON.stringify({ status })
         });
 
+        // Close any open dropdown menu
+        document.querySelectorAll('.admin-dropdown-menu').forEach(menu => menu.classList.remove('show'));
+
         if (response.ok) {
-            showToast('Query marked as resolved', 'success');
+            showToast(status === 'RESOLVED' ? 'Query marked as resolved' : 'Query reopened', 'success');
             loadAdminQueries();
         } else {
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
             showToast(data.error || 'Failed to update query status', 'error');
         }
     } catch (error) {

@@ -2122,7 +2122,8 @@ body {
 }
 
 .admin-query-table-wrapper {
-    overflow-x: auto;
+    /* visible so the row option menu can overlay without being clipped */
+    overflow: visible;
     margin-bottom: 25px;
 }
 
@@ -2223,15 +2224,18 @@ body {
 
 .admin-dropdown-menu {
     position: absolute;
-    right: 0;
-    top: 100%;
+    /* Overlay centered on the row rather than dropping below it */
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
+    margin-right: 8px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
     border: 1px solid #E2E8F0;
     padding: 8px;
-    z-index: 100;
-    min-width: 120px;
+    z-index: 500;
+    min-width: 180px;
     display: none;
 }
 
@@ -2247,10 +2251,33 @@ body {
     cursor: pointer;
     border-radius: 6px;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
 .admin-dropdown-item:hover {
     background: #F8FAFC;
+}
+
+.admin-dropdown-item.active {
+    background: #EEF2FF;
+    color: #1B2F5E;
+    font-weight: 700;
+}
+
+/* Filters button dropdown (toolbar) */
+.admin-filter-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.admin-filter-menu {
+    top: 100%;
+    right: 0;
+    left: auto;
+    transform: none;
+    margin-right: 0;
+    margin-top: 8px;
+    min-width: 150px;
 }
 
 .admin-query-footer {
