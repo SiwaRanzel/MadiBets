@@ -2057,14 +2057,27 @@ async function loadBetsPanel() {
     const tbody = document.getElementById('bets-table-body');
     const empty = document.getElementById('bets-empty-msg');
     if (!tbody) return;
+    const user = JSON.parse(sessionStorage.getItem('user'));
 
     try {
-        const res = await fetch(`${API_BASE}/bets/active`);
+        // The user's own wagers ride along so taken bets grey out and the
+        // "Your active wagers" section fills in. History failing shouldn't
+        // stop the market list, hence the catch to an empty list.
+        const [res, myWagers] = await Promise.all([
+            fetch(`${API_BASE}/bets/active`),
+            user ? fetch(`${API_BASE}/leaderboard/history/${user.userID}`)
+                       .then(r => r.ok ? r.json() : []).catch(() => [])
+                 : Promise.resolve([]),
+        ]);
         const data = await res.json();
         if (!res.ok) {
             showToast(data.error || 'Failed to load bets.', 'error');
             return;
         }
+        // betID -> this user's wager (one per bet at most)
+        const myWagerByBet = {};
+        myWagers.forEach(w => { myWagerByBet[w.betID] = w; });
+
         const bets = data.bets || [];
         betsCache = {};
         tbody.innerHTML = '';
@@ -2072,18 +2085,30 @@ async function loadBetsPanel() {
 
         bets.forEach(b => {
             betsCache[b.betID] = b;
+            const mine = myWagerByBet[b.betID];
             // One odds button per outcome (FSSB p.25: side-by-side odds).
             // Unpriced outcomes (odds null — only on pre-migration bets) are
-            // not wagerable, so they get no button.
-            const action = b.open
-                ? `<div class="bet-outcome-stack">` +
-                    (b.outcomes || []).filter(o => o.odds != null).map(o =>
-                    `<button class="bet-action-btn bet-outcome-btn"
-                        onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
-                        <span class="bet-outcome-label">${escapeHtml(o.label)}</span>
-                        <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`).join('') +
-                  `</div>`
-                : '<span class="bet-taken-pill">Closed — awaiting grading</span>';
+            // not wagerable, so they get no button. A bet the user already
+            // wagered on greys out — one wager per student per bet.
+            let action;
+            if (!b.open) {
+                action = '<span class="bet-taken-pill">Closed — awaiting grading</span>';
+            } else {
+                action = `<div class="bet-outcome-stack">` +
+                    (b.outcomes || []).filter(o => o.odds != null).map(o => {
+                        const isPick = mine && mine.pick === o.label;
+                        return mine
+                            ? `<button class="bet-action-btn bet-outcome-btn bet-outcome-disabled${isPick ? ' bet-outcome-mine' : ''}" disabled
+                                title="${isPick ? 'Your pick' : 'You already have a wager on this bet'}">
+                                <span class="bet-outcome-label">${isPick ? '&#10003; ' : ''}${escapeHtml(o.label)}</span>
+                                <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`
+                            : `<button class="bet-action-btn bet-outcome-btn"
+                                onclick="openWagerModal(${b.betID}, ${o.outcomeID})">
+                                <span class="bet-outcome-label">${escapeHtml(o.label)}</span>
+                                <span class="bet-outcome-odds">${Number(o.odds).toFixed(2)}</span></button>`;
+                    }).join('') +
+                  `</div>`;
+            }
             tbody.innerHTML += `
                 <tr>
                     <td>${escapeHtml(betTypeOf(b.description))}</td>
@@ -2094,10 +2119,28 @@ async function loadBetsPanel() {
             `;
         });
         filterBetsTable();
+        renderMyWagers(myWagers);
     } catch (err) {
         showToast('Network error — is the API server running?', 'error');
         console.error(err);
     }
+}
+
+/** "Your active wagers": the user's ungraded stakes, under the market list. */
+function renderMyWagers(myWagers) {
+    const section = document.getElementById('my-wagers-section');
+    const body = document.getElementById('my-wagers-body');
+    if (!section || !body) return;
+    const active = (myWagers || []).filter(w => w.outcome === 'PENDING');
+    section.classList.toggle('hidden', active.length === 0);
+    body.innerHTML = active.map(w => `
+        <tr>
+            <td>${escapeHtml(w.description)}</td>
+            <td><span class="my-wager-pick">${escapeHtml(w.pick || '')}</span></td>
+            <td style="text-align: right;">${Number(w.stake).toFixed(2)} MB</td>
+            <td style="text-align: right; color: #28A745; font-weight: 600;">${Number(w.amountToBeWon).toFixed(2)} MB</td>
+        </tr>
+    `).join('');
 }
 
 // B700 mockup: search field filters the open-bets list client-side
@@ -2345,15 +2388,15 @@ function renderProposedTable(bets) {
         // One odds input per proposed outcome — all required to approve.
         const oddsInputs = (b.outcomes || []).map(o => `
             <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
-                <span style="min-width: 90px; font-size: 0.85rem;">${escapeHtml(o.label)}</span>
+                <span class="acct-outcome-label">${escapeHtml(o.label)}</span>
                 <input type="number" id="odds-input-${b.betID}-${o.outcomeID}" class="acct-odds-input"
                     min="1.01" step="0.01" placeholder="e.g. 2.50">
             </div>`).join('');
         tbody.innerHTML += `
-            <tr>
+            <tr class="acct-proposed-row">
                 <td>${date}</td>
-                <td>${escapeHtml(betTypeOf(b.description))}</td>
-                <td>${escapeHtml(betTextOf(b.description))}</td>
+                <td><span class="acct-type-chip">${escapeHtml(betTypeOf(b.description))}</span></td>
+                <td><span class="acct-bet-desc">${escapeHtml(betTextOf(b.description))}</span></td>
                 <td>${oddsInputs}</td>
                 <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-odds-input"
                         style="width: 175px;"></td>

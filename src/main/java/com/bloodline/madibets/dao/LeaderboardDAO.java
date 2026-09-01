@@ -26,7 +26,7 @@ public class LeaderboardDAO {
         // Multi-outcome markets: a user's history is their Wager rows joined to
         // the outcome they backed. The outcome column keeps its old UI values
         // (YES = won, NO = lost) derived from whether their pick was the winner.
-        String sql = "SELECT b.betID, b.description, o.odds, w.amountToBeWon, "
+        String sql = "SELECT b.betID, b.description, o.odds, w.stake, w.amountToBeWon, "
                    + "CASE WHEN b.outcome = 'PENDING' THEN 'PENDING' "
                    + "     WHEN b.outcome = 'CANCELLED' THEN 'CANCELLED' "
                    + "     WHEN w.outcomeID = b.winningOutcomeID THEN 'YES' ELSE 'NO' END AS outcome, "
@@ -48,6 +48,7 @@ public class LeaderboardDAO {
                     bet.put("betID", rs.getInt("betID"));
                     bet.put("description", rs.getString("description"));
                     bet.put("odds", rs.getDouble("odds"));
+                    bet.put("stake", rs.getDouble("stake"));
                     bet.put("amountToBeWon", rs.getDouble("amountToBeWon"));
                     bet.put("outcome", rs.getString("outcome"));
                     bet.put("pick", rs.getString("pick"));

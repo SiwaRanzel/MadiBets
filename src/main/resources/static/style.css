@@ -2052,6 +2052,111 @@ body {
 .acct-menu-dropdown .acct-menu-danger { color: #D9534F; }
 .acct-menu-dropdown .acct-menu-danger:hover { background: #FDECEA; }
 
+/* Approve is the primary action — brand gold CTA (team UI guidelines) */
+.acct-btn.acct-btn-approve {
+    background: var(--color-nmu-gold);
+    color: var(--color-nmu-navy);
+    font-family: var(--font-primary);
+}
+.acct-btn.acct-btn-approve:hover { background: #E0921B; filter: none; }
+
+/* Accounting section titles: navy with a short gold underline (brand accent) */
+.acct-section-title {
+    color: var(--color-nmu-navy);
+    position: relative;
+    padding-bottom: 8px;
+}
+.acct-section-title::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 42px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-nmu-gold);
+}
+
+/* Proposed rows read as branded cards: navy-tinted ground, gold left accent */
+.acct-proposed-row td {
+    background: #F5F8FE;
+}
+.acct-proposed-row td:first-child {
+    border-left: 4px solid var(--color-nmu-gold);
+    border-radius: 8px 0 0 8px;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    color: var(--color-nmu-navy);
+}
+.acct-proposed-row td:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+/* B300 review queue: NMU-branded type chip, description and outcome labels */
+.acct-type-chip {
+    background: var(--color-nmu-navy);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+.acct-bet-desc {
+    font-family: var(--font-primary);
+    font-weight: 600;
+    color: var(--color-nmu-navy);
+    font-size: 0.95rem;
+}
+.acct-outcome-label {
+    min-width: 90px;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--color-nmu-navy);
+    background: white;
+    border: 1px solid #D9E2F2;
+    padding: 5px 10px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* One wager per student per bet: options on a bet already taken grey out,
+   with the student's own pick marked. */
+.bet-action-btn.bet-outcome-disabled {
+    background: #E2E8F0;
+    color: #6C7D93;
+    cursor: default;
+}
+.bet-action-btn.bet-outcome-disabled:hover { background: #E2E8F0; }
+.bet-outcome-disabled .bet-outcome-odds { background: #A0B2D6; }
+.bet-outcome-disabled.bet-outcome-mine {
+    color: var(--color-nmu-navy);
+    border: 1.5px solid var(--color-nmu-navy);
+}
+.bet-outcome-disabled.bet-outcome-mine .bet-outcome-odds { background: var(--color-nmu-navy); }
+
+/* "Your active wagers" under the market list */
+.my-wagers-title {
+    font-family: var(--font-primary);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--color-nmu-navy);
+    border-top: 1px solid #F0F2F5;
+    padding-top: 20px;
+    margin-bottom: 4px;
+}
+.my-wager-pick {
+    background: #EEF2FA;
+    color: var(--color-nmu-navy);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
 /* B200 proposal form: one input per possible outcome */
 .propose-outcome-input {
     background-color: #F8FAFC;

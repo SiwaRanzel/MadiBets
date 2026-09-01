@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 
 <body>
@@ -622,6 +622,22 @@
                         </table>
                         <p id="bets-empty-msg" class="hidden" style="text-align: center; color: #A0B2D6; padding: 30px 0;">
                             No open bets right now — propose one!</p>
+
+                        <!-- The wagers this student currently has riding (ungraded) -->
+                        <div id="my-wagers-section" class="hidden" style="margin-top: 28px;">
+                            <h4 class="my-wagers-title">Your active wagers</h4>
+                            <table class="bets-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr>
+                                        <th>Bet</th>
+                                        <th style="width: 170px;">Your pick</th>
+                                        <th style="width: 100px; text-align: right;">Stake</th>
+                                        <th style="width: 130px; text-align: right;">Potential win</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="my-wagers-body"></tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <!-- B200: the proposal form -->
@@ -1337,7 +1353,7 @@
                 </div>
 
                 <div style="background: white; border-radius: 14px; padding: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px;">
-                    <h4 class="admin-chart-title" style="margin-bottom: 12px;">Proposed Bets</h4>
+                    <h4 class="admin-chart-title acct-section-title" style="margin-bottom: 12px;">Proposed Bets</h4>
                     <table class="bets-table" style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
@@ -1356,7 +1372,7 @@
                 </div>
 
                 <div style="background: white; border-radius: 14px; padding: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 class="admin-chart-title" style="margin-bottom: 12px;">Active Bets</h4>
+                    <h4 class="admin-chart-title acct-section-title" style="margin-bottom: 12px;">Active Bets</h4>
                     <table class="bets-table" style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
@@ -1866,7 +1882,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=7"></script>
+    <script src="app.js?v=9"></script>
 </body>
 
 </html>
