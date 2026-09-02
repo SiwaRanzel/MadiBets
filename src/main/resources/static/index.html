@@ -704,36 +704,32 @@
 
             <!-- ── Groups Panel ── -->
             <div id="panel-groups" class="hidden">
-                <div style="display:flex; gap: 24px;">
-                    <div style="flex: 1; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
-                        <div style="margin-bottom:12px;">
-                            <h3 style="margin:0; color:#1B2F5E;">Groups</h3>
+                <div class="groups-two-col">
+                    <!-- My Groups -->
+                    <div class="groups-col">
+                        <div class="groups-col-header">
+                            <h3 class="groups-col-title">My Groups</h3>
                         </div>
-
-                        <div id="my-groups-list" style="min-height:200px;">
-                                <!-- Groups user is member of will be rendered here -->
-                            </div>
-                        
-                        <!-- Bottom left box: Search Groups -->
-                        <div style="padding: 16px; border-top: 1px solid #E6EDF7; border-bottom: 1px solid #E6EDF7;">
-                            <h3 style="margin:0; color:#1B2F5E; font-size:1rem; margin-bottom:12px;">Search Groups</h3>
-                            <input id="group-search" type="text" placeholder="Search groups by name or id" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #E6EDF7; box-sizing:border-box; font-size:0.9rem;" oninput="debouncedSearchGroups()">
-                            <div id="search-results-list" style="min-height:60px; margin-top:12px; max-height:220px; overflow-y:auto;">
-                                <p style="color:#6C7D93; text-align:center; padding:24px 8px; font-size:0.9rem;">Type a group name to find groups you haven't joined.</p>
-                            </div>
+                        <div class="groups-search-wrapper">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input id="my-groups-search" type="text" placeholder="Search my groups" oninput="filterMyGroups()">
+                        </div>
+                        <div id="my-groups-list" class="groups-list">
+                            <!-- Groups the user belongs to render here -->
                         </div>
                     </div>
 
-                    <div style="flex: 1.6; background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
-                        <div id="group-detail-placeholder" style="color:#6C7D93; text-align:center; padding:40px 10px;">
-                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;">
-                                <circle cx="12" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
-                            </svg>
-                            <h4 style="margin-top:0; color:#1B2F5E;">Select a group to view details</h4>
-                            <p style="margin-top:6px;">Click a group on the left to see its members, tasks and join option.</p>
+                    <!-- All Groups -->
+                    <div class="groups-col">
+                        <div class="groups-col-header">
+                            <h3 class="groups-col-title">All Groups</h3>
                         </div>
-                        <div id="group-detail" style="display:none;">
-                            <!-- populated dynamically -->
+                        <div class="groups-search-wrapper">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input id="all-groups-search" type="text" placeholder="Search all groups" oninput="debouncedSearchAllGroups()">
+                        </div>
+                        <div id="all-groups-list" class="groups-list">
+                            <!-- Every group renders here -->
                         </div>
                     </div>
                 </div>
@@ -755,6 +751,16 @@
                             <label>Description</label>
                             <textarea id="new-group-desc" rows="3" placeholder="Optional description"></textarea>
                         </div>
+                        <div class="form-field-group">
+                            <label>Password (optional)</label>
+                            <input type="password" id="new-group-password" placeholder="Leave blank for an open group" autocomplete="new-password" />
+                            <small style="color:#6C7D93; font-size:0.8rem;">If set, members must enter this password to join.</small>
+                        </div>
+                        <div class="form-field-group">
+                            <label>Max Members (optional)</label>
+                            <input type="number" id="new-group-max-members" min="1" step="1" placeholder="Leave blank for unlimited" />
+                            <small style="color:#6C7D93; font-size:0.8rem;">Maximum members who can join (you, the owner, don't count toward this).</small>
+                        </div>
                         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
                             <button type="button" class="btn" onclick="closeCreateGroupModal()">Cancel</button>
                             <button type="button" class="btn btn-gold-cta" onclick="createGroup()">Create</button>
@@ -762,32 +768,37 @@
                     </div>
                 </div>
 
-                <!-- Create Task Modal (lecturer only) -->
+                <!-- Create Quiz Modal (lecturer only) -->
                 <div id="create-task-modal" class="modal hidden" onclick="closeCreateTaskModal(event)">
-                    <div class="modal-content" onclick="event.stopPropagation()">
-                        <h3>Create Task</h3>
+                    <div class="modal-content quiz-builder-content" onclick="event.stopPropagation()">
+                        <h3>Create Quiz</h3>
                         <div class="form-field-group">
-                            <label>Question</label>
-                            <textarea id="new-task-question" rows="3" placeholder="Enter the True/False question"></textarea>
+                            <label>Quiz Title</label>
+                            <input type="text" id="new-quiz-title" placeholder="e.g. Week 3 Revision" />
                         </div>
-                        <div class="form-field-group">
-                            <label>Correct Answer</label>
-                            <div class="task-answer-toggle">
-                                <button type="button" id="task-answer-true" class="task-answer-btn" onclick="setTaskCorrectAnswer(true)">True</button>
-                                <button type="button" id="task-answer-false" class="task-answer-btn" onclick="setTaskCorrectAnswer(false)">False</button>
-                            </div>
+                        <p class="quiz-reward-note">Each correct answer is worth <strong>10 MadiBucks</strong>. Up to 10 questions.</p>
+                        <div id="quiz-questions-container">
+                            <!-- question builder rows injected by JS -->
                         </div>
-                        <div class="form-field-group">
-                            <label>Reward (MadiBucks)</label>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <button type="button" onclick="decreaseTaskAmount()" style="width:36px; height:36px; border:1px solid #D1D9E4; border-radius:6px; background:#F8FAFC; font-size:1.2rem; font-weight:700; cursor:pointer; color:#1B2F5E;">−</button>
-                                <input type="number" id="new-task-amount" value="50" min="1" step="1" style="flex:1; text-align:center; font-weight:600;" />
-                                <button type="button" onclick="increaseTaskAmount()" style="width:36px; height:36px; border:1px solid #D1D9E4; border-radius:6px; background:#F8FAFC; font-size:1.2rem; font-weight:700; cursor:pointer; color:#1B2F5E;">+</button>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+                        <button type="button" class="btn quiz-add-question-btn" id="quiz-add-question-btn" onclick="addQuizQuestion()">+ Add Question</button>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
                             <button type="button" class="btn" onclick="closeCreateTaskModal()">Cancel</button>
-                            <button type="button" class="btn btn-gold-cta" onclick="createTask()">Create</button>
+                            <button type="button" class="btn btn-gold-cta" onclick="createTask()">Create Quiz</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Take Quiz Modal (student) -->
+                <div id="take-quiz-modal" class="modal hidden" onclick="closeTakeQuizModal(event)">
+                    <div class="modal-content quiz-take-content" onclick="event.stopPropagation()">
+                        <h3 id="take-quiz-title">Quiz</h3>
+                        <div id="take-quiz-body">
+                            <!-- questions injected by JS -->
+                        </div>
+                        <div id="take-quiz-footer" style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px; align-items:center;">
+                            <span id="take-quiz-result" style="margin-right:auto; font-weight:700; color:#1B2F5E;"></span>
+                            <button type="button" class="btn" onclick="closeTakeQuizModal()">Close</button>
+                            <button type="button" class="btn btn-gold-cta" id="take-quiz-submit-btn" onclick="submitQuiz()">Submit Quiz</button>
                         </div>
                     </div>
                 </div>
@@ -1621,6 +1632,36 @@
             <div class="confirm-modal-buttons">
                 <button class="confirm-modal-btn confirm-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
                 <button class="confirm-modal-btn confirm-btn-confirm" onclick="submitDeleteRequest()" style="background-color: #D9534F; color: white;">Yes, Delete It</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Join Password Modal -->
+    <div id="group-password-modal" class="confirm-modal-overlay hidden" style="z-index: 10001;" onclick="if(event.target===this) closeGroupPasswordModal()">
+        <div class="confirm-modal-box">
+            <div class="confirm-modal-icon">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B2F5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+            </div>
+            <h3 class="confirm-modal-title">Group Password</h3>
+            <p class="confirm-modal-message">This group is password-protected. Enter the password to join.</p>
+            <input type="password" id="group-password-input" placeholder="Password" autocomplete="off"
+                   style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #E6EDF7; box-sizing:border-box; font-size:0.95rem; margin-bottom:6px;"
+                   onkeydown="if(event.key==='Enter') submitGroupPassword()" />
+            <div class="confirm-modal-buttons">
+                <button class="confirm-modal-btn confirm-btn-cancel" onclick="closeGroupPasswordModal()">Cancel</button>
+                <button class="confirm-modal-btn confirm-btn-confirm" onclick="submitGroupPassword()">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Detail Modal (info + MadiBucks leaderboard + tasks) -->
+    <div id="group-detail-modal" class="about-modal-overlay hidden" onclick="if(event.target===this) closeGroupDetailModal()">
+        <div class="about-modal-content group-detail-modal-content">
+            <button class="about-modal-close" onclick="closeGroupDetailModal()">&times;</button>
+            <div id="group-detail-modal-body">
+                <!-- populated by loadGroupDetail -->
             </div>
         </div>
     </div>

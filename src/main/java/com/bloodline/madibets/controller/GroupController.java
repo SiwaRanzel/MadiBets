@@ -2,8 +2,11 @@ package com.bloodline.madibets.controller;
 
 import com.bloodline.madibets.dao.GroupDAO;
 import com.bloodline.madibets.dao.TaskDAO;
+import com.bloodline.madibets.dao.UserDAO;
 import com.bloodline.madibets.model.Group;
 import com.bloodline.madibets.model.Task;
+import com.bloodline.madibets.model.TaskQuestion;
+import com.bloodline.madibets.model.TaskOption;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +22,7 @@ public class GroupController {
 
     private final GroupDAO groupDAO = new GroupDAO();
     private final TaskDAO taskDAO = new TaskDAO();
+    private final UserDAO userDAO = new UserDAO();
 
     @PostMapping("")
     public ResponseEntity<?> createGroup(@RequestBody Group g) {
@@ -86,6 +90,9 @@ public class GroupController {
             resp.put("createdDate", g.getCreatedDate());
             resp.put("memberCount", groupDAO.getMemberCount(id));
             resp.put("members", groupDAO.findMembers(id));
+            resp.put("hasPassword", groupDAO.hasPassword(id));
+            resp.put("maxMembers", g.getMaxMembers());
+            resp.put("nonOwnerMemberCount", groupDAO.getNonOwnerMemberCount(id));
             if (userId != null) {
                 resp.put("isMember", groupDAO.isMember(id, userId));
             } else {
@@ -111,6 +118,26 @@ public class GroupController {
                 return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
             }
             int userID = ((Number) raw).intValue();
+
+            // If the group is password-protected, require and verify the password.
+            if (groupDAO.hasPassword(id)) {
+                Object pwRaw = body.get("password");
+                String password = pwRaw instanceof String s ? s : null;
+                if (password == null || password.isBlank()) {
+                    return ResponseEntity.status(401).body(Map.of("error", "This group requires a password to join.", "passwordRequired", true));
+                }
+                if (!groupDAO.verifyPassword(id, password)) {
+                    return ResponseEntity.status(403).body(Map.of("error", "Incorrect group password.", "passwordRequired", true));
+                }
+            }
+
+            // Enforce the member cap (counts joining members only — excludes the owner).
+            Integer maxMembers = groupDAO.getMaxMembers(id);
+            if (maxMembers != null && !groupDAO.isMember(id, userID)
+                    && groupDAO.getNonOwnerMemberCount(id) >= maxMembers) {
+                return ResponseEntity.status(409).body(Map.of("error", "This group is full."));
+            }
+
             boolean added = groupDAO.addMember(id, userID);
             if (added) {
                 return ResponseEntity.ok(Map.of("success", true));
@@ -167,24 +194,18 @@ public class GroupController {
         }
     }
 
-    /** POST /api/groups/{id}/tasks — create a task in a group (lecturer only). */
+    /**
+     * POST /api/groups/{id}/tasks — create a QUIZ task in a group (lecturer only).
+     * Body: { title, createdBy, questions: [ { prompt, type: 'TRUE_FALSE'|'MULTIPLE_CHOICE',
+     *         options: [ { optionText|text, isCorrect } ] } ] }.
+     * Rules: 1-10 questions; each question needs >=2 options and exactly one correct.
+     */
     @PostMapping("/{id}/tasks")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<?> createGroupTask(@PathVariable int id, @RequestBody Map<String, Object> body) {
         try {
             if (id <= 0) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
-            }
-            String question = body.get("question") instanceof String s ? s.trim() : null;
-            if (question == null || question.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Question is required"));
-            }
-            Object correctRaw = body.get("correctAnswer");
-            if (!(correctRaw instanceof Boolean)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "correctAnswer must be true or false"));
-            }
-            Object amountRaw = body.get("amount");
-            if (!(amountRaw instanceof Number)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "amount must be numeric"));
             }
             Object createdByRaw = body.get("createdBy");
             if (!(createdByRaw instanceof Number)) {
@@ -192,23 +213,87 @@ public class GroupController {
             }
             int createdBy = ((Number) createdByRaw).intValue();
 
-            // Lecturer must be a member of the group to create tasks for it
+            // Only lecturers can create tasks (enforced on the backend, not just the UI).
+            String role = userDAO.getUserType(createdBy);
+            if (!"LECTURER".equalsIgnoreCase(role)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only lecturers can create tasks."));
+            }
+            // Lecturer must be a member of the group to create tasks for it.
             if (!groupDAO.isMember(id, createdBy)) {
                 return ResponseEntity.status(403).body(Map.of("error", "You must be a member of this group to create tasks."));
             }
 
-            Task task = new Task();
-            task.setTitle(question);
-            task.setDescription(question);
-            task.setGroupID(id);
-            task.setAmount(new java.math.BigDecimal(String.valueOf(amountRaw)));
-            task.setCreatedBy(createdBy);
-            task.setCorrectAnswer((Boolean) correctRaw);
+            String title = body.get("title") instanceof String s ? s.trim() : null;
+            if (title == null || title.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Quiz title is required"));
+            }
 
-            Task saved = taskDAO.create(task);
+            Object questionsRaw = body.get("questions");
+            if (!(questionsRaw instanceof List<?> qList) || qList.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "At least one question is required"));
+            }
+            if (qList.size() > 10) {
+                return ResponseEntity.badRequest().body(Map.of("error", "A quiz can have at most 10 questions"));
+            }
+
+            List<TaskQuestion> questions = new ArrayList<>();
+            for (Object qObj : qList) {
+                if (!(qObj instanceof Map<?, ?> qm)) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Malformed question"));
+                }
+                Object promptRaw = qm.get("prompt");
+                String prompt = promptRaw instanceof String s ? s.trim() : null;
+                if (prompt == null || prompt.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Each question needs a prompt"));
+                }
+                String type = qm.get("type") instanceof String s ? s.trim().toUpperCase() : "";
+                if (!"TRUE_FALSE".equals(type) && !"MULTIPLE_CHOICE".equals(type)) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Question type must be TRUE_FALSE or MULTIPLE_CHOICE"));
+                }
+
+                Object optsRaw = qm.get("options");
+                if (!(optsRaw instanceof List<?> optList) || optList.size() < 2) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Each question needs at least two options"));
+                }
+                if ("MULTIPLE_CHOICE".equals(type) && optList.size() > 4) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Multiple choice questions allow at most 4 options"));
+                }
+
+                TaskQuestion tq = new TaskQuestion();
+                tq.setPrompt(prompt);
+                tq.setType(type);
+                int correctCount = 0;
+                List<TaskOption> options = new ArrayList<>();
+                for (Object oObj : optList) {
+                    if (!(oObj instanceof Map<?, ?> om)) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Malformed option"));
+                    }
+                    Object textRaw = om.containsKey("optionText") ? om.get("optionText") : om.get("text");
+                    String text = textRaw instanceof String s ? s.trim() : null;
+                    if (text == null || text.isBlank()) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Each option needs text"));
+                    }
+                    boolean isCorrect = Boolean.TRUE.equals(om.get("isCorrect"));
+                    if (isCorrect) correctCount++;
+                    TaskOption to = new TaskOption();
+                    to.setOptionText(text);
+                    to.setCorrect(isCorrect);
+                    options.add(to);
+                }
+                if (correctCount != 1) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Each question must have exactly one correct answer"));
+                }
+                tq.setOptions(options);
+                questions.add(tq);
+            }
+
+            int taskID = taskDAO.createQuiz(title, id, createdBy, questions);
+            if (taskID <= 0) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to create quiz"));
+            }
             return ResponseEntity.status(201).body(Map.of(
-                    "taskID", saved.getTaskID(),
-                    "message", "Task created successfully!"
+                    "taskID", taskID,
+                    "message", "Quiz created successfully!"
             ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));

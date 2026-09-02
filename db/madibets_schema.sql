@@ -145,6 +145,8 @@ CREATE TABLE `Group` (                    -- backticked: GROUP is a reserved wor
   groupID     INT AUTO_INCREMENT PRIMARY KEY,
   groupName   VARCHAR(100) NOT NULL,
   description VARCHAR(255),
+  password    VARCHAR(255) NULL,          -- optional join password (bcrypt HASH; NULL = open group)
+  maxMembers  INT NULL,                   -- max joining members (EXCLUDES owner); NULL = unlimited
   createdBy   INT NOT NULL,
   createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_group_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
@@ -185,6 +187,51 @@ CREATE TABLE TaskCompletion (
   completionDate   DATETIME,
   CONSTRAINT fk_tc_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE,
   CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- A Task is a QUIZ of up to 10 questions. Each question is TRUE_FALSE or
+-- MULTIPLE_CHOICE and owns 2-4 options with exactly one flagged isCorrect.
+-- Reward is a fixed 10 MadiBucks per correct answer, credited at submit time.
+CREATE TABLE TaskQuestion (
+  questionID  INT AUTO_INCREMENT PRIMARY KEY,
+  taskID      INT NOT NULL,
+  prompt      VARCHAR(1000) NOT NULL,
+  type        ENUM('TRUE_FALSE','MULTIPLE_CHOICE') NOT NULL,
+  position    INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_tq_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE TaskOption (
+  optionID    INT AUTO_INCREMENT PRIMARY KEY,
+  questionID  INT NOT NULL,
+  optionText  VARCHAR(500) NOT NULL,
+  isCorrect   BOOLEAN NOT NULL DEFAULT 0,
+  position    INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_to_question FOREIGN KEY (questionID) REFERENCES TaskQuestion(questionID) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- One submission per student per quiz (UNIQUE); the score + award are frozen
+-- at submit time so results stay hidden until the student submits.
+CREATE TABLE TaskSubmission (
+  submissionID     INT AUTO_INCREMENT PRIMARY KEY,
+  taskID           INT NOT NULL,
+  userID           INT NOT NULL,
+  score            INT NOT NULL DEFAULT 0,
+  awardedMadibucks INT NOT NULL DEFAULT 0,
+  submittedDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ts_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE,
+  CONSTRAINT fk_ts_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE,
+  CONSTRAINT uq_ts UNIQUE (taskID, userID)
+) ENGINE=InnoDB;
+
+CREATE TABLE TaskAnswer (
+  answerID       INT AUTO_INCREMENT PRIMARY KEY,
+  submissionID   INT NOT NULL,
+  questionID     INT NOT NULL,
+  chosenOptionID INT NULL,
+  isCorrect      BOOLEAN NOT NULL DEFAULT 0,
+  CONSTRAINT fk_ta_submission FOREIGN KEY (submissionID) REFERENCES TaskSubmission(submissionID) ON DELETE CASCADE,
+  CONSTRAINT fk_ta_question   FOREIGN KEY (questionID)   REFERENCES TaskQuestion(questionID)   ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------

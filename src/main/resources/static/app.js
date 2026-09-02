@@ -219,16 +219,19 @@ function toggleSidebar() {
 }
 
 // -------------------- Groups UI / API Helpers --------------------
-let groupSearchTimeout = null;
+let allGroupsSearchTimeout = null;
+let myGroupsCache = [];   // full "my groups" list (for client-side filtering)
 
-function debouncedSearchGroups() {
-    if (groupSearchTimeout) clearTimeout(groupSearchTimeout);
-    groupSearchTimeout = setTimeout(() => {
-        const q = document.getElementById('group-search').value.trim();
-        searchGroups(q);
+// Debounced server search for the All Groups column.
+function debouncedSearchAllGroups() {
+    if (allGroupsSearchTimeout) clearTimeout(allGroupsSearchTimeout);
+    allGroupsSearchTimeout = setTimeout(() => {
+        const q = (document.getElementById('all-groups-search').value || '').trim();
+        loadAllGroups(q);
     }, 300);
 }
 
+// Load the groups the current user belongs to (left column).
 async function loadMyGroups() {
     const saved = sessionStorage.getItem('user');
     const user = saved ? JSON.parse(saved) : null;
@@ -245,71 +248,77 @@ async function loadMyGroups() {
             container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
             return;
         }
-        renderGroupList(data, container);
+        myGroupsCache = Array.isArray(data) ? data : [];
+        filterMyGroups();
     } catch (err) {
         console.error(err);
         container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
     }
 }
 
-async function searchGroups(q) {
-    const saved = sessionStorage.getItem('user');
-    const user = saved ? JSON.parse(saved) : null;
-    const container = document.getElementById('search-results-list');
+// Client-side filter of My Groups by the search box.
+function filterMyGroups() {
+    const container = document.getElementById('my-groups-list');
+    if (!container) return;
+    const term = (document.getElementById('my-groups-search')?.value || '').trim().toLowerCase();
+    const filtered = term
+        ? myGroupsCache.filter(g => (g.groupName || '').toLowerCase().includes(term))
+        : myGroupsCache;
+    renderGroupList(filtered, container, 'You are not a member of any groups yet.');
+}
+
+// Load all groups (right column), optionally filtered by a search term server-side.
+async function loadAllGroups(q) {
+    const container = document.getElementById('all-groups-list');
     if (!container) return;
     const qTrim = (q || '').trim();
-    if (!qTrim) {
-        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:24px 8px; font-size:0.9rem;">Type a group name to find groups you haven\'t joined.</p>';
-        return;
-    }
     try {
-        const resp = await fetch(`${API_BASE}/groups?q=${encodeURIComponent(qTrim)}`);
+        const url = qTrim ? `${API_BASE}/groups?q=${encodeURIComponent(qTrim)}` : `${API_BASE}/groups`;
+        const resp = await fetch(url);
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Failed to load groups');
-
-        // Find the groups the user already belongs to so we can exclude them.
-        let joined = [];
-        if (user) {
-            const jr = await fetch(`${API_BASE}/groups?userId=${user.userID}`);
-            if (jr.ok) joined = await jr.json();
-        }
-        const joinedIds = new Set((joined || []).map(g => (g.groupID !== undefined ? g.groupID : g.groupId) || 0));
-        const notJoined = (Array.isArray(data) ? data : []).filter(g => {
-            const id = g.groupID !== undefined ? g.groupID : g.groupId || 0;
-            return id > 0 && !joinedIds.has(id);
-        });
-        renderGroupList(notJoined, container);
+        renderGroupList(Array.isArray(data) ? data : [], container, 'No groups found.');
     } catch (err) {
         console.error(err);
         container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:24px 8px; font-size:0.9rem;">Failed to load groups.</p>';
     }
 }
 
-// Refresh both the "My Groups" list and the search results.
+// Refresh both columns.
 function refreshGroups() {
     loadMyGroups();
-    const input = document.getElementById('group-search');
-    const q = input ? input.value.trim() : '';
-    searchGroups(q);
+    const allSearch = document.getElementById('all-groups-search');
+    loadAllGroups(allSearch ? allSearch.value.trim() : '');
 }
 
-function renderGroupList(items, container) {
+function renderGroupList(items, container, emptyMsg) {
     container.innerHTML = '';
     if (!items || items.length === 0) {
-        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:40px 8px;">No groups found.</p>';
+        container.innerHTML = `<p style="color:#6C7D93; text-align:center; padding:40px 8px;">${escapeHtml(emptyMsg || 'No groups found.')}</p>`;
         return;
     }
 
     items.forEach(it => {
         const groupID = it.groupID !== undefined ? it.groupID : it.groupId || 0;
+        if (groupID <= 0) return; // skip any virtual/default groups
         const name = it.groupName || it.group_name || `Group ${groupID}`;
         const desc = it.description || '';
+        const locked = it.hasPassword === true;
 
         const row = document.createElement('div');
-        row.className = 'group-row';
-        row.style = 'padding:12px; border-bottom:1px solid #F1F6FB; display:flex; justify-content:space-between; align-items:center; cursor:pointer;';
+        row.className = 'group-row-card';
         row.onclick = () => loadGroupDetail(groupID);
-        row.innerHTML = `<div style="flex:1;"><div style="font-weight:700; color:#1B2F5E;">${escapeHtml(name)}</div><div style="font-size:0.9rem; color:#6C7D93;">${escapeHtml(desc)}</div></div><div style="margin-left:12px; color:#9FB0D1; font-weight:700">${groupID > 0 ? 'Group' : 'Default'}</div>`;
+
+        const lock = locked
+            ? '<span class="group-lock-badge" title="Password protected"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>'
+            : '';
+
+        row.innerHTML =
+            `<div style="flex:1; min-width:0;">
+                <div class="group-row-name">${escapeHtml(name)} ${lock}</div>
+                ${desc ? `<div class="group-row-desc">${escapeHtml(desc)}</div>` : ''}
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
         container.appendChild(row);
     });
 }
@@ -320,7 +329,12 @@ function escapeHtml(s) {
 }
 
 let currentGroupID = null;
-let taskCorrectAnswer = true;
+
+// ── Group detail popup ──
+function closeGroupDetailModal() {
+    const m = document.getElementById('group-detail-modal');
+    if (m) m.classList.add('hidden');
+}
 
 async function loadGroupDetail(groupID) {
     try {
@@ -330,467 +344,506 @@ async function loadGroupDetail(groupID) {
         if (user) url += `?userId=${user.userID}`;
         const resp = await fetch(url);
         const data = await resp.json();
-        if (!resp.ok) {
-            showToast(data.error || 'Failed to load group details', 'error');
-            return;
-        }
+        if (!resp.ok) { showToast(data.error || 'Failed to load group details', 'error'); return; }
 
         currentGroupID = groupID;
+        const body = document.getElementById('group-detail-modal-body');
+        body.innerHTML = '';
 
-        const detail = document.getElementById('group-detail');
-        const placeholder = document.getElementById('group-detail-placeholder');
-        placeholder.style.display = 'none';
-        detail.style.display = 'block';
-        detail.innerHTML = '';
-
-        // ── Header: group name + description ──
+        // Header
         const header = document.createElement('div');
-        header.className = 'group-detail-header';
-
-        const title = document.createElement('h3');
-        title.className = 'group-detail-title';
-        title.textContent = data.groupName || `Group ${groupID}`;
-        header.appendChild(title);
-
-        const desc = document.createElement('p');
-        desc.className = 'group-detail-desc';
-        desc.textContent = data.description || 'No description provided.';
-        header.appendChild(desc);
-
-        const meta = document.createElement('div');
-        meta.className = 'group-detail-meta';
-        meta.textContent = `👥 ${data.memberCount !== undefined ? data.memberCount : '—'} members`;
-        header.appendChild(meta);
-
-        detail.appendChild(header);
-
-        // Join/Leave buttons only for real groups (id>0)
-        if (groupID > 0) {
-            const isMember = data.isMember === true;
-            const btnContainer = document.createElement('div');
-            btnContainer.style = 'margin-bottom:18px; display:flex; gap:10px;';
-
-
-
-            if (isMember) {
-                const leaveBtn = document.createElement('button');
-                leaveBtn.style = 'padding:10px 16px; background: none; border: 1px solid #D9534F; color: #D9534F; border-radius: 8px; font-weight: 600; cursor: pointer;';
-                leaveBtn.textContent = 'Leave Group';
-                leaveBtn.onclick = async () => {
-                    await leaveGroup(groupID);
-                };
-                btnContainer.appendChild(leaveBtn);
-            }
-
-            if (btnContainer.children.length > 0) {
-                detail.appendChild(btnContainer);
-            }
+        // Capacity: cap excludes the owner, so show joined/cap using the non-owner count.
+        let capacityText;
+        if (data.maxMembers != null) {
+            const joined = data.nonOwnerMemberCount != null ? data.nonOwnerMemberCount : '—';
+            capacityText = `👥 ${joined} / ${data.maxMembers} members${(typeof joined === 'number' && joined >= data.maxMembers) ? ' · Full' : ''}`;
         } else {
-            const info = document.createElement('div');
-            info.style = 'margin-top:16px; color:#6C7D93;';
-            info.textContent = 'This is a default group. Joining is not required.';
-            detail.appendChild(info);
-            return;
+            capacityText = `👥 ${data.memberCount !== undefined ? data.memberCount : '—'} members`;
         }
+        header.innerHTML = `<h3 style="margin:0 0 4px; color:#1B2F5E;">${escapeHtml(data.groupName)}</h3>
+            <p style="color:#6C7D93; margin:0 0 10px; font-size:0.9rem;">${escapeHtml(data.description || 'No description.')}</p>
+            <div style="color:#A0B2D6; font-size:0.85rem; margin-bottom:18px;">${capacityText}</div>`;
+        body.appendChild(header);
 
-        // ── Body: members (left) + tasks (right) ──
-        const body = document.createElement('div');
-        body.className = 'group-detail-body';
-
-        // Members panel
-        const membersPanel = document.createElement('div');
-        membersPanel.className = 'group-members-panel';
-        const membersTitle = document.createElement('h4');
-        membersTitle.textContent = 'Members';
-        membersPanel.appendChild(membersTitle);
-
-        const members = data.members || [];
-        if (members.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'group-empty-state';
-            empty.textContent = 'No members yet.';
-            membersPanel.appendChild(empty);
-        } else {
-            members.forEach(m => {
-                const row = document.createElement('div');
-                row.className = 'group-member-row';
-
-                const avatar = document.createElement('div');
-                avatar.className = 'group-member-avatar';
-                avatar.textContent = ((m.name || '?')[0] + (m.surname || '?')[0]).toUpperCase();
-                row.appendChild(avatar);
-
-                const info = document.createElement('div');
-                info.className = 'group-member-info';
-
-                const name = document.createElement('div');
-                name.className = 'group-member-name';
-                name.textContent = `${m.name || ''} ${m.surname || ''}`.trim();
-                name.style.cursor = 'pointer';
-                name.onclick = () => showUserPopup(m.userID);
-                info.appendChild(name);
-
-                const role = document.createElement('div');
-                role.className = 'group-member-role';
-                role.textContent = m.role === 'OWNER' ? 'Owner' : 'Member';
-                info.appendChild(role);
-
-                row.appendChild(info);
-                membersPanel.appendChild(row);
-            });
-        }
-        body.appendChild(membersPanel);
-
-        // Tasks panel
-        const tasksPanel = document.createElement('div');
-        tasksPanel.className = 'group-tasks-panel';
-        const tasksTitle = document.createElement('h4');
-        tasksTitle.textContent = 'Tasks';
-        tasksPanel.appendChild(tasksTitle);
-
-        // Load tasks for this group
-        try {
-            const tasksResp = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
-            const tasksData = await tasksResp.json();
-            if (tasksResp.ok && Array.isArray(tasksData)) {
-                if (tasksData.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.className = 'group-empty-state';
-                    empty.textContent = 'No tasks yet.';
-                    tasksPanel.appendChild(empty);
-                } else {
-                    tasksData.forEach(task => {
-                        tasksPanel.appendChild(renderTaskCard(task, user));
-                    });
-                }
-            } else {
-                const empty = document.createElement('div');
-                empty.className = 'group-empty-state';
-                empty.textContent = 'Could not load tasks.';
-                tasksPanel.appendChild(empty);
-            }
-        } catch (err) {
-            console.error(err);
-            const empty = document.createElement('div');
-            empty.className = 'group-empty-state';
-            empty.textContent = 'Could not load tasks.';
-            tasksPanel.appendChild(empty);
-        }
-
-        body.appendChild(tasksPanel);
-        detail.appendChild(body);
-
-        // ── Actions: Join (non-members) / Create Task (lecturers) ──
-        const actions = document.createElement('div');
-        actions.className = 'group-detail-actions';
-
+        // Actions
         const isMember = data.isMember === true;
+        const actions = document.createElement('div');
+        actions.style = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;';
         if (!isMember) {
             const joinBtn = document.createElement('button');
             joinBtn.className = 'group-join-btn';
             joinBtn.textContent = 'Join Group';
-            joinBtn.onclick = async () => {
-                await joinGroup(groupID);
-            };
+            joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
             actions.appendChild(joinBtn);
+        } else {
+            const leaveBtn = document.createElement('button');
+            leaveBtn.style = 'padding:8px 16px; background:none; border:1px solid #D9534F; color:#D9534F; border-radius:8px; font-weight:600; cursor:pointer;';
+            leaveBtn.textContent = 'Leave Group';
+            leaveBtn.onclick = () => leaveGroup(groupID);
+            actions.appendChild(leaveBtn);
         }
-
         if (isMember && user && user.userType === 'LECTURER') {
-            const createTaskBtn = document.createElement('button');
-            createTaskBtn.className = 'group-create-task-btn';
-            createTaskBtn.textContent = '+ Create Task';
-            createTaskBtn.onclick = () => openCreateTaskModal(groupID);
-            actions.appendChild(createTaskBtn);
+            const createBtn = document.createElement('button');
+            createBtn.className = 'group-create-task-btn';
+            createBtn.textContent = '+ Create Quiz';
+            createBtn.onclick = () => openCreateTaskModal(groupID);
+            actions.appendChild(createBtn);
         }
+        if (actions.children.length) body.appendChild(actions);
 
-        if (actions.children.length > 0) {
-            detail.appendChild(actions);
+        // Two-panel: leaderboard (left) + tasks (right)
+        const panels = document.createElement('div');
+        panels.style = 'display:flex; gap:20px;';
+
+        // Leaderboard
+        const lbPanel = document.createElement('div');
+        lbPanel.style = 'flex:1; min-width:0;';
+        lbPanel.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Member Leaderboard</h4>';
+        const members = data.members || [];
+        if (members.length === 0) {
+            lbPanel.innerHTML += '<div class="group-empty-state">No members yet.</div>';
+        } else {
+            members.forEach((m, i) => {
+                const row = document.createElement('div');
+                row.className = `group-leaderboard-row ${i < 3 ? 'rank-' + (i + 1) : ''}`;
+                const balance = m.balance != null ? parseFloat(m.balance).toFixed(2) : '0.00';
+                row.innerHTML =
+                    `<div class="group-leaderboard-rank">${i + 1}</div>
+                     <div class="group-leaderboard-name" onclick="showUserPopup(${m.userID})">${escapeHtml((m.name || '') + ' ' + (m.surname || ''))}</div>
+                     <span class="group-leaderboard-role">${m.role === 'OWNER' ? 'Owner' : ''}</span>
+                     <span class="group-leaderboard-balance">${balance} MB</span>`;
+                lbPanel.appendChild(row);
+            });
         }
+        panels.appendChild(lbPanel);
+
+        // Tasks (quizzes)
+        const tkPanel = document.createElement('div');
+        tkPanel.style = 'flex:1; min-width:0;';
+        tkPanel.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Quizzes</h4>';
+        try {
+            const tr = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
+            const td = await tr.json();
+            if (tr.ok && Array.isArray(td)) {
+                if (td.length === 0) {
+                    tkPanel.innerHTML += '<div class="group-empty-state">No quizzes yet.</div>';
+                } else {
+                    td.forEach(task => tkPanel.appendChild(renderTaskCard(task, user)));
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            tkPanel.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
+        }
+        panels.appendChild(tkPanel);
+        body.appendChild(panels);
+
+        // Show the modal
+        document.getElementById('group-detail-modal').classList.remove('hidden');
     } catch (err) {
         console.error(err);
         showToast('Error loading group detail', 'error');
     }
 }
 
+// ── Quiz task card in group detail ──
 function renderTaskCard(task, user) {
     const card = document.createElement('div');
-    card.className = 'task-card';
+    card.style = 'border:1px solid #EEF2F9; border-radius:12px; padding:14px; margin-bottom:10px;';
+    const qCount = task.questionCount || 0;
+    const submitted = task.submitted === true;
 
-    const question = document.createElement('p');
-    question.className = 'task-card-question';
-    question.textContent = task.title || task.question || 'No question';
-    card.appendChild(question);
+    let statusHtml = '';
+    if (submitted) {
+        statusHtml = `<span style="color:#28A745; font-weight:700;">Score: ${task.score}/${qCount} — ${task.awardedMadibucks} MB</span>`;
+    } else {
+        statusHtml = `<span style="color:#6C7D93;">${qCount} question${qCount !== 1 ? 's' : ''}</span>`;
+    }
+    card.innerHTML =
+        `<div style="font-weight:700; color:#1B2F5E; margin-bottom:4px;">${escapeHtml(task.title)}</div>
+         <div style="font-size:0.85rem; margin-bottom:10px;">${statusHtml}</div>`;
 
-    const reward = document.createElement('div');
-    reward.className = 'task-card-reward';
-    reward.textContent = `Reward: ${parseFloat(task.amount || 0).toFixed(2)} MB`;
-    card.appendChild(reward);
+    const actions = document.createElement('div');
+    actions.style = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;';
 
-    const isAnswered = task.answered === true;
-    const isCorrect = task.isCorrect === true;
-
-    // Answer feedback block (hidden until the student answers)
-    const answerFeedback = document.createElement('div');
-    answerFeedback.className = 'task-answer-feedback';
-    answerFeedback.style = 'margin-top: 8px; padding: 8px; display: none; border-radius: 4px;';
-
-    const toggle = document.createElement('div');
-    toggle.className = 'task-answer-toggle';
-
-    const trueBtn = document.createElement('button');
-    trueBtn.className = 'task-answer-btn';
-    trueBtn.textContent = 'True';
-    const falseBtn = document.createElement('button');
-    falseBtn.className = 'task-answer-btn';
-    falseBtn.textContent = 'False';
-
-    // ── Answer flow: select → confirm → locked ──
-    let selectedAnswer = null;
-    let confirmationPopup = null;
-
-    const hideConfirmationPopup = () => {
-        if (confirmationPopup) {
-            confirmationPopup.remove();
-            confirmationPopup = null;
-        }
-    };
-
-    const confirmAndSubmit = (value) => {
-        submitTaskAnswer(task.taskID, value);
-        hideConfirmationPopup();
-    };
-
-    const selectAnswer = (value) => {
-        // Already answered --- can't change
-        if (isAnswered) return;
-        selectedAnswer = value;
-        trueBtn.classList.toggle('selected', value === true);
-        falseBtn.classList.toggle('selected', value === false);
-        showConfirmationPopup(value);
-    };
-
-    trueBtn.onclick = () => selectAnswer(true);
-    falseBtn.onclick = () => selectAnswer(false);
-
-    const showConfirmationPopup = (value) => {
-        // Remove existing popup if any
-        hideConfirmationPopup();
-
-        confirmationPopup = document.createElement('div');
-        confirmationPopup.className = 'task-confirm-popup';
-
-        const content = document.createElement('div');
-        content.className = 'task-confirm-popup-content';
-
-        const msg = document.createElement('p');
-        msg.appendChild(document.createTextNode('Are you sure you want to answer '));
-        const strong = document.createElement('strong');
-        strong.textContent = value ? 'True' : 'False';
-        msg.appendChild(strong);
-        msg.appendChild(document.createTextNode('?'));
-        content.appendChild(msg);
-
-        const btnRow = document.createElement('div');
-        btnRow.style = 'display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;';
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.type = 'button';
-        confirmBtn.className = 'task-confirm-yes';
-        confirmBtn.textContent = 'Confirm Answer';
-        confirmBtn.onclick = () => confirmAndSubmit(value);
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'task-confirm-cancel';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = hideConfirmationPopup;
-
-        btnRow.appendChild(confirmBtn);
-        btnRow.appendChild(cancelBtn);
-        content.appendChild(btnRow);
-        confirmationPopup.appendChild(content);
-        card.appendChild(confirmationPopup);
-    };
-
-    if (isAnswered) {
-        trueBtn.disabled = true;
-        falseBtn.disabled = true;
-
-        // Show feedback based on whether the answer was right
-        answerFeedback.style.display = 'block';
-
-        if (isCorrect) {
-            trueBtn.classList.add('correct');
-        } else {
-            falseBtn.classList.add('incorrect');
-        }
-
-        const note = document.createElement('div');
-        note.className = `task-answered-note${isCorrect ? '' : ' incorrect'}`;
-        note.textContent = isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer';
-        answerFeedback.appendChild(note);
+    if (!submitted && user && user.userType === 'STUDENT') {
+        const takeBtn = document.createElement('button');
+        takeBtn.className = 'btn btn-gold-cta';
+        takeBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
+        takeBtn.textContent = 'Take Quiz';
+        takeBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
+        actions.appendChild(takeBtn);
+    } else if (submitted) {
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn';
+        viewBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px; border:1px solid #E6EDF7;';
+        viewBtn.textContent = 'View Results';
+        viewBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
+        actions.appendChild(viewBtn);
     }
 
-    toggle.appendChild(trueBtn);
-    toggle.appendChild(falseBtn);
-    card.appendChild(toggle);
-    card.appendChild(answerFeedback);
+    // Lecturers can delete a quiz (also enforced on the backend).
+    if (user && user.userType === 'LECTURER') {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'admin-delete-query-btn';
+        delBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteTask(task.taskID); };
+        actions.appendChild(delBtn);
+    }
 
+    if (actions.children.length) card.appendChild(actions);
     return card;
 }
 
-async function submitTaskAnswer(taskID, answer, confirmBtn) {
+// Delete a quiz (lecturer only). Backend also enforces the role.
+async function deleteTask(taskID) {
     const saved = sessionStorage.getItem('user');
-    if (!saved) { showToast('You must be logged in to answer tasks.', 'error'); return; }
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
     const user = JSON.parse(saved);
-    if (answer === null || answer === undefined) {
-        showToast('Please select True or False before confirming.', 'error');
-        return;
-    }
-    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Submitting...'; }
+    if (user.userType !== 'LECTURER') { showToast('Only lecturers can delete quizzes.', 'error'); return; }
+
+    const confirmed = await showConfirmModal('Delete Quiz', 'Are you sure you want to delete this quiz? This also removes all student submissions and cannot be undone.');
+    if (!confirmed) return;
 
     try {
-        const resp = await fetch(`${API_BASE}/tasks/${taskID}/answer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userID: user.userID, answer })
-        });
-        const data = await resp.json();
+        const resp = await fetch(`${API_BASE}/tasks/${taskID}?userID=${user.userID}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
         if (resp.ok) {
-            if (data.correct === true) {
-                showToast('Correct answer! MadiBucks awarded.', 'success');
-            } else if (data.correct === false) {
-                showToast('Incorrect answer. No MadiBucks awarded.', 'error');
-            } else {
-                showToast('Answer submitted!', 'success');
-            }
-            if (currentGroupID) loadGroupDetail(currentGroupID);
-        } else if (resp.status === 409) {
-            showToast('You have already answered this task.', 'error');
+            showToast('Quiz deleted.', 'success');
             if (currentGroupID) loadGroupDetail(currentGroupID);
         } else {
-            showToast(data.error || 'Failed to submit answer', 'error');
+            showToast(data.error || 'Failed to delete quiz', 'error');
         }
     } catch (err) {
         console.error(err);
-        showToast('Server error submitting answer', 'error');
-    } finally {
-        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Answer'; }
+        showToast('Server error deleting quiz', 'error');
     }
 }
 
-// ── Create Task Modal (lecturer only) ──
+// ── Take / view quiz ──
+let takeQuizData = null; // holds the fetched quiz while the student answers
+
+function closeTakeQuizModal(event) {
+    if (event && event.target && event.target.id !== 'take-quiz-modal') return;
+    document.getElementById('take-quiz-modal').classList.add('hidden');
+    takeQuizData = null;
+}
+
+async function openTakeQuiz(taskID) {
+    const saved = sessionStorage.getItem('user');
+    const user = saved ? JSON.parse(saved) : null;
+    try {
+        const resp = await fetch(`${API_BASE}/tasks/${taskID}/quiz?userId=${user ? user.userID : 0}`);
+        const data = await resp.json();
+        if (!resp.ok) { showToast(data.error || 'Failed to load quiz', 'error'); return; }
+        takeQuizData = data;
+        renderTakeQuiz(data, user);
+        document.getElementById('take-quiz-modal').classList.remove('hidden');
+    } catch (err) {
+        console.error(err);
+        showToast('Error loading quiz', 'error');
+    }
+}
+
+function renderTakeQuiz(data, user) {
+    document.getElementById('take-quiz-title').textContent = data.title || 'Quiz';
+    const body = document.getElementById('take-quiz-body');
+    body.innerHTML = '';
+    const submitBtn = document.getElementById('take-quiz-submit-btn');
+    const resultEl = document.getElementById('take-quiz-result');
+    resultEl.textContent = '';
+
+    const submitted = data.submitted === true;
+
+    (data.questions || []).forEach((q, i) => {
+        const qDiv = document.createElement('div');
+        qDiv.className = 'quiz-take-question';
+        qDiv.innerHTML = `<p class="quiz-take-prompt"><span class="quiz-take-qnum">Q${i + 1}.</span> ${escapeHtml(q.prompt)}</p>`;
+
+        (q.options || []).forEach(o => {
+            const oDiv = document.createElement('div');
+            oDiv.className = 'quiz-take-option';
+            oDiv.dataset.questionId = q.questionID;
+            oDiv.dataset.optionId = o.optionID;
+            oDiv.innerHTML = `<span>${escapeHtml(o.optionText)}</span>`;
+
+            if (submitted) {
+                oDiv.classList.add('disabled');
+                if (o.isCorrect) oDiv.classList.add('correct');
+                if (q.chosenOptionID === o.optionID && !o.isCorrect) oDiv.classList.add('incorrect');
+                if (q.chosenOptionID === o.optionID) oDiv.classList.add('selected');
+            } else if (user && user.userType === 'STUDENT') {
+                oDiv.onclick = () => selectQuizOption(q.questionID, o.optionID);
+            } else {
+                oDiv.classList.add('disabled');
+            }
+            qDiv.appendChild(oDiv);
+        });
+        body.appendChild(qDiv);
+    });
+
+    if (submitted) {
+        submitBtn.style.display = 'none';
+        resultEl.textContent = `Score: ${data.score}/${(data.questions || []).length} — ${data.awardedMadibucks} MadiBucks earned`;
+    } else if (user && user.userType === 'STUDENT') {
+        submitBtn.style.display = '';
+        submitBtn.disabled = true;
+    } else {
+        submitBtn.style.display = 'none';
+    }
+}
+
+function selectQuizOption(questionID, optionID) {
+    // deselect siblings, select this one
+    document.querySelectorAll(`.quiz-take-option[data-question-id="${questionID}"]`).forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.optionId) === optionID);
+    });
+    // enable submit if every question has a selection
+    const questions = takeQuizData?.questions || [];
+    const allAnswered = questions.every(q => {
+        return document.querySelector(`.quiz-take-option[data-question-id="${q.questionID}"].selected`);
+    });
+    const btn = document.getElementById('take-quiz-submit-btn');
+    if (btn) btn.disabled = !allAnswered;
+}
+
+async function submitQuiz() {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
+    const user = JSON.parse(saved);
+    if (!takeQuizData) return;
+
+    const answers = (takeQuizData.questions || []).map(q => {
+        const sel = document.querySelector(`.quiz-take-option[data-question-id="${q.questionID}"].selected`);
+        return { questionID: q.questionID, chosenOptionID: sel ? parseInt(sel.dataset.optionId) : null };
+    });
+
+    const btn = document.getElementById('take-quiz-submit-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+    try {
+        const resp = await fetch(`${API_BASE}/tasks/${takeQuizData.taskID}/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, answers })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showToast(`Quiz submitted! ${data.score}/${data.total} correct — ${data.awardedMadibucks} MadiBucks earned`, 'success');
+            // Re-fetch the quiz to show results
+            await openTakeQuiz(takeQuizData.taskID);
+            // Refresh group detail behind the quiz modal
+            if (currentGroupID) loadGroupDetail(currentGroupID);
+        } else if (resp.status === 409) {
+            showToast('You have already completed this quiz.', 'error');
+        } else {
+            showToast(data.error || 'Failed to submit quiz', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error submitting quiz', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit Quiz'; }
+    }
+}
+
+// ── Create Quiz Modal (lecturer only) ──
+let quizQuestions = []; // builder state
+
 function openCreateTaskModal(groupID) {
     currentGroupID = groupID;
-    document.getElementById('new-task-question').value = '';
-    document.getElementById('new-task-amount').value = '50';
-    taskCorrectAnswer = true;
-    setTaskCorrectAnswer(true);
+    quizQuestions = [];
+    document.getElementById('new-quiz-title').value = '';
+    document.getElementById('quiz-questions-container').innerHTML = '';
+    addQuizQuestion(); // start with one question
     document.getElementById('create-task-modal').classList.remove('hidden');
 }
 
-// Decrease task reward amount by 1 (min 1)
-function decreaseTaskAmount() {
-    const input = document.getElementById('new-task-amount');
-    const val = parseInt(input.value) || 50;
-    input.value = Math.max(1, val - 1);
-}
-
-// Increase task reward amount by 1
-function increaseTaskAmount() {
-    const input = document.getElementById('new-task-amount');
-    const val = parseInt(input.value) || 50;
-    input.value = val + 1;
-}
-
 function closeCreateTaskModal(event) {
-    if (event && event.target && event.target.id !== 'create-task-modal') {
-        return;
-    }
-    const modal = document.getElementById('create-task-modal');
-    if (modal) modal.classList.add('hidden');
+    if (event && event.target && event.target.id !== 'create-task-modal') return;
+    document.getElementById('create-task-modal').classList.add('hidden');
 }
 
-function setTaskCorrectAnswer(value) {
-    taskCorrectAnswer = value;
-    const trueBtn = document.getElementById('task-answer-true');
-    const falseBtn = document.getElementById('task-answer-false');
-    if (trueBtn && falseBtn) {
-        trueBtn.classList.toggle('selected', value === true);
-        falseBtn.classList.toggle('selected', value === false);
+function addQuizQuestion() {
+    if (quizQuestions.length >= 10) return;
+    const idx = quizQuestions.length;
+    const q = { type: 'TRUE_FALSE', options: [
+        { text: 'True', isCorrect: true },
+        { text: 'False', isCorrect: false }
+    ]};
+    quizQuestions.push(q);
+    renderQuizBuilder();
+}
+
+function removeQuizQuestion(idx) {
+    quizQuestions.splice(idx, 1);
+    renderQuizBuilder();
+}
+
+function setQuizQuestionType(idx, type) {
+    const q = quizQuestions[idx];
+    if (!q) return;
+    q.type = type;
+    if (type === 'TRUE_FALSE') {
+        q.options = [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }];
+    } else {
+        q.options = [{ text: '', isCorrect: true }, { text: '', isCorrect: false }];
     }
+    renderQuizBuilder();
+}
+
+function addQuizOption(qIdx) {
+    const q = quizQuestions[qIdx];
+    if (!q || q.options.length >= 4) return;
+    q.options.push({ text: '', isCorrect: false });
+    renderQuizBuilder();
+}
+
+function renderQuizBuilder() {
+    const container = document.getElementById('quiz-questions-container');
+    container.innerHTML = '';
+
+    quizQuestions.forEach((q, qi) => {
+        const block = document.createElement('div');
+        block.className = 'quiz-question-builder';
+        let html = `<div class="quiz-question-builder-header"><h4>Question ${qi + 1}</h4><button class="quiz-q-remove" onclick="removeQuizQuestion(${qi})">✕ Remove</button></div>`;
+        html += `<div class="form-field-group"><label>Prompt</label><textarea class="quiz-q-prompt" data-qi="${qi}" rows="2" placeholder="Enter the question text">${escapeHtml(q.prompt || '')}</textarea></div>`;
+        html += `<div class="quiz-type-toggle">
+            <button type="button" class="quiz-type-btn ${q.type === 'TRUE_FALSE' ? 'selected' : ''}" onclick="setQuizQuestionType(${qi},'TRUE_FALSE')">True / False</button>
+            <button type="button" class="quiz-type-btn ${q.type === 'MULTIPLE_CHOICE' ? 'selected' : ''}" onclick="setQuizQuestionType(${qi},'MULTIPLE_CHOICE')">Multiple Choice</button>
+        </div>`;
+        html += '<div class="quiz-options-list">';
+        q.options.forEach((o, oi) => {
+            const disabled = q.type === 'TRUE_FALSE' ? 'disabled' : '';
+            html += `<div class="quiz-option-row">
+                <input type="text" class="quiz-o-text" data-qi="${qi}" data-oi="${oi}" value="${escapeHtml(o.text)}" placeholder="Option ${oi + 1}" ${disabled} />
+                <label class="quiz-option-correct-label"><input type="radio" name="quiz-correct-${qi}" data-qi="${qi}" data-oi="${oi}" ${o.isCorrect ? 'checked' : ''} onchange="setQuizCorrect(${qi},${oi})" /> Correct</label>
+            </div>`;
+        });
+        html += '</div>';
+        if (q.type === 'MULTIPLE_CHOICE' && q.options.length < 4) {
+            html += `<button type="button" class="quiz-add-option-btn" onclick="addQuizOption(${qi})">+ Add Option</button>`;
+        }
+        block.innerHTML = html;
+        container.appendChild(block);
+    });
+
+    // Sync prompt/option text on every input event
+    container.querySelectorAll('.quiz-q-prompt').forEach(el => {
+        el.oninput = () => { quizQuestions[parseInt(el.dataset.qi)].prompt = el.value; };
+    });
+    container.querySelectorAll('.quiz-o-text').forEach(el => {
+        el.oninput = () => { quizQuestions[parseInt(el.dataset.qi)].options[parseInt(el.dataset.oi)].text = el.value; };
+    });
+
+    const addBtn = document.getElementById('quiz-add-question-btn');
+    if (addBtn) addBtn.disabled = quizQuestions.length >= 10;
+}
+
+function setQuizCorrect(qi, oi) {
+    const q = quizQuestions[qi];
+    if (!q) return;
+    q.options.forEach((o, i) => o.isCorrect = (i === oi));
 }
 
 async function createTask() {
     const saved = sessionStorage.getItem('user');
-    if (!saved) { showToast('You must be logged in to create tasks.', 'error'); return; }
+    if (!saved) { showToast('You must be logged in to create quizzes.', 'error'); return; }
     const user = JSON.parse(saved);
-    if (user.userType !== 'LECTURER') {
-        showToast('Only lecturers can create tasks.', 'error');
-        return;
+    if (user.userType !== 'LECTURER') { showToast('Only lecturers can create quizzes.', 'error'); return; }
+
+    const title = (document.getElementById('new-quiz-title').value || '').trim();
+    if (!title) { showToast('Please enter a quiz title.', 'error'); return; }
+    if (quizQuestions.length === 0) { showToast('Add at least one question.', 'error'); return; }
+
+    // Sync final prompt values from the textareas
+    document.querySelectorAll('.quiz-q-prompt').forEach(el => {
+        quizQuestions[parseInt(el.dataset.qi)].prompt = el.value;
+    });
+    document.querySelectorAll('.quiz-o-text').forEach(el => {
+        quizQuestions[parseInt(el.dataset.qi)].options[parseInt(el.dataset.oi)].text = el.value;
+    });
+
+    // Validate
+    for (let i = 0; i < quizQuestions.length; i++) {
+        const q = quizQuestions[i];
+        if (!(q.prompt || '').trim()) { showToast(`Question ${i + 1} needs a prompt.`, 'error'); return; }
+        if (q.options.filter(o => o.isCorrect).length !== 1) { showToast(`Question ${i + 1} must have exactly one correct answer.`, 'error'); return; }
+        for (const o of q.options) {
+            if (!o.text.trim()) { showToast(`Question ${i + 1}: all options need text.`, 'error'); return; }
+        }
     }
 
-    const question = document.getElementById('new-task-question').value.trim();
-    const amount = parseFloat(document.getElementById('new-task-amount').value) || 50;
-    if (!question) {
-        showToast('Please enter a question.', 'error');
-        return;
-    }
+    const questions = quizQuestions.map(q => ({
+        prompt: q.prompt.trim(),
+        type: q.type,
+        options: q.options.map(o => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
+    }));
 
     try {
         const resp = await fetch(`${API_BASE}/groups/${currentGroupID}/tasks`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                question,
-                correctAnswer: taskCorrectAnswer,
-                amount,
-                createdBy: user.userID
-            })
+            body: JSON.stringify({ title, createdBy: user.userID, questions })
         });
         const data = await resp.json();
         if (resp.status === 201) {
-            showToast('Task created successfully!', 'success');
+            showToast('Quiz created successfully!', 'success');
             closeCreateTaskModal();
-            loadGroupDetail(currentGroupID);
+            if (currentGroupID) loadGroupDetail(currentGroupID);
         } else {
-            showToast(data.error || 'Failed to create task', 'error');
+            showToast(data.error || 'Failed to create quiz', 'error');
         }
     } catch (err) {
         console.error(err);
-        showToast('Server error creating task', 'error');
+        showToast('Server error creating quiz', 'error');
     }
 }
 
+// ── Group create + join (with password support) + leave ──
 function openCreateGroupModal() {
     document.getElementById('create-group-modal').classList.remove('hidden');
 }
 
 function closeCreateGroupModal(event) {
-    if (event && event.target && event.target.id !== 'create-group-modal') {
-        return;
-    }
+    if (event && event.target && event.target.id !== 'create-group-modal') return;
     const modal = document.getElementById('create-group-modal');
     if (modal) modal.classList.add('hidden');
-    const nameInput = document.getElementById('new-group-name');
-    const descInput = document.getElementById('new-group-desc');
-    if (nameInput) nameInput.value = '';
-    if (descInput) descInput.value = '';
+    ['new-group-name', 'new-group-desc', 'new-group-password', 'new-group-max-members'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
 }
 
 async function createGroup() {
-    const name = document.getElementById('new-group-name').value.trim();
-    const desc = document.getElementById('new-group-desc').value.trim();
+    const name = (document.getElementById('new-group-name').value || '').trim();
+    const desc = (document.getElementById('new-group-desc').value || '').trim();
+    const password = (document.getElementById('new-group-password').value || '').trim();
+    const maxMembersRaw = (document.getElementById('new-group-max-members').value || '').trim();
     const saved = sessionStorage.getItem('user');
     if (!saved) { showToast('You must be logged in to create groups.', 'error'); return; }
     const user = JSON.parse(saved);
     if (!name) { showToast('Please provide a group name.', 'error'); return; }
 
+    let maxMembers = null;
+    if (maxMembersRaw) {
+        maxMembers = parseInt(maxMembersRaw, 10);
+        if (isNaN(maxMembers) || maxMembers < 1) {
+            showToast('Max members must be a positive number.', 'error');
+            return;
+        }
+    }
+
+    const payload = { groupName: name, description: desc, createdBy: user.userID };
+    if (password) payload.password = password;
+    if (maxMembers != null) payload.maxMembers = maxMembers;
+
     try {
         const resp = await fetch(`${API_BASE}/groups`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupName: name, description: desc, createdBy: user.userID })
+            body: JSON.stringify(payload)
         });
         const data = await resp.json();
         if (resp.status === 201) {
@@ -806,15 +859,48 @@ async function createGroup() {
     }
 }
 
-async function joinGroup(groupID) {
+// Join — prompt for password if the group is protected.
+let pendingJoinGroupID = null;
+
+async function joinGroup(groupID, hasPassword) {
     const saved = sessionStorage.getItem('user');
     if (!saved) { showToast('You must be logged in to join groups.', 'error'); return; }
+
+    if (hasPassword) {
+        pendingJoinGroupID = groupID;
+        document.getElementById('group-password-input').value = '';
+        document.getElementById('group-password-modal').classList.remove('hidden');
+        document.getElementById('group-password-input').focus();
+        return;
+    }
+
+    await doJoinGroup(groupID, null);
+}
+
+async function submitGroupPassword() {
+    const pw = (document.getElementById('group-password-input').value || '').trim();
+    if (!pw) { showToast('Please enter the group password.', 'error'); return; }
+    closeGroupPasswordModal();
+    await doJoinGroup(pendingJoinGroupID, pw);
+    pendingJoinGroupID = null;
+}
+
+function closeGroupPasswordModal() {
+    const m = document.getElementById('group-password-modal');
+    if (m) m.classList.add('hidden');
+}
+
+async function doJoinGroup(groupID, password) {
+    const saved = sessionStorage.getItem('user');
     const user = JSON.parse(saved);
+    const payload = { userID: user.userID };
+    if (password) payload.password = password;
+
     try {
         const resp = await fetch(`${API_BASE}/groups/${groupID}/join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userID: user.userID })
+            body: JSON.stringify(payload)
         });
         const data = await resp.json();
         if (resp.ok) {
@@ -823,6 +909,8 @@ async function joinGroup(groupID) {
             refreshGroups();
         } else if (resp.status === 409) {
             showToast('You are already a member of this group.', 'error');
+        } else if (resp.status === 401 || resp.status === 403) {
+            showToast(data.error || 'Incorrect password.', 'error');
         } else {
             showToast(data.error || 'Failed to join group', 'error');
         }
