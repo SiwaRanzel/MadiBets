@@ -262,6 +262,7 @@
                             </svg>
                         </span>
                         <span class="menu-text">Friends</span>
+                        <span class="nav-badge" id="friends-request-badge">0</span>
                     </a>
                     <a href="#" class="menu-item" id="nav-help-student" data-label="Help"
                         onclick="switchPanel('panel-help'); return false;">
@@ -1293,11 +1294,22 @@
                 <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Top Rankings</h3>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <span style="color: #A0B2D6; font-size: 0.85rem; margin-right: 8px;">Sort by:</span>
-                            <button class="lb-sort-btn lb-sort-active" id="lb-sort-balance" onclick="changeLeaderboardSort('balance', this)">MadiBucks</button>
-                            <button class="lb-sort-btn" id="lb-sort-wins" onclick="changeLeaderboardSort('wins', this)">Most Bets Won</button>
-                            <button class="lb-sort-btn" id="lb-sort-totalBets" onclick="changeLeaderboardSort('totalBets', this)">Most Bets Placed</button>
+                        <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <span style="color: #A0B2D6; font-size: 0.85rem;">Sort by:</span>
+                                <select id="lb-sort-select" onchange="applyLeaderboardControls()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                    <option value="balance">Most MadiBucks</option>
+                                    <option value="wins">Most Bets Won</option>
+                                    <option value="totalBets">Most Bets Placed</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <span style="color: #A0B2D6; font-size: 0.85rem;">Show:</span>
+                                <select id="lb-scope-select" onchange="applyLeaderboardControls()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                    <option value="all">Everyone</option>
+                                    <option value="friends">My Friends</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
@@ -1331,7 +1343,8 @@
                             <select id="bet-history-status-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
                                 <option value="all">All Status</option>
                                 <option value="PENDING">Pending</option>
-                                <option value="completed">Completed</option>
+                                <option value="WON">Won</option>
+                                <option value="LOST">Lost</option>
                             </select>
                         </div>
                     </div>

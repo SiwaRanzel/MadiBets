@@ -67,6 +67,16 @@ public class LeaderboardDAO {
     // Returns top N users with rank, name, balance, and bet stats.
     // ------------------------------------------------------------------
     public List<Map<String, Object>> getRankings(int limit, String sortBy) throws SQLException {
+        return getRankings(limit, sortBy, "all", 0, 0);
+    }
+
+    /**
+     * Scoped rankings. scope: "all" (everyone), "friends" (the given user's
+     * accepted friends plus themselves), or "group" (members of the given
+     * group, including its owner). Rank is computed within the filtered set.
+     */
+    public List<Map<String, Object>> getRankings(int limit, String sortBy,
+                                                  String scope, int userID, int groupID) throws SQLException {
         // Multi-outcome markets: a win = the user's wager backed the winning outcome.
         String winsSub  = "(SELECT COUNT(*) FROM Wager w JOIN Bet b ON w.betID = b.betID "
                         + "WHERE w.userID = u.userID AND b.outcome = 'DECIDED' "
@@ -85,18 +95,43 @@ public class LeaderboardDAO {
                 break;
         }
 
+        // Build the scope filter. Parameters are appended in order after LIMIT-less
+        // placeholders; we bind them explicitly below to keep ordering correct.
+        String scopeClause = "";
+        if ("friends".equals(scope)) {
+            // The user's accepted friends (either direction) plus the user themselves.
+            scopeClause = "AND (u.userID = ? OR u.userID IN ("
+                        + "SELECT CASE WHEN requesterID = ? THEN addresseID ELSE requesterID END "
+                        + "FROM Friendship WHERE (requesterID = ? OR addresseID = ?) AND status = 'ACCEPTED')) ";
+        } else if ("group".equals(scope)) {
+            // Members of the group (via GroupMember) plus the group's owner.
+            scopeClause = "AND (u.userID IN (SELECT userID FROM GroupMember WHERE groupID = ?) "
+                        + "OR u.userID = (SELECT createdBy FROM `Group` WHERE groupID = ?)) ";
+        }
+
         String sql = "SELECT u.userID, u.name, u.surname, u.userType, a.balance, "
                    + totalSub + " AS totalBets, "
                    + winsSub + " AS betsWon "
                    + "FROM User u "
                    + "JOIN Account a ON u.userID = a.userID "
                    + "WHERE u.userType = 'STUDENT' "
+                   + scopeClause
                    + "ORDER BY " + orderClause + " "
                    + "LIMIT ?";
         List<Map<String, Object>> rankings = new ArrayList<>();
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, limit);
+            int idx = 1;
+            if ("friends".equals(scope)) {
+                ps.setInt(idx++, userID);
+                ps.setInt(idx++, userID);
+                ps.setInt(idx++, userID);
+                ps.setInt(idx++, userID);
+            } else if ("group".equals(scope)) {
+                ps.setInt(idx++, groupID);
+                ps.setInt(idx++, groupID);
+            }
+            ps.setInt(idx, limit);
             try (ResultSet rs = ps.executeQuery()) {
                 int rank = 1;
                 while (rs.next()) {

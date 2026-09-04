@@ -41,9 +41,13 @@ public class LeaderboardController {
     @GetMapping("/rankings")
     public ResponseEntity<?> getRankings(
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(defaultValue = "balance") String sortBy) {
+            @RequestParam(defaultValue = "balance") String sortBy,
+            @RequestParam(defaultValue = "all") String scope,
+            @RequestParam(defaultValue = "0") int userID,
+            @RequestParam(defaultValue = "0") int groupID) {
         try {
-            List<Map<String, Object>> rankings = leaderboardService.getRankings(limit, sortBy);
+            List<Map<String, Object>> rankings =
+                    leaderboardService.getRankings(limit, sortBy, scope, userID, groupID);
             return ResponseEntity.ok(rankings);
         } catch (Exception e) {
             return ResponseEntity.internalServerError()

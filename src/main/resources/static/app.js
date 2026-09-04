@@ -1403,6 +1403,7 @@ function loadDashboardData(user, balance) {
         switchPanel('panel-dashboard-lecturer');
     } else {
         switchPanel('panel-dashboard');
+        refreshFriendsRequestBadge(user.userID);
     }
 
     showView('dashboard-view');
@@ -2026,6 +2027,8 @@ async function loadPendingRequests(userID) {
             return;
         }
 
+        setFriendsRequestBadge(pending.length);
+
         if (pending.length === 0) {
             container.innerHTML = `<p style="color: #A0B2D6; font-size: 0.95rem;">No pending requests.</p>`;
             return;
@@ -2050,6 +2053,26 @@ async function loadPendingRequests(userID) {
     } catch (err) {
         container.innerHTML = `<p style="color: #D9534F; font-size: 0.95rem;">Error loading requests.</p>`;
         console.error(err);
+    }
+}
+
+/** Red bubble on the Friends nav tab: number of incoming pending requests.
+ *  Same pattern as the Query / Delete Request / Accounting badges — hidden at zero. */
+function setFriendsRequestBadge(count) {
+    const badge = document.getElementById('friends-request-badge');
+    if (!badge) return;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+/** Standalone refresh for login/init, when the Friends panel is not open. */
+async function refreshFriendsRequestBadge(userID) {
+    try {
+        const res = await fetch(`${API_BASE}/friends/${userID}/pending`);
+        const pending = await res.json();
+        if (res.ok) setFriendsRequestBadge((pending || []).length);
+    } catch (err) {
+        console.error('Failed to refresh friends request badge:', err);
     }
 }
 
@@ -2306,11 +2329,46 @@ async function loadLeaderboardData() {
     const user = JSON.parse(sessionStorage.getItem('user'));
     if (!user) return;
 
+    await populateLeaderboardGroupOptions(user.userID);
+
     await Promise.all([
         loadUserStats(user.userID),
         loadRankings(),
         loadBetHistory(user.userID)
     ]);
+}
+
+// Fill the "Show" dropdown with the user's groups, listed after Everyone/My Friends.
+// Each group option carries value "group:<groupID>".
+async function populateLeaderboardGroupOptions(userID) {
+    const select = document.getElementById('lb-scope-select');
+    if (!select) return;
+
+    // Remove any previously-added group options (keep the first two fixed ones).
+    Array.from(select.querySelectorAll('option[data-group="1"]')).forEach(o => o.remove());
+
+    try {
+        const res = await fetch(`${API_BASE}/groups?userId=${userID}`);
+        const groups = await res.json();
+        if (!res.ok || !Array.isArray(groups) || groups.length === 0) return;
+
+        // Optional visual separator (disabled option) before the groups.
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── My Groups ──';
+        sep.setAttribute('data-group', '1');
+        select.appendChild(sep);
+
+        groups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = `group:${g.groupID}`;
+            opt.textContent = g.groupName || `Group ${g.groupID}`;
+            opt.setAttribute('data-group', '1');
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('Failed to load groups for leaderboard filter:', err);
+    }
 }
 
 // C500 — Load user's personal stats (rank, wins, losses, pending)
@@ -2411,14 +2469,25 @@ async function loadLecturerDashboardStats() {
 
 // C500 — Load top rankings table
 let currentLeaderboardSort = 'balance';
+let currentLeaderboardScope = 'all';   // 'all' | 'friends' | 'group'
+let currentLeaderboardGroupID = 0;
 
 async function loadRankings(sortBy) {
     if (sortBy) currentLeaderboardSort = sortBy;
     const tbody = document.getElementById('leaderboard-table-body');
     if (!tbody) return;
 
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    const uid = user ? user.userID : 0;
+
+    let url = `${API_BASE}/leaderboard/rankings?limit=20&sortBy=${currentLeaderboardSort}`
+            + `&scope=${currentLeaderboardScope}&userID=${uid}`;
+    if (currentLeaderboardScope === 'group') {
+        url += `&groupID=${currentLeaderboardGroupID}`;
+    }
+
     try {
-        const response = await fetch(`${API_BASE}/leaderboard/rankings?limit=20&sortBy=${currentLeaderboardSort}`);
+        const response = await fetch(url);
         const rankings = await response.json();
 
         if (!response.ok) {
@@ -2504,8 +2573,10 @@ function filterBetHistory() {
     if (statusVal !== 'all') {
         if (statusVal === 'PENDING') {
             filtered = filtered.filter(b => b.outcome === 'PENDING' || b.outcome === null);
-        } else if (statusVal === 'completed') {
-            filtered = filtered.filter(b => b.outcome === 'YES' || b.outcome === 'NO' || b.outcome === 'CANCELLED');
+        } else if (statusVal === 'WON') {
+            filtered = filtered.filter(b => b.outcome === 'YES');
+        } else if (statusVal === 'LOST') {
+            filtered = filtered.filter(b => b.outcome === 'NO');
         }
     }
 
@@ -2551,14 +2622,23 @@ function renderBetHistory(bets) {
     }).join('');
 }
 
-// Switch leaderboard sort criteria
-function changeLeaderboardSort(sortBy, btnEl) {
-    // Update active button
-    document.querySelectorAll('.lb-sort-btn').forEach(btn => btn.classList.remove('lb-sort-active'));
-    if (btnEl) btnEl.classList.add('lb-sort-active');
+// Read both leaderboard dropdowns (Sort by + Show) and reload the rankings.
+function applyLeaderboardControls() {
+    const sortSelect  = document.getElementById('lb-sort-select');
+    const scopeSelect = document.getElementById('lb-scope-select');
 
-    // Reload rankings with new sort
-    loadRankings(sortBy);
+    if (sortSelect) currentLeaderboardSort = sortSelect.value;
+
+    const scopeVal = scopeSelect ? scopeSelect.value : 'all';
+    if (scopeVal.startsWith('group:')) {
+        currentLeaderboardScope = 'group';
+        currentLeaderboardGroupID = parseInt(scopeVal.split(':')[1], 10) || 0;
+    } else {
+        currentLeaderboardScope = scopeVal;   // 'all' or 'friends'
+        currentLeaderboardGroupID = 0;
+    }
+
+    loadRankings();
 }
 
 

@@ -26,9 +26,18 @@ public class LeaderboardService {
     // sortBy: "balance", "wins", or "totalBets"
     // ------------------------------------------------------------------
     public List<Map<String, Object>> getRankings(int limit, String sortBy) throws SQLException {
+        return getRankings(limit, sortBy, "all", 0, 0);
+    }
+
+    /**
+     * Scoped rankings. scope: "all", "friends" (needs userID), or "group" (needs groupID).
+     */
+    public List<Map<String, Object>> getRankings(int limit, String sortBy,
+                                                  String scope, int userID, int groupID) throws SQLException {
         if (limit <= 0) limit = 50;
         if (sortBy == null || sortBy.isBlank()) sortBy = "balance";
-        return leaderboardDAO.getRankings(limit, sortBy);
+        if (scope == null || scope.isBlank()) scope = "all";
+        return leaderboardDAO.getRankings(limit, sortBy, scope, userID, groupID);
     }
 
     // ------------------------------------------------------------------
