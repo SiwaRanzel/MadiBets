@@ -1192,6 +1192,7 @@ async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    const userType = document.getElementById('reg-usertype').value; // Get the selected role
     const btn = document.getElementById('btn-login');
     setButtonLoading(btn, true);
 
@@ -1199,7 +1200,7 @@ async function handleLogin(event) {
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, userType })
         });
 
         const data = await response.json();
