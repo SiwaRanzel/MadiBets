@@ -159,6 +159,12 @@ public class GroupController {
                 return ResponseEntity.badRequest().body(Map.of("error", "userID required in body"));
             }
             int userID = (int) ((Number) body.get("userID")).intValue();
+
+            Group g = groupDAO.findById(id);
+            if (g != null && g.getCreatedBy() == userID) {
+                return ResponseEntity.badRequest().body(Map.of("error", "The group owner cannot leave the group. You must delete the group instead."));
+            }
+
             boolean removed = groupDAO.removeMember(id, userID);
             if (removed) {
                 return ResponseEntity.ok(Map.of("success", true, "message", "You have left the group."));

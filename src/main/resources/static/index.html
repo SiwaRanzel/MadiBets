@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=8">
+    <link rel="stylesheet" href="style.css?v=9">
 </head>
 
 <body>
@@ -27,9 +27,7 @@
         </div>
 
         <div style="display:flex; flex-direction:column; align-items:center; position: relative; z-index: 10; margin-bottom: 120px;">
-            <h1
-                style="font-family: var(--font-primary); font-size: 5.5rem; font-weight: 800; color: var(--color-pure-white); letter-spacing: -2px; margin-bottom: 30px;">
-                MadiBets</h1>
+            <h1 class="landing-title-logo">MadiBets</h1>
             <div style="display:flex; gap: 20px;">
                 <button class="btn"
                     style="background-color: #E2E8F0; color: var(--color-nmu-navy); border: none; padding: 14px 36px; font-size: 1.15rem; border-radius: 8px; cursor: pointer; font-weight: 700; transition: transform 0.2s;"
@@ -47,6 +45,15 @@
     </main>
 
     <main id="auth-view" class="view auth-screen-bg hidden">
+        <div class="auth-top-left">
+            <button type="button" class="btn-auth-back" onclick="showView('landing-view')" title="Back to Home">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Back</span>
+            </button>
+        </div>
+
         <div class="nmu-seal-emblem">
             <img src="logo.png" alt="MadiBets Logo" class="seal-logo-img">
         </div>
@@ -509,17 +516,17 @@
                     </div>
                 </div>
 
-                <div class="dashboard-event-banner" style="position: relative; width: 100%; height: 220px; border-radius: 12px; margin-bottom: 40px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #E2E8F0;">
-                    <img src="images/nmu_poster.jpg" alt="Nelson Mandela University Campus" style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.7);">
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(27, 47, 94, 0.9) 0%, rgba(27, 47, 94, 0.4) 100%);"></div>
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 30px; color: white;">
+                <div class="dashboard-event-banner" style="position: relative; width: 100%; min-height: 220px; border-radius: 12px; margin-bottom: 40px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #E2E8F0; display: flex;">
+                    <img src="images/nmu_poster.jpg" alt="Nelson Mandela University Campus" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.7); z-index: 0;">
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(27, 47, 94, 0.9) 0%, rgba(27, 47, 94, 0.4) 100%); z-index: 1;"></div>
+                    <div style="position: relative; z-index: 2; width: 100%; display: flex; flex-direction: column; justify-content: center; padding: 30px; color: white;">
                         <span style="background: #F1C40F; color: #1B2F5E; font-size: 0.8rem; font-weight: 700; padding: 5px 12px; border-radius: 20px; width: fit-content; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">What is happening at NMU</span>
-                        <h2 style="font-size: 1.8rem; margin: 0 0 10px 0; font-weight: 700; max-width: 600px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Digital Dome Festival – Stories Spoken, Stories Seen</h2>
-                        <p style="font-size: 1rem; margin: 0 0 20px 0; opacity: 0.9; max-width: 500px; display: flex; align-items: center; gap: 8px;">
+                        <h2 id="dashboard-banner-title" style="font-size: 1.55rem; line-height: 1.3; margin: 0 0 10px 0; font-weight: 700; max-width: 800px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Loading events...</h2>
+                        <p id="dashboard-banner-date" style="font-size: 1rem; margin: 0 0 20px 0; opacity: 0.9; max-width: 600px; display: flex; align-items: center; gap: 8px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> 
-                            August 21, 2026 @ Nelson Mandela University
+                            Finding next event...
                         </p>
-                        <a href="https://events.mandela.ac.za/" target="_blank" style="background: white; color: #1B2F5E; text-decoration: none; display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; width: fit-content; transition: background 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Learn More</a>
+                        <a id="dashboard-banner-link" href="https://events.mandela.ac.za/" target="_blank" style="background: white; color: #1B2F5E; text-decoration: none; display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; width: fit-content; transition: background 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Learn More</a>
                     </div>
                 </div>
 
@@ -838,11 +845,11 @@
                         <h3 class="help-card-title">FAQ</h3>
                         <p class="help-card-desc">Find answers to frequently asked questions</p>
                         <div class="help-faq-links">
-                            <a href="#" class="help-faq-link">How do I reset my password?</a>
-                            <a href="#" class="help-faq-link">Is my data secure?</a>
-                            <a href="#" class="help-faq-link">Can I cancel my account at any time?</a>
+                            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-place-bet'); return false;">How do I place a bet on MadiBets?</a>
+                            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-what-are-madibucks'); return false;">What are MadiBucks and how do I earn them?</a>
+                            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-deadline-passes'); return false;">How does bet grading work?</a>
                         </div>
-                        <button class="btn btn-gold-cta btn-block help-card-btn">View FAQ</button>
+                        <button class="btn btn-gold-cta btn-block help-card-btn" onclick="openFaqModal()">View FAQ</button>
                     </div>
 
                     <!-- User Guide Card -->
@@ -857,7 +864,7 @@
                         <h3 class="help-card-title">User Guide</h3>
                         <p class="help-card-desc">step-by-step guides and tutorials to help you use MadiBets.<br>Here
                             you'll find detailed instructions on how to use MadiBets features.</p>
-                        <button class="btn btn-gold-cta btn-block help-card-btn">View Guide</button>
+                        <button class="btn btn-gold-cta btn-block help-card-btn" onclick="openGuideModal()">View Guide</button>
                     </div>
 
                     <!-- Contact Support Card -->
@@ -874,10 +881,10 @@
                             <a href="#" onclick="showDeleteModal(); return false;" style="color: #F5A623; text-decoration: underline; font-weight: 700;">Delete Account</a>
                         </p>
                         <div class="help-contact-info">
-                            <p>Email: s00000000@mandela.ac.za</p>
-                            <p>Phone: +27 XXXXXXXXX</p>
+                            <p><strong>Admin Team:</strong> 4 System Administrators</p>
+                            <p>Email: s***@mandela.ac.za</p>
                         </div>
-                        <button class="btn btn-gold-cta btn-block help-card-btn">Contact Us</button>
+                        <button class="btn btn-gold-cta btn-block help-card-btn" onclick="openContactModal()">Contact Us</button>
                     </div>
 
                     <!-- Feedback & Suggestions Card -->
@@ -1618,10 +1625,54 @@
                 <p class="about-modal-text" style="margin-bottom: 10px;">MadiBets was designed and developed by
                     <strong>The Bloodline</strong>:</p>
                 <ul class="about-modal-team">
-                    <li><strong>Siwapiwe Matambeka</strong> — User Authentication &amp; Profile Governance</li>
-                    <li><strong>Kieran White</strong> — Prediction Markets, Odds System &amp; Wagering Logic</li>
-                    <li><strong>Jason Sauls</strong> — Social Ecosystem, Friends &amp; Leaderboard Engine</li>
-                    <li><strong>Pieter Rijk Pretorius</strong> — Groups, Lecturer Tasks &amp; Support Systems</li>
+                    <li>
+                        <div class="about-team-member">
+                            <strong>Siwapiwe Matambeka</strong> <span style="color:#64748B;">— User Authentication &amp; Profile Governance</span>
+                        </div>
+                        <a href="mailto:s225063190@mandela.ac.za?subject=MadiBets%20Enquiry" class="about-team-email" title="Click to send an email to Siwapiwe Matambeka" onclick="showToast('Opening email client to contact Siwapiwe Matambeka...', 'info')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <polyline points="2,4 12,13 22,4"/>
+                            </svg>
+                            s225063190@mandela.ac.za
+                        </a>
+                    </li>
+                    <li>
+                        <div class="about-team-member">
+                            <strong>Kieran White</strong> <span style="color:#64748B;">— Prediction Markets, Odds System &amp; Wagering Logic</span>
+                        </div>
+                        <a href="mailto:s229713491@mandela.ac.za?subject=MadiBets%20Enquiry" class="about-team-email" title="Click to send an email to Kieran White" onclick="showToast('Opening email client to contact Kieran White...', 'info')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <polyline points="2,4 12,13 22,4"/>
+                            </svg>
+                            s229713491@mandela.ac.za
+                        </a>
+                    </li>
+                    <li>
+                        <div class="about-team-member">
+                            <strong>Jason Sauls</strong> <span style="color:#64748B;">— Social Ecosystem, Friends &amp; Leaderboard Engine</span>
+                        </div>
+                        <a href="mailto:s225695863@mandela.ac.za?subject=MadiBets%20Enquiry" class="about-team-email" title="Click to send an email to Jason Sauls" onclick="showToast('Opening email client to contact Jason Sauls...', 'info')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <polyline points="2,4 12,13 22,4"/>
+                            </svg>
+                            s225695863@mandela.ac.za
+                        </a>
+                    </li>
+                    <li>
+                        <div class="about-team-member">
+                            <strong>Pieter Rijk Pretorius</strong> <span style="color:#64748B;">— Groups, Lecturer Tasks &amp; Support Systems</span>
+                        </div>
+                        <a href="mailto:s229478379@mandela.ac.za?subject=MadiBets%20Enquiry" class="about-team-email" title="Click to send an email to Pieter Rijk Pretorius" onclick="showToast('Opening email client to contact Pieter Rijk Pretorius...', 'info')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <polyline points="2,4 12,13 22,4"/>
+                            </svg>
+                            s229478379@mandela.ac.za
+                        </a>
+                    </li>
                 </ul>
 
             </div>
@@ -1629,7 +1680,7 @@
     </div>
 
     <!-- Custom Confirm Modal -->
-    <div id="confirm-modal" class="confirm-modal-overlay hidden" style="z-index: 10000;" onclick="if(event.target===this) closeConfirmModal(false)">
+    <div id="confirm-modal" class="confirm-modal-overlay hidden" style="z-index: 50000;" onclick="if(event.target===this) closeConfirmModal(false)">
         <div class="confirm-modal-box">
             <div class="confirm-modal-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1648,7 +1699,7 @@
     </div>
 
     <!-- Delete Account Request Modal -->
-    <div id="delete-account-modal" class="confirm-modal-overlay hidden" style="z-index: 1000;" onclick="if(event.target===this) closeDeleteModal()">
+    <div id="delete-account-modal" class="confirm-modal-overlay hidden" style="z-index: 50000;" onclick="if(event.target===this) closeDeleteModal()">
         <div class="confirm-modal-box">
             <div class="confirm-modal-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D9534F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1666,7 +1717,7 @@
     </div>
 
     <!-- Group Join Password Modal -->
-    <div id="group-password-modal" class="confirm-modal-overlay hidden" style="z-index: 10001;" onclick="if(event.target===this) closeGroupPasswordModal()">
+    <div id="group-password-modal" class="confirm-modal-overlay hidden" style="z-index: 50000;" onclick="if(event.target===this) closeGroupPasswordModal()">
         <div class="confirm-modal-box">
             <div class="confirm-modal-icon">
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B2F5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1696,7 +1747,7 @@
     </div>
 
     <!-- Admin Query View Modal -->
-    <div id="query-view-modal" class="confirm-modal-overlay hidden" style="z-index: 1000;" onclick="if(event.target===this) closeQueryViewModal()">
+    <div id="query-view-modal" class="confirm-modal-overlay hidden" style="z-index: 50000;" onclick="if(event.target===this) closeQueryViewModal()">
         <div class="query-view-modal-box" onclick="event.stopPropagation()">
             <div class="query-view-modal-header">
                 <h3 class="query-view-modal-title" id="query-view-title">Query</h3>
@@ -1817,9 +1868,354 @@
         </div>
     </div>
 
+    <!-- ── FAQ Modal ── -->
+    <div id="faq-modal-overlay" class="about-modal-overlay hidden" onclick="if(event.target===this) closeFaqModal()">
+        <div class="faq-modal-box" onclick="event.stopPropagation()">
+            <div class="faq-modal-header">
+                <div class="faq-modal-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1B2F5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+                        <circle cx="12" cy="17" r=".5" fill="#1B2F5E" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="faq-modal-title">Frequently Asked Questions</h2>
+                    <p class="faq-modal-subtitle">Everything you need to know about MadiBets</p>
+                </div>
+                <button class="faq-modal-close" onclick="closeFaqModal()" aria-label="Close FAQ">&times;</button>
+            </div>
+
+            <div class="faq-search-bar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6C7D93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text" id="faq-search-input" placeholder="Search questions..." oninput="filterFaq(this.value)">
+            </div>
+
+            <div class="faq-accordion" id="faq-accordion">
+
+                <!-- Category: Getting Started -->
+                <div class="faq-category-label">Getting Started</div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What is MadiBets?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        MadiBets is a university prediction-market platform built for Nelson Mandela University students and lecturers.
+                        Students propose and wager on real-world events using virtual currency called <strong>MadiBucks</strong>.
+                        Lecturers and admins oversee markets and engage with the leaderboard.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        Who can register on MadiBets?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Any Nelson Mandela University student or lecturer can register using their official <strong>@mandela.ac.za</strong> email address.
+                        Select your role (Student or Lecturer) on the login screen before registering.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I log in?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        From the landing page, click <strong>Log In</strong>, choose your role (Student / Lecturer), enter your NMU email and password, then click <strong>LOG IN</strong>.
+                        If you have forgotten your password, contact your administrator to have it reset.
+                    </div>
+                </div>
+
+                <!-- Category: Bets & Wagering -->
+                <div class="faq-category-label">Bets &amp; Wagering</div>
+
+                <div class="faq-item" id="faq-place-bet">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I place a bet?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Navigate to the <strong>Bets</strong> section from the sidebar. Browse the list of active markets, click on one you are interested in,
+                        choose an outcome, enter your stake (in MadiBucks), and confirm. Your potential winnings are displayed before you confirm,
+                        calculated as <em>stake &times; odds</em>.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I propose a new bet?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Go to <strong>Bets &rarr; Propose a Bet</strong>. Enter a clear description of the event, then add between
+                        2 and 4 possible outcomes. Your proposal will be reviewed by an admin who will set the odds and wagering deadline before
+                        activating the market. You will receive a notification once it is approved or rejected.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        Can I cancel or change a wager after placing it?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        No. Once a wager is placed it is <strong>final</strong>. MadiBucks are deducted immediately from your balance.
+                        Make sure you are happy with your chosen outcome and stake before confirming.
+                    </div>
+                </div>
+
+                <div class="faq-item" id="faq-deadline-passes">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What happens after the wagering deadline passes?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        No new wagers are accepted once the deadline passes. The market stays visible but shows as <strong>Closed</strong>.
+                        The admin will grade the bet by selecting the winning outcome, after which payouts are credited automatically.
+                    </div>
+                </div>
+
+                <!-- Category: MadiBucks & Account -->
+                <div class="faq-category-label">MadiBucks &amp; Account</div>
+
+                <div class="faq-item" id="faq-what-are-madibucks">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What are MadiBucks?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        MadiBucks are the virtual currency of MadiBets. They are used exclusively on the platform and have no real-money value.
+                        Your current balance is always visible in your Account page.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I earn MadiBucks?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        You earn MadiBucks by winning wagers — your payout is your stake multiplied by the odds of the outcome you backed.
+                        Lecturers may also grant MadiBucks to students for completing tasks and quizzes.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I update my profile or change my password?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Open the <strong>Account</strong> section from the sidebar. From there you can edit your display name, upload a profile avatar,
+                        and change your password. All changes are saved immediately.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I delete my account?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Go to <strong>Help &rarr; Contact Support</strong> and click <strong>Delete Account</strong>.
+                        Your deletion request is sent to an administrator for review. You will be notified once the request is processed.
+                        Note: deletion is permanent and all your data will be removed.
+                    </div>
+                </div>
+
+                <!-- Category: Leaderboard & Social -->
+                <div class="faq-category-label">Leaderboard &amp; Social</div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How is the leaderboard ranked?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        The leaderboard ranks students by their total MadiBucks balance. The more successful wagers you place, the higher you climb.
+                        Your current position and total players are shown on the dashboard.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I add friends on MadiBets?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Navigate to the <strong>Friends</strong> section from the sidebar. Search for a student by name or email and send them a friend request.
+                        Once they accept, you can see each other's leaderboard positions and activity.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What are Groups and how do I join one?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Groups are private communities where members can bet together and track a shared leaderboard.
+                        Browse open groups in the <strong>Groups</strong> section and click <strong>Join</strong>. Some groups require a password set by the creator.
+                        You can also create your own group and optionally restrict the number of members.
+                    </div>
+                </div>
+
+                <!-- Category: Tasks & Quizzes (Lecturer) -->
+                <div class="faq-category-label">Tasks &amp; Quizzes</div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What are Tasks?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Tasks are activities set by lecturers. They may include multiple-choice quizzes where students can earn MadiBucks by answering correctly.
+                        Check the <strong>Tasks</strong> panel to see tasks that are currently available to you.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How do I complete a quiz and earn MadiBucks?
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        Open a task from the <strong>Tasks</strong> list and click <strong>Take Quiz</strong>.
+                        Answer all the questions and submit. Your score is calculated instantly and MadiBucks are awarded based on correct answers.
+                        Each quiz can only be completed once.
+                    </div>
+                </div>
+
+            </div><!-- end faq-accordion -->
+
+            <div style="display:flex; justify-content:flex-end; padding: 20px 28px 24px;">
+                <button class="btn btn-gold-cta" onclick="closeFaqModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── User Guide Modal ── -->
+    <div id="guide-modal-overlay" class="about-modal-overlay hidden" onclick="if(event.target===this) closeGuideModal()">
+        <div class="guide-modal-box" onclick="event.stopPropagation()">
+
+            <!-- Header -->
+            <div class="guide-modal-header">
+                <div class="guide-modal-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1B2F5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                </div>
+                <div class="guide-modal-header-text">
+                    <h2 class="guide-modal-title" id="guide-modal-title">User Guide</h2>
+                    <p class="guide-modal-subtitle" id="guide-modal-subtitle">Step-by-step guide for using MadiBets</p>
+                </div>
+                <button class="guide-modal-close" onclick="closeGuideModal()" aria-label="Close Guide">&times;</button>
+            </div>
+
+            <!-- Tab bar (shared headings so user can jump to section) -->
+            <div class="guide-tabs" id="guide-tabs"></div>
+
+            <!-- Scrollable content -->
+            <div class="guide-body" id="guide-body"></div>
+
+            <div style="display:flex; justify-content:flex-end; padding: 16px 28px 22px;">
+                <button class="btn btn-gold-cta" onclick="closeGuideModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Contact Administrators Modal ── -->
+    <div id="contact-modal-overlay" class="about-modal-overlay hidden" onclick="if(event.target===this) closeContactModal()">
+        <div class="contact-modal-box" onclick="event.stopPropagation()">
+
+            <!-- Header -->
+            <div class="guide-modal-header">
+                <div class="guide-modal-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <polyline points="2,4 12,13 22,4" />
+                    </svg>
+                </div>
+                <div class="guide-modal-header-text">
+                    <h2 class="guide-modal-title">Contact Administrators</h2>
+                    <p class="guide-modal-subtitle">Direct support and enquiry portal for MadiBets system administrators</p>
+                </div>
+                <button class="guide-modal-close" onclick="closeContactModal()" aria-label="Close Contact Modal">&times;</button>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div class="contact-modal-body">
+                <!-- Section 1: Admin Cards -->
+                <div class="contact-section-head">
+                    <h3>System Administrators</h3>
+                    <p>Select an administrator below or send an enquiry directly to their Mandela University email address.</p>
+                </div>
+
+                <div class="contact-admin-grid" id="contact-admin-grid"></div>
+
+                <!-- Section 2: Enquiry Composer -->
+                <div class="contact-composer-card" id="contact-composer-card">
+                    <div class="contact-composer-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B2F5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <polyline points="2,4 12,13 22,4" />
+                            </svg>
+                            <h4 style="margin: 0; color: var(--color-nmu-navy); font-size: 1.05rem; font-weight: 700;">Send an Email Enquiry</h4>
+                        </div>
+                        <span class="contact-composer-badge">Mandela University Email (@mandela.ac.za)</span>
+                    </div>
+
+                    <div class="contact-form-group">
+                        <label for="contact-enquiry-recipient" class="contact-label">Send To Administrator:</label>
+                        <select id="contact-enquiry-recipient" class="help-input" style="font-weight: 600;">
+                            <option value="all">All Administrators (All 4 Admins)</option>
+                            <option value="s229713491@mandela.ac.za">Kieran White (s229713491@mandela.ac.za)</option>
+                            <option value="s229478379@mandela.ac.za">Pieter Rijk Pretorius (s229478379@mandela.ac.za)</option>
+                            <option value="s225695863@mandela.ac.za">Jason Sauls (s225695863@mandela.ac.za)</option>
+                            <option value="s225063190@mandela.ac.za">Siwapiwe Matambeka (s225063190@mandela.ac.za)</option>
+                        </select>
+                    </div>
+
+                    <div class="contact-form-group">
+                        <label for="contact-enquiry-subject" class="contact-label">Subject / Title:</label>
+                        <input type="text" id="contact-enquiry-subject" placeholder="e.g. Account enquiry, Prediction question, Assistance request" class="help-input" />
+                    </div>
+
+                    <div class="contact-form-group">
+                        <label for="contact-enquiry-message" class="contact-label">Enquiry Message:</label>
+                        <textarea id="contact-enquiry-message" rows="4" placeholder="Type your enquiry message here..." class="help-textarea"></textarea>
+                    </div>
+
+                    <div class="contact-composer-actions">
+                        <button type="button" class="btn btn-gold-cta" onclick="sendContactEnquiryEmail()" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 26px; font-size:0.95rem;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <polyline points="2,4 12,13 22,4"/>
+                            </svg>
+                            Send Enquiry via Email
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="display:flex; justify-content:flex-end; padding: 14px 28px 18px; border-top: 1px solid #E9EEF6; background: #FAFBFD;">
+                <button class="btn btn-gold-cta" onclick="closeContactModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=19"></script>
 </body>
 
 </html>

@@ -23,7 +23,7 @@ public class UserDAO {
         String insertStudentSql = "INSERT INTO Student (userID, studentNo) VALUES (?, ?)";
         String insertLecturerSql = "INSERT INTO Lecturer (userID, staffNo) VALUES (?, ?)";
         String insertAdminSql = "INSERT INTO Admin (userID) VALUES (?)";
-        String insertAccountSql = "INSERT INTO Account (userID, balance) VALUES (?, 100.00)";
+        String insertAccountSql = "INSERT INTO Account (userID, balance) VALUES (?, ?)";
 
         Connection con = null;
         try {
@@ -70,8 +70,10 @@ public class UserDAO {
                 }
             }
 
+            double initialBalance = "STUDENT".equalsIgnoreCase(type) ? 100.00 : 0.00;
             try (PreparedStatement ps = con.prepareStatement(insertAccountSql)) {
                 ps.setInt(1, userID);
+                ps.setDouble(2, initialBalance);
                 ps.executeUpdate();
             }
 

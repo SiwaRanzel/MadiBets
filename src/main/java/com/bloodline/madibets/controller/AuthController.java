@@ -93,6 +93,13 @@ public class AuthController {
 
             User u = authService.login(email, password);
             if (u != null) {
+                String requestedUserType = credentials.get("userType");
+                if (requestedUserType != null && !requestedUserType.isBlank() && u.getUserType() != null) {
+                    if (!"ADMIN".equalsIgnoreCase(u.getUserType()) && !requestedUserType.equalsIgnoreCase(u.getUserType())) {
+                        return ResponseEntity.status(401).body(Map.of("error", "Invalid email or password."));
+                    }
+                }
+
                 com.bloodline.madibets.dao.DeletionRequestDAO drDao = new com.bloodline.madibets.dao.DeletionRequestDAO();
                 if (drDao.hasPendingDeleteRequest(u.getUserID())) {
                     return ResponseEntity.status(403).body(Map.of("error", "Your account deletion is pending. Please contact support if this was a mistake."));

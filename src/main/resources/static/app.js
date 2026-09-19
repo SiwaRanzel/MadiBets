@@ -972,6 +972,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Wire up sidebar nav clicks (handled via onclick attributes in HTML)
+    fetchBannerEvents();
+});
+
+// Interactive mouse-tracking light-up effect on MadiBets title
+document.addEventListener('mousemove', (e) => {
+    const target = e.target.closest('.auth-logo, .landing-title-logo');
+    if (target) {
+        const rect = target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        target.style.setProperty('--mouse-x', `${x}px`);
+        target.style.setProperty('--mouse-y', `${y}px`);
+    }
 });
 
 // UI View Switcher
@@ -1177,12 +1190,17 @@ function toggleSubtypeFields() {
 }
 
 // Show toast notifications
+let toastTimeout = null;
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
+    if (!toast) return;
     toast.textContent = message;
     toast.className = `toast-popup-box show ${type}`;
 
-    setTimeout(() => {
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+    }
+    toastTimeout = setTimeout(() => {
         toast.className = 'toast-popup-box hidden';
     }, 4000);
 }
@@ -1314,7 +1332,15 @@ function loadDashboardData(user, balance) {
     setElText('user-role-display', user.userType === 'LECTURER' ? 'Lecturer' : (user.userType === 'ADMIN' ? 'Administrator' : 'Student'));
 
     // Wallet display
-    setElText('wallet-balance', `${parseFloat(balance).toFixed(2)} MB`);
+    const walletBalanceEl = document.getElementById('wallet-balance');
+    if (walletBalanceEl) {
+        if (user.userType === 'LECTURER') {
+            walletBalanceEl.style.display = 'none';
+        } else {
+            walletBalanceEl.style.display = 'inline';
+            walletBalanceEl.textContent = `${parseFloat(balance).toFixed(2)} MB`;
+        }
+    }
     setElText('wallet-card-holder', `${user.name} ${user.surname}`);
     setElText('wallet-card-type', user.userType);
 
@@ -4036,4 +4062,537 @@ function closeUserProfileModal(event) {
     document.getElementById('user-profile-modal').classList.add('hidden');
 }
 
+// ── FAQ Modal ──────────────────────────────────────────────────────────────
 
+function openFaqModal(targetId) {
+    const overlay = document.getElementById('faq-modal-overlay');
+    if (!overlay) return;
+    
+    const searchInput = document.getElementById('faq-search-input');
+    if (searchInput) searchInput.value = '';
+    filterFaq('');
+    
+    // Close any currently open items
+    document.querySelectorAll('#faq-accordion .faq-item.open').forEach(el => el.classList.remove('open'));
+    
+    overlay.classList.remove('hidden');
+    
+    if (targetId) {
+        setTimeout(() => {
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.classList.add('open');
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100); // Slight delay ensures the modal is fully visible before calculating scroll
+    }
+}
+
+function closeFaqModal() {
+    const overlay = document.getElementById('faq-modal-overlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+}
+
+function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    if (!item) return;
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('#faq-accordion .faq-item.open').forEach(el => el.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+}
+
+function filterFaq(query) {
+    const q = (query || '').trim().toLowerCase();
+    const items = document.querySelectorAll('#faq-accordion .faq-item');
+    const categories = document.querySelectorAll('#faq-accordion .faq-category-label');
+
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (!q || text.includes(q)) {
+            item.classList.remove('faq-hidden');
+        } else {
+            item.classList.add('faq-hidden');
+            item.classList.remove('open');
+        }
+    });
+
+    categories.forEach(label => {
+        let next = label.nextElementSibling;
+        let anyVisible = false;
+        while (next && !next.classList.contains('faq-category-label')) {
+            if (!next.classList.contains('faq-hidden')) anyVisible = true;
+            next = next.nextElementSibling;
+        }
+        label.style.display = anyVisible || !q ? '' : 'none';
+    });
+}
+
+// ── User Guide Modal ──────────────────────────────────────────────────────
+
+const STUDENT_GUIDE = [
+    {
+        id: 'sg-start', label: 'Getting Started',
+        title: 'Getting Started on MadiBets',
+        intro: 'Welcome to MadiBets! Follow these steps to set up your account and get familiar with the platform.',
+        steps: [
+            { title: 'Register your account', body: 'From the landing page click <strong>Register</strong>. Make sure <strong>Student</strong> is selected, then fill in your name, surname, NMU student number, and <strong>@mandela.ac.za</strong> email. Choose a strong password and click <strong>REGISTER</strong>.' },
+            { title: 'Log in', body: 'Click <strong>Log In</strong> on the landing page. Select <strong>Student</strong>, enter your email and password, then click <strong>LOG IN</strong>. You will be taken straight to your Dashboard.' },
+            { title: 'Explore the sidebar', body: 'The left sidebar is your main navigation. It contains: <strong>Dashboard</strong>, <strong>Bets</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, <strong>Friends</strong>, and <strong>Help</strong>. Click any item to switch panels.' },
+            { title: 'Collapse the sidebar', body: 'Click the hamburger \u2630 icon in the top-left of the sidebar to collapse it. Click it again to expand.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Your MadiBucks balance is always shown in the top header bar so you always know what you have available.'
+    },
+    {
+        id: 'sg-bets', label: 'Bets & Wagering',
+        title: 'Placing and Managing Bets',
+        intro: 'MadiBets is built around prediction markets. Here\'s how to browse, wager on, and propose your own bets.',
+        steps: [
+            { title: 'Browse active bets', body: 'Click <strong>Bets</strong> in the sidebar. You will see all currently active markets. Each card shows the description, outcomes, odds, and wagering deadline.' },
+            { title: 'Place a wager', body: 'Click any active bet card to expand it. Select your preferred outcome, enter your stake in MadiBucks, then click <strong>Place Wager</strong>. Your potential payout — <em>stake \u00d7 odds</em> — is shown before you confirm.' },
+            { title: 'Confirm your wager', body: 'A confirmation dialog will appear. Click <strong>Confirm</strong> to lock it in. MadiBucks are deducted immediately. <strong>Wagers cannot be cancelled once placed.</strong>' },
+            { title: 'View your wagers', body: 'Scroll to <strong>My Wagers</strong> in the Bets panel. All your active and past wagers are listed here with status, stake, and potential payout.' },
+            { title: 'Propose a new bet', body: 'Scroll to <strong>Propose a Bet</strong> at the bottom of the Bets panel. Enter a description and 2\u20134 possible outcomes. Click <strong>Submit Proposal</strong>. An admin will review, set odds, and activate it.' },
+            { title: 'Grading notifications', body: 'When an admin grades a bet you wagered on you will receive an in-app notification. Winners are paid out automatically.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> A bet\'s deadline is shown on the card. Once it passes no new wagers are accepted \u2014 place yours in time!'
+    },
+    {
+        id: 'sg-account', label: 'Account & Profile',
+        title: 'Managing Your Account',
+        intro: 'Keep your profile up to date and track your MadiBucks balance.',
+        steps: [
+            { title: 'Open your Account', body: 'Click <strong>Account</strong> in the sidebar. You will see your profile photo, name, student number, email, and current MadiBucks balance.' },
+            { title: 'Edit your profile', body: 'Click <strong>Edit Profile</strong>. Update your first name, last name, or email address, then click <strong>Save Changes</strong>.' },
+            { title: 'Change your password', body: 'In the Account panel, find the <strong>Change Password</strong> section. Enter your current password, your new password, confirm it, and click <strong>Update Password</strong>.' },
+            { title: 'Upload a profile avatar', body: 'Click the avatar circle at the top of the Account panel and choose an image file. Your photo appears in the sidebar and on the leaderboard.' },
+            { title: 'Check your balance', body: 'Your live MadiBucks balance is shown in the header bar at all times, and also in the Account panel. It updates automatically after each winning payout.' },
+            { title: 'Request account deletion', body: 'Go to <strong>Help \u2192 Contact Support</strong> and click <strong>Delete Account</strong>. A deletion request is sent to the admin who will process it.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Upload a profile photo \u2014 it shows on the leaderboard and makes you recognisable to friends!'
+    },
+    {
+        id: 'sg-social', label: 'Leaderboard & Friends',
+        title: 'Leaderboard & Friends',
+        intro: 'Compete with fellow students and build your network.',
+        steps: [
+            { title: 'View the Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar. Students are ranked by total MadiBucks balance. Your rank is shown at the top.' },
+            { title: 'Add a friend', body: 'Click <strong>Friends</strong> in the sidebar, then <strong>Add Friend</strong>. Search by name or email, then click <strong>Send Request</strong>.' },
+            { title: 'Accept friend requests', body: 'A badge on the Friends menu item shows pending requests. Open Friends and check the <strong>Pending Requests</strong> tab to accept or decline.' },
+            { title: 'View a friend\'s profile', body: 'Click any friend\'s name to see their balance and leaderboard rank.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Adding friends lets you track each other on the leaderboard \u2014 a little friendly competition goes a long way!'
+    },
+    {
+        id: 'sg-groups', label: 'Groups',
+        title: 'Groups',
+        intro: 'Join or create groups to bet competitively within a private community.',
+        steps: [
+            { title: 'Browse groups', body: 'Click <strong>Groups</strong> in the sidebar. The right column shows all available groups. Search by name to find specific ones.' },
+            { title: 'Join a group', body: 'Click <strong>Join</strong> next to any open group. Password-protected groups will prompt you for the group\'s password.' },
+            { title: 'Create your own group', body: 'Click <strong>Create Group</strong>. Enter a name, optional description, and optionally set a password and a maximum member count. Click <strong>Create</strong>.' },
+            { title: 'View group details', body: 'Click any group in <strong>My Groups</strong> to see the member list and leaderboard rankings within that group.' },
+            { title: 'Leave a group', body: 'Open the group details and click <strong>Leave Group</strong>. Confirm when prompted.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Set a password on your group so only people you invite can join.'
+    },
+    {
+        id: 'sg-help', label: 'Help & Support',
+        title: 'Getting Help',
+        intro: 'Need assistance? MadiBets has multiple support options built right in.',
+        steps: [
+            { title: 'Open the Help panel', body: 'Click <strong>Help</strong> in the sidebar to access the FAQ, User Guide, Contact Support, and Send a Query cards.' },
+            { title: 'Browse the FAQ', body: 'Click <strong>View FAQ</strong> to open the searchable FAQ modal. Type any keyword to filter questions instantly.' },
+            { title: 'Send a query', body: 'In the <strong>Send a Query</strong> card enter a title and your message, then click <strong>Save</strong>. The admin team will respond.' },
+            { title: 'Contact support directly', body: 'Use the details in the <strong>Contact Support</strong> card for urgent issues or to initiate an account deletion request.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Check the FAQ before sending a query \u2014 most common questions are already answered there!'
+    },
+];
+
+const LECTURER_GUIDE = [
+    {
+        id: 'lg-start', label: 'Getting Started',
+        title: 'Getting Started as a Lecturer',
+        intro: 'As a Lecturer on MadiBets you have a focused set of tools to monitor students, manage groups, and track engagement.',
+        steps: [
+            { title: 'Log in as Lecturer', body: 'From the landing page click <strong>Log In</strong>. Select the <strong>Lecturer</strong> tab, enter your <strong>@mandela.ac.za</strong> email and password, then click <strong>LOG IN</strong>.' },
+            { title: 'Your Dashboard', body: 'Your Dashboard gives an at-a-glance overview of student activity, total registered students, and platform engagement metrics.' },
+            { title: 'Your sidebar navigation', body: 'As a Lecturer you have access to: <strong>Dashboard</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, and <strong>Help</strong>.' },
+            { title: 'Collapse the sidebar', body: 'Click the hamburger \u2630 icon in the top-left to collapse the sidebar and free up screen space.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Your Dashboard shows live student counts and engagement trends \u2014 check it before class to see participation levels.'
+    },
+    {
+        id: 'lg-dashboard', label: 'Dashboard',
+        title: 'Understanding Your Dashboard',
+        intro: 'The Lecturer Dashboard surfaces key metrics about student activity on the platform.',
+        steps: [
+            { title: 'Total Students stat', body: 'The <strong>Total Students</strong> card shows the current count of registered student accounts with a weekly growth trend percentage.' },
+            { title: 'Platform activity', body: 'Additional stat cards show total bets placed and active markets \u2014 giving you a sense of overall student engagement.' },
+            { title: 'Event banner', body: 'The banner at the top highlights upcoming NMU events that have been added as betting markets by the admin.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Use the Dashboard as your starting point to gauge whether students are actively engaging before a class session.'
+    },
+    {
+        id: 'lg-leaderboard', label: 'Leaderboard',
+        title: 'Monitoring the Leaderboard',
+        intro: 'The Leaderboard lets you see how students rank across the platform.',
+        steps: [
+            { title: 'Open the Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar. All student accounts are ranked from highest to lowest MadiBucks balance.' },
+            { title: 'Identify top performers', body: 'The top three students are highlighted with gold, silver, and bronze indicators. Use this to recognise highly engaged students.' },
+            { title: 'View a student\'s profile', body: 'Click any student row to see their profile popup \u2014 avatar, full name, and current balance.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Use the Leaderboard to celebrate top-performing students in class \u2014 it boosts participation!'
+    },
+    {
+        id: 'lg-groups', label: 'Groups',
+        title: 'Managing Groups',
+        intro: 'Groups let students bet within a private community. As a Lecturer you can create and manage groups for your class.',
+        steps: [
+            { title: 'View all groups', body: 'Click <strong>Groups</strong> in the sidebar. Left column shows your groups; right column shows all available groups.' },
+            { title: 'Create a class group', body: 'Click <strong>Create Group</strong>. Enter a name (e.g. your module code), a description, and a password so only your students can join. Click <strong>Create</strong>.' },
+            { title: 'Share access with students', body: 'Share the group name and password with your students. They find and join it from their own <strong>Groups</strong> panel.' },
+            { title: 'View group members', body: 'Click on your group in <strong>My Groups</strong> to see the full member list and their leaderboard rankings within the group.' },
+            { title: 'Leave a group', body: 'Open the group details and click <strong>Leave Group</strong>. Note: leaving does not delete the group.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> A module-specific password-protected group is the best way to run a private leaderboard competition for your class!'
+    },
+    {
+        id: 'lg-account', label: 'Account',
+        title: 'Your Account & Profile',
+        intro: 'Keep your profile information current.',
+        steps: [
+            { title: 'Open your Account', body: 'Click <strong>Account</strong> in the sidebar. You will see your name, staff number, email, and profile photo.' },
+            { title: 'Edit your profile', body: 'Click <strong>Edit Profile</strong> to update your first name, last name, or email. Click <strong>Save Changes</strong>.' },
+            { title: 'Change your password', body: 'Use the <strong>Change Password</strong> section in the Account panel. Enter your current password, new password, confirm it, and click <strong>Update Password</strong>.' },
+            { title: 'Upload an avatar', body: 'Click your avatar circle to upload a profile image. This appears in the sidebar and in any shared view.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> Keeping your profile up to date helps students recognise you in group or leaderboard contexts.'
+    },
+    {
+        id: 'lg-help', label: 'Help & Support',
+        title: 'Getting Help',
+        intro: 'Find answers and contact support when you need assistance.',
+        steps: [
+            { title: 'Open the Help panel', body: 'Click <strong>Help</strong> in the sidebar to access the FAQ, User Guide, Contact Support, and Send a Query cards.' },
+            { title: 'Browse the FAQ', body: 'Click <strong>View FAQ</strong> to open the searchable FAQ modal. Type a keyword to filter questions.' },
+            { title: 'Send a query', body: 'Use the <strong>Send a Query</strong> card to submit a question or issue. Enter a title and message, then click <strong>Save</strong>.' },
+            { title: 'Contact support', body: 'For urgent matters use the contact details in the <strong>Contact Support</strong> card.' },
+        ],
+        tip: '\ud83d\udca1 <strong>Tip:</strong> If a student reports an issue you can\'t solve, direct them to <strong>Help \u2192 Send a Query</strong> so the admin team can assist.'
+    },
+];
+
+function openGuideModal() {
+    const overlay = document.getElementById('guide-modal-overlay');
+    if (!overlay) return;
+
+    const saved = sessionStorage.getItem('user');
+    const user  = saved ? JSON.parse(saved) : null;
+    const isLecturer = user && user.userType === 'LECTURER';
+    const sections   = isLecturer ? LECTURER_GUIDE : STUDENT_GUIDE;
+    const roleLabel  = isLecturer ? 'Lecturer' : 'Student';
+
+    const titleEl = document.getElementById('guide-modal-title');
+    const subEl   = document.getElementById('guide-modal-subtitle');
+    if (titleEl) titleEl.textContent = `${roleLabel} User Guide`;
+    if (subEl)   subEl.textContent   = `Step-by-step guide tailored for ${roleLabel}s`;
+
+    const tabsEl = document.getElementById('guide-tabs');
+    tabsEl.innerHTML = sections.map((s, i) =>
+        `<button class="guide-tab-btn${i === 0 ? ' active' : ''}" onclick="switchGuideTab('${s.id}')">${s.label}</button>`
+    ).join('');
+
+    const bodyEl = document.getElementById('guide-body');
+    bodyEl.innerHTML = sections.map((s, i) => `
+        <div class="guide-section${i === 0 ? ' active' : ''}" id="${s.id}">
+            <h3 class="guide-section-title">${s.title}</h3>
+            <p class="guide-section-intro">${s.intro}</p>
+            <div class="guide-steps">
+                ${s.steps.map((step, idx) => `
+                <div class="guide-step">
+                    <div class="guide-step-num">${idx + 1}</div>
+                    <div class="guide-step-content">
+                        <h4>${step.title}</h4>
+                        <p>${step.body}</p>
+                    </div>
+                </div>`).join('')}
+            </div>
+            ${s.tip ? `<div class="guide-tip">${s.tip}</div>` : ''}
+        </div>
+    `).join('');
+
+    overlay.classList.remove('hidden');
+}
+
+function closeGuideModal() {
+    const overlay = document.getElementById('guide-modal-overlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function switchGuideTab(sectionId) {
+    document.querySelectorAll('.guide-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${sectionId}'`));
+    });
+    document.querySelectorAll('.guide-section').forEach(sec => {
+        sec.classList.toggle('active', sec.id === sectionId);
+    });
+    const body = document.getElementById('guide-body');
+    if (body) body.scrollTop = 0;
+}
+
+// ── Admin Contact & Enquiry Module ──
+const ADMIN_CONTACTS = [
+    {
+        name: 'Kieran White',
+        studentNumber: '229713491',
+        email: 's229713491@mandela.ac.za',
+        initials: 'KW',
+        role: 'System Administrator',
+        area: 'Prediction Markets & Wagering'
+    },
+    {
+        name: 'Pieter Rijk Pretorius',
+        studentNumber: '229478379',
+        email: 's229478379@mandela.ac.za',
+        initials: 'PP',
+        role: 'System Administrator',
+        area: 'Groups, Tasks & Support'
+    },
+    {
+        name: 'Jason Sauls',
+        studentNumber: '225695863',
+        email: 's225695863@mandela.ac.za',
+        initials: 'JS',
+        role: 'System Administrator',
+        area: 'Social Ecosystem & Leaderboards'
+    },
+    {
+        name: 'Siwapiwe Matambeka',
+        studentNumber: '225063190',
+        email: 's225063190@mandela.ac.za',
+        initials: 'SM',
+        role: 'System Administrator',
+        area: 'Authentication & Security'
+    }
+];
+
+function openContactModal() {
+    const overlay = document.getElementById('contact-modal-overlay');
+    if (!overlay) return;
+
+    renderContactAdminCards();
+    overlay.classList.remove('hidden');
+}
+
+function closeContactModal() {
+    const overlay = document.getElementById('contact-modal-overlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function renderContactAdminCards() {
+    const grid = document.getElementById('contact-admin-grid');
+    if (!grid) return;
+
+    grid.innerHTML = ADMIN_CONTACTS.map(admin => `
+        <div class="contact-admin-card">
+            <div class="contact-card-top">
+                <div class="contact-admin-avatar">${admin.initials}</div>
+                <div class="contact-admin-meta">
+                    <h4 class="contact-admin-name">${admin.name}</h4>
+                    <div class="contact-admin-tags">
+                        <span class="contact-id-badge">Student #${admin.studentNumber}</span>
+                        <span class="contact-role-badge">${admin.role}</span>
+                    </div>
+                    <div class="contact-admin-area">${admin.area}</div>
+                </div>
+            </div>
+
+            <div class="contact-email-row">
+                <a href="mailto:${admin.email}?subject=${encodeURIComponent('MadiBets Support Enquiry')}" class="contact-email-link" title="Click to email ${admin.name}">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2"/>
+                        <polyline points="2,4 12,13 22,4"/>
+                    </svg>
+                    <span>${admin.email}</span>
+                </a>
+                <button type="button" class="contact-copy-btn" onclick="copyAdminEmail('${admin.email}', this)" title="Copy email address">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <span>Copy</span>
+                </button>
+            </div>
+
+            <div class="contact-card-actions">
+                <button type="button" class="btn-card-action btn-card-email" onclick="sendDirectAdminEmail('${admin.email}', '${admin.name}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 22,4"/>
+                    </svg>
+                    Email Admin
+                </button>
+                <button type="button" class="btn-card-action btn-card-enquire" onclick="selectContactAdmin('${admin.email}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Compose Email
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function copyAdminEmail(email, btnEl) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(() => {
+            if (btnEl) {
+                const origText = btnEl.innerHTML;
+                btnEl.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#28a745" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span style="color:#28a745;">Copied!</span>`;
+                setTimeout(() => { btnEl.innerHTML = origText; }, 2000);
+            }
+            showToast(`Copied ${email} to clipboard!`, 'success');
+        }).catch(() => {
+            fallbackCopy(email);
+        });
+    } else {
+        fallbackCopy(email);
+    }
+}
+
+function fallbackCopy(text) {
+    const tempInput = document.createElement('input');
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
+    showToast(`Copied ${text} to clipboard!`, 'success');
+}
+
+function selectContactAdmin(email) {
+    const select = document.getElementById('contact-enquiry-recipient');
+    if (select) {
+        select.value = email;
+    }
+    const composer = document.getElementById('contact-composer-card');
+    if (composer) {
+        composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const subjectInput = document.getElementById('contact-enquiry-subject');
+    if (subjectInput) {
+        subjectInput.focus();
+    }
+}
+
+function sendDirectAdminEmail(email, name) {
+    const subject = encodeURIComponent('MadiBets Support Enquiry');
+    const body = encodeURIComponent(`Hi ${name},\n\nI am contacting you regarding MadiBets.\n\nBest regards,`);
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    showToast(`Opening email client to contact ${name}...`, 'info');
+}
+
+function sendContactEnquiryEmail() {
+    const recipientSelect = document.getElementById('contact-enquiry-recipient');
+    const subjectInput = document.getElementById('contact-enquiry-subject');
+    const messageInput = document.getElementById('contact-enquiry-message');
+
+    const recipient = recipientSelect ? recipientSelect.value : 'all';
+    const subjectText = subjectInput ? subjectInput.value.trim() : '';
+    const messageText = messageInput ? messageInput.value.trim() : '';
+
+    if (!subjectText || !messageText) {
+        showToast('Please provide both a subject and an enquiry message.', 'error');
+        return;
+    }
+
+    let targetEmails = '';
+    let targetName = '';
+    if (recipient === 'all') {
+        targetEmails = ADMIN_CONTACTS.map(a => a.email).join(',');
+        targetName = 'all MadiBets Administrators';
+    } else {
+        const found = ADMIN_CONTACTS.find(a => a.email === recipient);
+        targetEmails = recipient;
+        targetName = found ? found.name : 'Administrator';
+    }
+
+    const encodedSubject = encodeURIComponent(`[MadiBets Enquiry] ${subjectText}`);
+    const encodedBody = encodeURIComponent(messageText);
+    const mailtoLink = `mailto:${targetEmails}?subject=${encodedSubject}&body=${encodedBody}`;
+
+    window.location.href = mailtoLink;
+    showToast(`Opening email client to send enquiry to ${targetName}...`, 'info');
+}
+
+// ── Fetch Banner Events ──
+let bannerCarouselInterval = null;
+let currentBannerEvents = [];
+let currentBannerIndex = 0;
+
+function updateBannerDOM() {
+    if (currentBannerEvents.length === 0) return;
+    const eventToDisplay = currentBannerEvents[currentBannerIndex];
+    
+    const titleEl = document.getElementById('dashboard-banner-title');
+    const dateEl = document.getElementById('dashboard-banner-date');
+    const linkEl = document.getElementById('dashboard-banner-link');
+    const bannerContainer = document.querySelector('.dashboard-event-banner');
+    
+    if (titleEl && dateEl && bannerContainer) {
+        bannerContainer.style.transition = 'opacity 0.3s ease';
+        bannerContainer.style.opacity = '0.5';
+        
+        setTimeout(() => {
+            titleEl.textContent = eventToDisplay.name;
+            dateEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ` 
+                                + eventToDisplay.date + " @ Nelson Mandela University";
+            if (linkEl) linkEl.href = eventToDisplay.url;
+            
+            bannerContainer.style.opacity = '1';
+        }, 300);
+    }
+}
+
+async function fetchBannerEvents() {
+    try {
+        const res = await fetch(`${API_BASE}/events`);
+        if (!res.ok) return;
+        const events = await res.json();
+        
+        if (events && Array.isArray(events) && events.length > 0) {
+            const upcomingEvents = events.filter(e => e.date && e.date !== "Date not listed" && e.date !== "Date not found");
+            currentBannerEvents = upcomingEvents.length > 0 ? upcomingEvents : events;
+            
+            if (currentBannerIndex >= currentBannerEvents.length) {
+                currentBannerIndex = 0;
+            }
+            
+            updateBannerDOM();
+            
+            if (bannerCarouselInterval) clearInterval(bannerCarouselInterval);
+            if (currentBannerEvents.length > 1) {
+                bannerCarouselInterval = setInterval(() => {
+                    currentBannerIndex = (currentBannerIndex + 1) % currentBannerEvents.length;
+                    updateBannerDOM();
+                }, 5000);
+            }
+        } else {
+            const titleEl = document.getElementById('dashboard-banner-title');
+            if (titleEl) titleEl.textContent = "Check back soon for more events!";
+            if (bannerCarouselInterval) clearInterval(bannerCarouselInterval);
+        }
+    } catch (err) {
+        console.error('Failed to load banner events:', err);
+    }
+    
+    // Auto-poll every 60 seconds to catch deleted/new events
+    setTimeout(fetchBannerEvents, 60000);
+}
