@@ -52,7 +52,16 @@ public class TaskController {
     public ResponseEntity<?> getQuiz(@PathVariable int id, @RequestParam(required = false) Integer userId) {
         try {
             int uid = userId == null ? 0 : userId;
-            Map<String, Object> quiz = taskDAO.getQuiz(id, uid);
+            // Privileged viewers (the creating lecturer, or any admin) always see
+            // the correct answers plus the completion summary.
+            boolean privileged = false;
+            if (uid > 0) {
+                String role = userDAO.getUserType(uid);
+                boolean isAdmin = "ADMIN".equalsIgnoreCase(role);
+                boolean isCreator = "LECTURER".equalsIgnoreCase(role) && taskDAO.getCreatedBy(id) == uid;
+                privileged = isAdmin || isCreator;
+            }
+            Map<String, Object> quiz = taskDAO.getQuiz(id, uid, privileged);
             return ResponseEntity.ok(quiz);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -82,6 +91,15 @@ public class TaskController {
             String role = userDAO.getUserType(userID);
             if (!"STUDENT".equalsIgnoreCase(role)) {
                 return ResponseEntity.status(403).body(Map.of("error", "Only students can complete tasks."));
+            }
+
+            // Must be a member of the quiz's group to take it.
+            int groupID = taskDAO.getGroupIdForTask(id);
+            if (groupID == -1) {
+                return ResponseEntity.status(404).body(Map.of("error", "Quiz not found."));
+            }
+            if (!groupDAO.isMember(groupID, userID)) {
+                return ResponseEntity.status(403).body(Map.of("error", "You must be a member of this group to take its quizzes."));
             }
 
             Object answersRaw = body.get("answers");
@@ -128,6 +146,33 @@ public class TaskController {
                 return ResponseEntity.ok(Map.of("success", true));
             }
             return ResponseEntity.status(404).body(Map.of("error", "Task not found."));
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * POST /api/tasks/{id}/reveal?userID=N — reveal quiz results to students.
+     * Only the LECTURER who created the quiz may reveal it.
+     */
+    @PostMapping("/{id}/reveal")
+    public ResponseEntity<?> revealQuiz(@PathVariable int id, @RequestParam int userID) {
+        try {
+            String role = userDAO.getUserType(userID);
+            if (!"LECTURER".equalsIgnoreCase(role)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only lecturers can reveal quiz results."));
+            }
+            if (taskDAO.getCreatedBy(id) != userID) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only the lecturer who created this quiz can reveal its results."));
+            }
+            boolean updated = taskDAO.setRevealed(id, true);
+            if (updated) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.status(404).body(Map.of("error", "Quiz not found."));
         } catch (SQLException e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of("error", "Database error."));

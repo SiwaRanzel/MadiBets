@@ -367,9 +367,16 @@ async function loadGroupDetail(groupID) {
 
         // Actions
         const isMember = data.isMember === true;
+        const isAdmin = user && user.userType === 'ADMIN';
         const actions = document.createElement('div');
-        actions.style = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;';
-        if (!isMember) {
+        actions.style = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center;';
+        if (isAdmin) {
+            // Admins have view-only oversight: they cannot join, leave, or create.
+            const note = document.createElement('div');
+            note.style = 'font-size:0.82rem; color:#A0B2D6; font-weight:600;';
+            note.textContent = 'Admin view — read only';
+            actions.appendChild(note);
+        } else if (!isMember) {
             const joinBtn = document.createElement('button');
             joinBtn.className = 'group-join-btn';
             joinBtn.textContent = 'Join Group';
@@ -382,7 +389,7 @@ async function loadGroupDetail(groupID) {
             leaveBtn.onclick = () => leaveGroup(groupID);
             actions.appendChild(leaveBtn);
         }
-        if (isMember && user && user.userType === 'LECTURER') {
+        if (!isAdmin && isMember && user && user.userType === 'LECTURER') {
             const createBtn = document.createElement('button');
             createBtn.className = 'group-create-task-btn';
             createBtn.textContent = '+ Create Quiz';
@@ -452,13 +459,29 @@ function renderTaskCard(task, user) {
     card.style = 'border:1px solid #EEF2F9; border-radius:12px; padding:14px; margin-bottom:10px;';
     const qCount = task.questionCount || 0;
     const submitted = task.submitted === true;
+    const revealed = task.revealed === true;
+    const role = user ? user.userType : null;
+    const isCreator = role === 'LECTURER' && user.userID === task.createdBy;
+    const isAdmin = role === 'ADMIN';
 
-    let statusHtml = '';
-    if (submitted) {
-        statusHtml = `<span style="color:#28A745; font-weight:700;">Score: ${task.score}/${qCount} — ${task.awardedMadibucks} MB</span>`;
+    // Status line depends on who's looking.
+    let statusHtml;
+    if (role === 'STUDENT') {
+        if (submitted && revealed) {
+            statusHtml = `<span style="color:#28A745; font-weight:700;">Score: ${task.score}/${qCount} — ${task.awardedMadibucks} MB</span>`;
+        } else if (submitted) {
+            statusHtml = `<span style="color:#F5A623; font-weight:700;">Completed — awaiting results</span>`;
+        } else {
+            statusHtml = `<span style="color:#6C7D93;">${qCount} question${qCount !== 1 ? 's' : ''}</span>`;
+        }
     } else {
-        statusHtml = `<span style="color:#6C7D93;">${qCount} question${qCount !== 1 ? 's' : ''}</span>`;
+        // Lecturer / admin: show question count + a reveal-state badge.
+        const badge = revealed
+            ? `<span style="color:#28A745; font-weight:700;">Results revealed</span>`
+            : `<span style="color:#A0B2D6; font-weight:700;">Results hidden</span>`;
+        statusHtml = `<span style="color:#6C7D93;">${qCount} question${qCount !== 1 ? 's' : ''}</span> · ${badge}`;
     }
+
     card.innerHTML =
         `<div style="font-weight:700; color:#1B2F5E; margin-bottom:4px;">${escapeHtml(task.title)}</div>
          <div style="font-size:0.85rem; margin-bottom:10px;">${statusHtml}</div>`;
@@ -466,30 +489,46 @@ function renderTaskCard(task, user) {
     const actions = document.createElement('div');
     actions.style = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;';
 
-    if (!submitted && user && user.userType === 'STUDENT') {
-        const takeBtn = document.createElement('button');
-        takeBtn.className = 'btn btn-gold-cta';
-        takeBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
-        takeBtn.textContent = 'Take Quiz';
-        takeBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
-        actions.appendChild(takeBtn);
-    } else if (submitted) {
+    if (role === 'STUDENT') {
+        if (!submitted) {
+            const takeBtn = document.createElement('button');
+            takeBtn.className = 'btn btn-gold-cta';
+            takeBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
+            takeBtn.textContent = 'Take Quiz';
+            takeBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
+            actions.appendChild(takeBtn);
+        } else {
+            const viewBtn = document.createElement('button');
+            viewBtn.className = 'btn';
+            viewBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px; border:1px solid #E6EDF7;';
+            viewBtn.textContent = revealed ? 'View Results' : 'View Submission';
+            viewBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
+            actions.appendChild(viewBtn);
+        }
+    } else if (isAdmin) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'btn';
         viewBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px; border:1px solid #E6EDF7;';
-        viewBtn.textContent = 'View Results';
+        viewBtn.textContent = 'View Quiz';
         viewBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
         actions.appendChild(viewBtn);
-    }
+    } else if (role === 'LECTURER') {
+        // Any lecturer can view; the creator can also reveal + delete.
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn';
+        viewBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px; border:1px solid #E6EDF7;';
+        viewBtn.textContent = isCreator ? 'View / Reveal' : 'View Quiz';
+        viewBtn.onclick = (e) => { e.stopPropagation(); openTakeQuiz(task.taskID); };
+        actions.appendChild(viewBtn);
 
-    // Lecturers can delete a quiz (also enforced on the backend).
-    if (user && user.userType === 'LECTURER') {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'admin-delete-query-btn';
-        delBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
-        delBtn.textContent = 'Delete';
-        delBtn.onclick = (e) => { e.stopPropagation(); deleteTask(task.taskID); };
-        actions.appendChild(delBtn);
+        if (isCreator) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'admin-delete-query-btn';
+            delBtn.style = 'padding:6px 14px; font-size:0.85rem; border-radius:8px;';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteTask(task.taskID); };
+            actions.appendChild(delBtn);
+        }
     }
 
     if (actions.children.length) card.appendChild(actions);
@@ -554,7 +593,34 @@ function renderTakeQuiz(data, user) {
     const resultEl = document.getElementById('take-quiz-result');
     resultEl.textContent = '';
 
+    const role = user ? user.userType : null;
     const submitted = data.submitted === true;
+    const revealed = data.revealed === true;
+    const privileged = data.privileged === true;   // creating lecturer or admin
+    const showAnswers = data.showAnswers === true; // correctness is exposed
+    const isStudent = role === 'STUDENT';
+    const isCreator = role === 'LECTURER' && user.userID === data.createdBy;
+
+    // ── Lecturer/admin oversight banner: completion count + who completed ──
+    if (privileged && data.completion) {
+        const c = data.completion;
+        const banner = document.createElement('div');
+        banner.style = 'background:#F8FAFC; border:1px solid #EEF2F9; border-radius:10px; padding:12px 14px; margin-bottom:16px;';
+        let html = `<div style="font-weight:700; color:#1B2F5E; margin-bottom:6px;">Completed: ${c.completedCount} / ${c.eligibleCount}</div>`;
+        if (c.completers && c.completers.length) {
+            html += '<div style="font-size:0.85rem; color:#6C7D93;">';
+            html += c.completers.map(p => {
+                const nm = escapeHtml(((p.name || '') + ' ' + (p.surname || '')).trim());
+                const sc = (revealed || privileged) && p.score != null ? ` — ${p.score}` : '';
+                return `${nm}${sc}`;
+            }).join('<br>');
+            html += '</div>';
+        } else {
+            html += '<div style="font-size:0.85rem; color:#A0B2D6;">No one has completed this quiz yet.</div>';
+        }
+        banner.innerHTML = html;
+        body.appendChild(banner);
+    }
 
     (data.questions || []).forEach((q, i) => {
         const qDiv = document.createElement('div');
@@ -568,12 +634,20 @@ function renderTakeQuiz(data, user) {
             oDiv.dataset.optionId = o.optionID;
             oDiv.innerHTML = `<span>${escapeHtml(o.optionText)}</span>`;
 
-            if (submitted) {
+            const chosen = q.chosenOptionID === o.optionID;
+
+            if (showAnswers) {
+                // Correctness is visible (student after reveal, or lecturer/admin).
                 oDiv.classList.add('disabled');
                 if (o.isCorrect) oDiv.classList.add('correct');
-                if (q.chosenOptionID === o.optionID && !o.isCorrect) oDiv.classList.add('incorrect');
-                if (q.chosenOptionID === o.optionID) oDiv.classList.add('selected');
-            } else if (user && user.userType === 'STUDENT') {
+                if (chosen && !o.isCorrect) oDiv.classList.add('incorrect');
+                if (chosen) oDiv.classList.add('selected');
+            } else if (submitted) {
+                // Student submitted but results not yet revealed: show their pick, no correctness.
+                oDiv.classList.add('disabled');
+                if (chosen) oDiv.classList.add('selected');
+            } else if (isStudent) {
+                // Taking the quiz.
                 oDiv.onclick = () => selectQuizOption(q.questionID, o.optionID);
             } else {
                 oDiv.classList.add('disabled');
@@ -583,14 +657,68 @@ function renderTakeQuiz(data, user) {
         body.appendChild(qDiv);
     });
 
-    if (submitted) {
+    // Footer controls: reveal button (creator), submit (student), result text.
+    const revealBtn = document.getElementById('take-quiz-reveal-btn');
+    if (revealBtn) revealBtn.remove(); // clear any previous
+
+    if (submitted && isStudent && !revealed) {
+        // Completed, waiting on the lecturer.
+        submitBtn.style.display = 'none';
+        resultEl.textContent = 'Completed — your results are locked until your lecturer reveals them.';
+    } else if (submitted && isStudent && revealed) {
         submitBtn.style.display = 'none';
         resultEl.textContent = `Score: ${data.score}/${(data.questions || []).length} — ${data.awardedMadibucks} MadiBucks earned`;
-    } else if (user && user.userType === 'STUDENT') {
+    } else if (!submitted && isStudent) {
         submitBtn.style.display = '';
         submitBtn.disabled = true;
     } else {
         submitBtn.style.display = 'none';
+    }
+
+    // Creating lecturer gets a Reveal Answers button.
+    if (isCreator) {
+        const footer = document.getElementById('take-quiz-footer');
+        const btn = document.createElement('button');
+        btn.id = 'take-quiz-reveal-btn';
+        btn.className = 'btn btn-gold-cta';
+        btn.style = 'padding:8px 16px; border-radius:8px;';
+        if (revealed) {
+            btn.textContent = 'Answers Revealed';
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btn.style.cursor = 'default';
+        } else {
+            btn.textContent = 'Reveal Answers';
+            btn.onclick = () => revealQuiz(data.taskID);
+        }
+        // Place it just before the Close button (after the result text).
+        const closeBtn = footer.querySelector('button.btn:not(.btn-gold-cta)');
+        if (closeBtn) footer.insertBefore(btn, closeBtn); else footer.appendChild(btn);
+    }
+}
+
+// Lecturer reveals quiz results to students.
+async function revealQuiz(taskID) {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
+    const user = JSON.parse(saved);
+
+    const confirmed = await showConfirmModal('Reveal Answers', 'Reveal the correct answers and scores to all students who have taken this quiz? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/tasks/${taskID}/reveal?userID=${user.userID}`, { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+            showToast('Answers revealed to students.', 'success');
+            await openTakeQuiz(taskID);            // refresh the modal (badge/button update)
+            if (currentGroupID) loadGroupDetail(currentGroupID);
+        } else {
+            showToast(data.error || 'Failed to reveal answers', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error revealing answers', 'error');
     }
 }
 
@@ -630,8 +758,10 @@ async function submitQuiz() {
         });
         const data = await resp.json();
         if (resp.ok) {
-            showToast(`Quiz submitted! ${data.score}/${data.total} correct — ${data.awardedMadibucks} MadiBucks earned`, 'success');
-            // Re-fetch the quiz to show results
+            // Results stay hidden until the lecturer reveals them, so only
+            // confirm completion here (no score/correctness).
+            showToast('Quiz submitted! Your results will be available once your lecturer reveals them.', 'success');
+            // Re-open in the gated (locked) state.
             await openTakeQuiz(takeQuizData.taskID);
             // Refresh group detail behind the quiz modal
             if (currentGroupID) loadGroupDetail(currentGroupID);

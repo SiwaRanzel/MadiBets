@@ -131,7 +131,7 @@ public class TaskDAO {
      *  awardedMadibucks}. Correct answers are never exposed here.
      */
     public List<Map<String, Object>> findByGroupWithStatus(int groupID, int userID) throws SQLException {
-        String sql = "SELECT t.taskID, t.title, t.description, t.amount, "
+        String sql = "SELECT t.taskID, t.title, t.description, t.amount, t.createdBy, t.resultsRevealed, "
                    + "(SELECT COUNT(*) FROM TaskQuestion q WHERE q.taskID = t.taskID) AS questionCount, "
                    + "ts.score, ts.awardedMadibucks, ts.submissionID "
                    + "FROM Task t "
@@ -150,13 +150,19 @@ public class TaskDAO {
                     m.put("title", rs.getString("title"));
                     m.put("description", rs.getString("description"));
                     m.put("questionCount", rs.getInt("questionCount"));
+                    m.put("createdBy", rs.getInt("createdBy"));
+                    boolean revealed = rs.getBoolean("resultsRevealed");
+                    m.put("revealed", revealed);
 
                     rs.getInt("submissionID");
                     boolean submitted = !rs.wasNull();
                     m.put("submitted", submitted);
                     if (submitted) {
-                        m.put("score", rs.getInt("score"));
-                        m.put("awardedMadibucks", rs.getInt("awardedMadibucks"));
+                        // Score is only exposed once results are revealed.
+                        if (revealed) {
+                            m.put("score", rs.getInt("score"));
+                            m.put("awardedMadibucks", rs.getInt("awardedMadibucks"));
+                        }
                     }
                     tasks.add(m);
                 }
@@ -328,6 +334,101 @@ public class TaskDAO {
         }
     }
 
+    /** The group a task belongs to, or -1 if the task doesn't exist. */
+    public int getGroupIdForTask(int taskID) throws SQLException {
+        String sql = "SELECT groupID FROM Task WHERE taskID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, taskID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("groupID") : -1;
+            }
+        }
+    }
+
+    /** The lecturer who created a task, or -1 if the task doesn't exist. */
+    public int getCreatedBy(int taskID) throws SQLException {
+        String sql = "SELECT createdBy FROM Task WHERE taskID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, taskID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("createdBy") : -1;
+            }
+        }
+    }
+
+    /** Whether this quiz's results have been revealed to students. */
+    public boolean isRevealed(int taskID) throws SQLException {
+        String sql = "SELECT resultsRevealed FROM Task WHERE taskID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, taskID);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getBoolean("resultsRevealed");
+            }
+        }
+    }
+
+    /** Set the quiz's results-revealed flag. */
+    public boolean setRevealed(int taskID, boolean revealed) throws SQLException {
+        String sql = "UPDATE Task SET resultsRevealed = ? WHERE taskID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setBoolean(1, revealed);
+            ps.setInt(2, taskID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Completion summary for a quiz, from the lecturer's perspective.
+     * completedCount = students who submitted; eligibleCount = STUDENT members
+     * of the group EXCLUDING the owner (lecturer). completers lists who has done it.
+     */
+    public Map<String, Object> getCompletionStatus(int taskID, int groupID) throws SQLException {
+        Map<String, Object> out = new HashMap<>();
+
+        // Eligible = STUDENT members of the group, excluding the OWNER role.
+        String eligibleSql = "SELECT COUNT(*) AS c FROM GroupMember gm "
+                           + "JOIN User u ON u.userID = gm.userID "
+                           + "WHERE gm.groupID = ? AND gm.role != 'OWNER' AND u.userType = 'STUDENT'";
+        int eligible = 0;
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(eligibleSql)) {
+            ps.setInt(1, groupID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) eligible = rs.getInt("c");
+            }
+        }
+
+        // Who has completed it (any submitter), with name + score + date.
+        List<Map<String, Object>> completers = new ArrayList<>();
+        String compSql = "SELECT ts.userID, u.name, u.surname, ts.score, ts.submittedDate "
+                       + "FROM TaskSubmission ts JOIN User u ON u.userID = ts.userID "
+                       + "WHERE ts.taskID = ? ORDER BY ts.submittedDate";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(compSql)) {
+            ps.setInt(1, taskID);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> c = new HashMap<>();
+                    c.put("userID", rs.getInt("userID"));
+                    c.put("name", rs.getString("name"));
+                    c.put("surname", rs.getString("surname"));
+                    c.put("score", rs.getInt("score"));
+                    c.put("submittedDate", rs.getTimestamp("submittedDate"));
+                    completers.add(c);
+                }
+            }
+        }
+
+        out.put("completedCount", completers.size());
+        out.put("eligibleCount", eligible);
+        out.put("completers", completers);
+        return out;
+    }
+
     /**
      * Load a quiz for a student to TAKE. Options are returned WITHOUT the
      * isCorrect flag so nothing is revealed before submit. If the student has
@@ -339,23 +440,51 @@ public class TaskDAO {
      *                                 (if submitted) chosenOptionID, isCorrect,
      *                                 correctOptionID } ] }
      */
-    public Map<String, Object> getQuiz(int taskID, int userID) throws SQLException {
+    /**
+     * Load a quiz for viewing/taking.
+     *
+     * @param privileged true when the viewer is the creating lecturer or an admin —
+     *                   they always see the correct answers (oversight), plus the
+     *                   completion summary.
+     *
+     * Correct answers are exposed to a STUDENT only once they have submitted AND
+     * the lecturer has revealed results. The student always sees their own chosen
+     * option, but "correct/incorrect" and score stay hidden until reveal.
+     */
+    public Map<String, Object> getQuiz(int taskID, int userID, boolean privileged) throws SQLException {
         Map<String, Object> out = new HashMap<>();
         boolean submitted = hasSubmitted(taskID, userID);
+        boolean revealed = isRevealed(taskID);
+        // Whether to expose correctness (the correct option + per-answer right/wrong + score).
+        boolean showAnswers = privileged || (submitted && revealed);
+
         out.put("taskID", taskID);
         out.put("submitted", submitted);
+        out.put("revealed", revealed);
+        out.put("privileged", privileged);
+        out.put("showAnswers", showAnswers);
 
-        // Task title
-        String titleSql = "SELECT title FROM Task WHERE taskID = ?";
+        // Task title + group + creator
+        String titleSql = "SELECT title, groupID, createdBy FROM Task WHERE taskID = ?";
+        int groupID = -1;
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(titleSql)) {
             ps.setInt(1, taskID);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) out.put("title", rs.getString("title"));
+                if (rs.next()) {
+                    out.put("title", rs.getString("title"));
+                    groupID = rs.getInt("groupID");
+                    out.put("createdBy", rs.getInt("createdBy"));
+                }
             }
         }
 
-        // If submitted, load the submission summary + per-question answers.
+        // Privileged viewers (lecturer/admin) get the completion summary.
+        if (privileged && groupID != -1) {
+            out.put("completion", getCompletionStatus(taskID, groupID));
+        }
+
+        // Load the viewer's own submission (their score + per-question answers), if any.
         Map<Integer, Map<String, Object>> answerByQuestion = new HashMap<>();
         if (submitted) {
             String subSql = "SELECT submissionID, score, awardedMadibucks FROM TaskSubmission WHERE taskID = ? AND userID = ?";
@@ -367,8 +496,11 @@ public class TaskDAO {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         submissionID = rs.getInt("submissionID");
-                        out.put("score", rs.getInt("score"));
-                        out.put("awardedMadibucks", rs.getInt("awardedMadibucks"));
+                        // Score/award only surfaced when answers are shown.
+                        if (showAnswers) {
+                            out.put("score", rs.getInt("score"));
+                            out.put("awardedMadibucks", rs.getInt("awardedMadibucks"));
+                        }
                     }
                 }
             }
@@ -422,9 +554,9 @@ public class TaskDAO {
                         int optionID = rs.getInt("optionID");
                         o.put("optionID", optionID);
                         o.put("optionText", rs.getString("optionText"));
-                        // Only expose correctness AFTER the student has submitted.
+                        // Expose correctness only when answers may be shown.
                         boolean correct = rs.getBoolean("isCorrect");
-                        if (submitted) {
+                        if (showAnswers) {
                             o.put("isCorrect", correct);
                             if (correct) correctOptionID = optionID;
                         }
@@ -433,11 +565,15 @@ public class TaskDAO {
                 }
             }
             q.put("options", options);
-            if (submitted) {
+            // The viewer's own chosen option is always echoed back (so a student
+            // sees what they picked, even before results are revealed).
+            Map<String, Object> a = answerByQuestion.get(questionID);
+            if (a != null) {
+                q.put("chosenOptionID", a.get("chosenOptionID"));
+            }
+            if (showAnswers) {
                 q.put("correctOptionID", correctOptionID);
-                Map<String, Object> a = answerByQuestion.get(questionID);
                 if (a != null) {
-                    q.put("chosenOptionID", a.get("chosenOptionID"));
                     q.put("isCorrect", a.get("isCorrect"));
                 }
             }

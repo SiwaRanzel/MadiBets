@@ -174,6 +174,7 @@ CREATE TABLE Task (
   amount      DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
   createdBy   INT NOT NULL,                  -- lecturer userID
   correctAnswer BOOLEAN NULL,                -- True/False answer for the task
+  resultsRevealed BOOLEAN NOT NULL DEFAULT 0,-- lecturer reveals quiz results to students
   CONSTRAINT fk_task_group   FOREIGN KEY (groupID)   REFERENCES `Group`(groupID) ON DELETE CASCADE,
   CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID) ON DELETE SET NULL,
   CONSTRAINT fk_task_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
