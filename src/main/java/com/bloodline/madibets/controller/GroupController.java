@@ -119,6 +119,11 @@ public class GroupController {
             }
             int userID = ((Number) raw).intValue();
 
+            // Admins cannot join groups (they have view-only oversight).
+            if ("ADMIN".equalsIgnoreCase(userDAO.getUserType(userID))) {
+                return ResponseEntity.status(403).body(Map.of("error", "Admins cannot join groups."));
+            }
+
             // If the group is password-protected, require and verify the password.
             if (groupDAO.hasPassword(id)) {
                 Object pwRaw = body.get("password");
