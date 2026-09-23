@@ -4536,6 +4536,7 @@ function sendContactEnquiryEmail() {
 let bannerCarouselInterval = null;
 let currentBannerEvents = [];
 let currentBannerIndex = 0;
+let bannerRetryCount = 0;
 
 function updateBannerDOM() {
     if (currentBannerEvents.length === 0) return;
@@ -4561,13 +4562,34 @@ function updateBannerDOM() {
     }
 }
 
+function setBannerFallback(message) {
+    const titleEl = document.getElementById('dashboard-banner-title');
+    const dateEl = document.getElementById('dashboard-banner-date');
+    if (titleEl) titleEl.textContent = message;
+    if (dateEl) dateEl.textContent = '';
+    if (bannerCarouselInterval) { clearInterval(bannerCarouselInterval); bannerCarouselInterval = null; }
+}
+
 async function fetchBannerEvents() {
     try {
-        const res = await fetch(`${API_BASE}/events`);
-        if (!res.ok) return;
-        const events = await res.json();
-        
-        if (events && Array.isArray(events) && events.length > 0) {
+        // 10-second timeout so the UI never hangs waiting for a slow backend
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(`${API_BASE}/events`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+            setBannerFallback('Check back soon for more events!');
+            scheduleRetry();
+            return;
+        }
+
+        const data = await res.json();
+        // The API may return an array or { message, events } when empty
+        const events = Array.isArray(data) ? data : (data.events || []);
+
+        if (events.length > 0) {
             const upcomingEvents = events.filter(e => e.date && e.date !== "Date not listed" && e.date !== "Date not found");
             currentBannerEvents = upcomingEvents.length > 0 ? upcomingEvents : events;
             
@@ -4584,15 +4606,26 @@ async function fetchBannerEvents() {
                     updateBannerDOM();
                 }, 5000);
             }
+            bannerRetryCount = 0; // reset on success
         } else {
-            const titleEl = document.getElementById('dashboard-banner-title');
-            if (titleEl) titleEl.textContent = "Check back soon for more events!";
-            if (bannerCarouselInterval) clearInterval(bannerCarouselInterval);
+            setBannerFallback('Check back soon for more events!');
         }
     } catch (err) {
-        console.error('Failed to load banner events:', err);
+        if (err.name === 'AbortError') {
+            console.warn('Banner events fetch timed out');
+        } else {
+            console.error('Failed to load banner events:', err);
+        }
+        setBannerFallback('Check back soon for more events!');
     }
-    
-    // Auto-poll every 60 seconds to catch deleted/new events
-    setTimeout(fetchBannerEvents, 60000);
+
+    scheduleRetry();
 }
+
+function scheduleRetry() {
+    // Exponential backoff: 15s, 30s, 60s, 120s … capped at 5 min
+    const delay = Math.min(15000 * Math.pow(2, bannerRetryCount), 300000);
+    bannerRetryCount++;
+    setTimeout(fetchBannerEvents, delay);
+}
+
