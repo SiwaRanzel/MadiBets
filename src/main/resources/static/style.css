@@ -3211,7 +3211,7 @@ body {
     gap: 10px;
     margin: 0 28px 0;
     padding: 12px 14px;
-    background: #F4F6FA;
+    background: #F8FAFC;
     border-radius: 10px;
     border: 1px solid #E2E8F0;
     margin-top: 16px;
@@ -3832,3 +3832,135 @@ body {
     background-color: #264385;
     transform: translateY(-1px);
 }
+
+/* -------------------------------------------------------------
+ * Unified Search Bar Tint Styling
+ * Ensures all search bars across all panels feature the sleek
+ * #F8FAFC tint background and matching crisp borders.
+ * ------------------------------------------------------------- */
+#bets-search,
+#admin-delete-search-input,
+#um-search-input,
+#browse-search-input,
+#friends-search-input {
+    background-color: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    color: #1B2F5E !important;
+    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+#bets-search:focus,
+#admin-delete-search-input:focus,
+#um-search-input:focus,
+#browse-search-input:focus,
+#friends-search-input:focus {
+    background-color: #FFFFFF !important;
+    border-color: #1B2F5E !important;
+    box-shadow: 0 0 0 3px rgba(27, 47, 94, 0.08);
+}
+
+.groups-search-wrapper,
+.admin-search-wrapper,
+.faq-search-bar {
+    background-color: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.groups-search-wrapper:focus-within,
+.admin-search-wrapper:focus-within,
+.faq-search-bar:focus-within {
+    background-color: #FFFFFF !important;
+    border-color: #1B2F5E !important;
+    box-shadow: 0 0 0 3px rgba(27, 47, 94, 0.08);
+}
+
+/* -------------------------------------------------------------
+ * Student Dashboard Summary Cards Action Buttons
+ * Unified hover micro-interaction animation
+ * ------------------------------------------------------------- */
+.dashboard-card-btn {
+    width: 100%;
+    border: none;
+    padding: 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-card-btn-bets {
+    background-color: #1B2F5E;
+    color: #FFFFFF;
+}
+
+.dashboard-card-btn-bets:hover {
+    background-color: #264385;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(27, 47, 94, 0.28);
+}
+
+.dashboard-card-btn-account {
+    background-color: #E2E8F0;
+    color: #1B2F5E;
+}
+
+.dashboard-card-btn-account:hover {
+    background-color: #FFFFFF;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.dashboard-card-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* -------------------------------------------------------------
+ * Student Dashboard NMU Event Banner
+ * Clean, distraction-free hero with interactive click prompt
+ * ------------------------------------------------------------- */
+.dashboard-event-banner {
+    position: relative;
+    width: 100%;
+    min-height: 220px;
+    border-radius: 12px;
+    margin-bottom: 40px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border: 1px solid #E2E8F0;
+    display: flex;
+    cursor: pointer;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.dashboard-event-banner:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(27, 47, 94, 0.2);
+}
+
+.dashboard-event-banner:hover .banner-portal-chip {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.dashboard-event-banner:hover .banner-click-prompt {
+    color: #FFC043 !important;
+}
+
+.dashboard-event-banner:hover .banner-arrow-icon {
+    transform: translateX(5px);
+}
+
+/* -------------------------------------------------------------
+ * Lecturer Leaderboard: Hide personal user bet stats & bet history
+ * ------------------------------------------------------------- */
+body.is-lecturer #leaderboard-user-stats,
+body.is-lecturer #leaderboard-bet-history {
+    display: none !important;
+}
+
+
+

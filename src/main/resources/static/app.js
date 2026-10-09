@@ -1135,6 +1135,32 @@ function switchPanel(panelId) {
     const target = document.getElementById(panelId);
     if (target) target.classList.remove('hidden');
 
+    // Update student workspace header (Dashboard has Hello <Name>, other pages have Heading + Description)
+    const headerTitleEl = document.getElementById('header-greeting-title');
+    const headerDescEl = document.getElementById('header-greeting-desc');
+    const STUDENT_PAGE_HEADERS = {
+        'panel-bets':        { title: 'Bets', desc: 'Explore open markets and place your wagers' },
+        'panel-account':     { title: 'Account', desc: 'View your balance, betting statistics and history' },
+        'panel-leaderboard': { title: 'Leaderboard', desc: 'Rankings and player performance across campus' },
+        'panel-groups':      { title: 'Groups', desc: 'Manage and browse study groups and leagues' },
+        'panel-friends':     { title: 'Friends', desc: 'Connect with fellow students and manage friend requests' },
+        'panel-help':        { title: 'Help & Support', desc: 'Find answers, view user guides, or contact support' }
+    };
+
+    if (headerTitleEl && headerDescEl) {
+        if (panelId === 'panel-dashboard' || panelId === 'panel-dashboard-lecturer') {
+            const userObj = JSON.parse(sessionStorage.getItem('user') || '{}');
+            const firstName = userObj.name || '';
+            headerTitleEl.innerHTML = `Hello <span id="header-greeting-name">${firstName}</span> 👋,`;
+            headerDescEl.style.display = 'none';
+            headerDescEl.textContent = '';
+        } else if (STUDENT_PAGE_HEADERS[panelId]) {
+            headerTitleEl.innerHTML = STUDENT_PAGE_HEADERS[panelId].title;
+            headerDescEl.textContent = STUDENT_PAGE_HEADERS[panelId].desc;
+            headerDescEl.style.display = 'block';
+        }
+    }
+
     // Update active nav item in whichever nav is visible
     document.querySelectorAll('.menu-item').forEach(item => {
         item.classList.remove('item-active');
@@ -1142,7 +1168,7 @@ function switchPanel(panelId) {
     const navMap = {
         'panel-dashboard':          'nav-dashboard-student',
         'panel-dashboard-lecturer': 'nav-dashboard-lecturer',
-        'panel-groups':             ['nav-groups', 'nav-groups-student', 'nav-admin-groups'],
+        'panel-groups':             ['nav-groups', 'nav-groups-student', 'nav-groups-lecturer', 'nav-admin-groups'],
         'panel-dashboard-admin':    'nav-dashboard-admin',
         'panel-delete-request':     'nav-delete-request',
         'panel-user-management':    'nav-user-management',
@@ -1532,6 +1558,12 @@ function loadDashboardData(user, balance) {
     const isLecturer = user.userType === 'LECTURER';
     const isAdmin = user.userType === 'ADMIN';
 
+    document.body.classList.toggle('is-lecturer', isLecturer);
+    const lbStats = document.getElementById('leaderboard-user-stats');
+    const lbHistory = document.getElementById('leaderboard-bet-history');
+    if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
+    if (lbHistory) lbHistory.style.display = isLecturer ? 'none' : 'block';
+
     const studentNav  = document.getElementById('nav-student');
     const lecturerNav = document.getElementById('nav-lecturer');
     const adminNav    = document.getElementById('nav-admin');
@@ -1547,6 +1579,11 @@ function loadDashboardData(user, balance) {
         } else {
             appHeader.style.display = 'flex';
         }
+    }
+
+    const groupsAdminHdr = document.getElementById('groups-admin-header');
+    if (groupsAdminHdr) {
+        groupsAdminHdr.style.display = isAdmin ? 'block' : 'none';
     }
 
     // Default panel on login
@@ -1971,15 +2008,15 @@ function switchUMTab(role, btnEl) {
     }
 
     if (role === 'STUDENT') {
-        titleEl.textContent = 'Student';
+        if (titleEl) titleEl.textContent = 'Student';
         colNo.textContent = 'Student No.';
         if (idOption) idOption.textContent = 'Search by: Student No.';
     } else if (role === 'LECTURER') {
-        titleEl.textContent = 'Lecturer';
+        if (titleEl) titleEl.textContent = 'Lecturer';
         colNo.textContent = 'Staff No.';
         if (idOption) idOption.textContent = 'Search by: Staff No.';
     } else {
-        titleEl.textContent = 'Administrator';
+        if (titleEl) titleEl.textContent = 'Administrator';
         colNo.textContent = 'User ID';
         if (idOption) idOption.textContent = 'Search by: User ID';
     }
@@ -2485,13 +2522,23 @@ async function loadLeaderboardData() {
     const user = JSON.parse(sessionStorage.getItem('user'));
     if (!user) return;
 
+    const isLecturer = user.userType === 'LECTURER';
+    const lbStats = document.getElementById('leaderboard-user-stats');
+    const lbHistory = document.getElementById('leaderboard-bet-history');
+    if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
+    if (lbHistory) lbHistory.style.display = isLecturer ? 'none' : 'block';
+
     await populateLeaderboardGroupOptions(user.userID);
 
-    await Promise.all([
-        loadUserStats(user.userID),
-        loadRankings(),
-        loadBetHistory(user.userID)
-    ]);
+    if (isLecturer) {
+        await loadRankings();
+    } else {
+        await Promise.all([
+            loadUserStats(user.userID),
+            loadRankings(),
+            loadBetHistory(user.userID)
+        ]);
+    }
 }
 
 // Fill the "Show" dropdown with the user's groups, listed after Everyone/My Friends.
@@ -3220,7 +3267,6 @@ async function loadAdminDashboardStats() {
             setStat('stat-users-total', stats.totalUsers);
             setStat('stat-users-joined-today', stats.usersJoinedToday);
             setStat('stat-support-queries', stats.openSupportQueries);
-            setStat('stat-bonus-awarded', stats.usersRewardedToday);
             
             setStat('admin-total-users', stats.totalUsers);
             setStat('admin-new-proposals', stats.betsPendingReview);
