@@ -1,8 +1,14 @@
 -- ============================================================
--- MadiBets - Database Schema (MySQL 8.0)
+-- MadiBets - Complete Database Schema (MySQL 8.0)
 -- The Bloodline | WRRV301
--- Derived from Section 3.1 "List of data and attributes".
--- Read the DESIGN NOTES at the bottom before you build on this.
+--
+-- This is the single canonical script. Run it once on a fresh
+-- MySQL instance — it creates the database, all tables (with
+-- every migration already applied), and seeds the initial
+-- admin account.
+--
+-- Usage:
+--   mysql -u root -p < db/madibets_schema.sql
 -- ============================================================
 
 DROP DATABASE IF EXISTS madibets;
@@ -11,21 +17,22 @@ CREATE DATABASE madibets
   COLLATE utf8mb4_unicode_ci;
 USE madibets;
 
--- ------------------------------------------------------------
--- Core identity (User + subtypes)
+-- ============================================================
+-- SECTION 1: Core Identity  (User + subtypes)
 -- Subtype tables share the User primary key (1:1 with User).
--- ------------------------------------------------------------
+-- avatarPath / avatarData / avatarType added by migrate_avatar_db.
+-- ============================================================
 CREATE TABLE User (
-  userID    INT AUTO_INCREMENT PRIMARY KEY,
-  name      VARCHAR(100) NOT NULL,
-  surname   VARCHAR(100) NOT NULL,
-  email     VARCHAR(255) NOT NULL UNIQUE,
-  password  VARCHAR(255) NOT NULL,                 -- store a HASH, never plaintext (see notes)
-  userType  ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
-  avatarPath VARCHAR(255),
-  avatarData LONGBLOB,
-  avatarType VARCHAR(50),
-  createdDate DATETIME DEFAULT CURRENT_TIMESTAMP
+  userID      INT AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(100)  NOT NULL,
+  surname     VARCHAR(100)  NOT NULL,
+  email       VARCHAR(255)  NOT NULL UNIQUE,
+  password    VARCHAR(255)  NOT NULL,                 -- store a HASH, never plaintext (POPI Act)
+  userType    ENUM('STUDENT','LECTURER','ADMIN') NOT NULL,
+  avatarPath  VARCHAR(255),
+  avatarData  LONGBLOB,
+  avatarType  VARCHAR(50),
+  createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE Student (
@@ -45,29 +52,32 @@ CREATE TABLE Admin (
   CONSTRAINT fk_admin_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Accounting (simulated - no real money; MadiBucks only)
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 2: Accounting  (simulated — MadiBucks only, no real money)
+-- ============================================================
 CREATE TABLE Account (
-  accountID INT AUTO_INCREMENT PRIMARY KEY,         -- 3.1 wrote "acountID" (typo, corrected here)
-  balance   DECIMAL(12,2) NOT NULL DEFAULT 100.00,  -- 100 MadiBucks granted (business rule)
+  accountID INT AUTO_INCREMENT PRIMARY KEY,
+  balance   DECIMAL(12,2) NOT NULL DEFAULT 100.00,   -- 100 MadiBucks granted on registration
   userID    INT NOT NULL UNIQUE,
   CONSTRAINT fk_account_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE `Transaction` (                        -- backticked: TRANSACTION is a MySQL keyword
+CREATE TABLE `Transaction` (                          -- backticked: TRANSACTION is a MySQL keyword
   transactionID INT AUTO_INCREMENT PRIMARY KEY,
   payoutAmount  DECIMAL(12,2) NOT NULL,
   description   VARCHAR(255),
   `date`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  -- NOTE: 3.1 gives no link to an Account/User. See DESIGN NOTES #2.
-  accountID INT NOT NULL,
+  accountID     INT NOT NULL,
   CONSTRAINT fk_txn_account FOREIGN KEY (accountID) REFERENCES Account(accountID)
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Betting
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 3: Betting
+-- A Bet is a market; a Wager is one student's stake on one outcome.
+-- BetOutcome stores the 2-4 possible outcomes and their odds.
+-- (Design note #1 resolved 2026-08-10; migrate_multi_wager +
+--  migrate_multi_outcome are already baked in here.)
+-- ============================================================
 CREATE TABLE Event (
   eventID          INT AUTO_INCREMENT PRIMARY KEY,
   eventDescription VARCHAR(255) NOT NULL,
@@ -79,7 +89,7 @@ CREATE TABLE Event (
 
 CREATE TABLE Bet (
   betID            INT AUTO_INCREMENT PRIMARY KEY,
-  userID           INT NOT NULL,        -- proposer (wagers live in Wager, see DESIGN NOTES #1)
+  userID           INT NOT NULL,        -- proposer
   eventID          INT,
   description      VARCHAR(255) NOT NULL,
   outcome          ENUM('PENDING','DECIDED','CANCELLED') NOT NULL DEFAULT 'PENDING',
@@ -94,9 +104,8 @@ CREATE TABLE Bet (
   CONSTRAINT fk_bet_grader FOREIGN KEY (gradedBy) REFERENCES User(userID)
 ) ENGINE=InnoDB;
 
--- The 2-4 possible outcomes of one bet (e.g. "Madibaz win" / "Wits win" /
--- "Draw"). The proposer names them; the admin prices them at approval, so
--- odds stay NULL while the bet is PROPOSED.
+-- 2-4 possible outcomes per bet (e.g. "Madibaz win" / "Wits win" / "Draw").
+-- The proposer names them; the admin sets odds at approval (odds stays NULL while PROPOSED).
 CREATE TABLE BetOutcome (
   outcomeID INT AUTO_INCREMENT PRIMARY KEY,
   betID     INT NOT NULL,
@@ -107,27 +116,28 @@ CREATE TABLE BetOutcome (
   CONSTRAINT uq_outcome UNIQUE (betID, label)
 ) ENGINE=InnoDB;
 
+ALTER TABLE Bet
+  ADD CONSTRAINT fk_bet_winner FOREIGN KEY (winningOutcomeID) REFERENCES BetOutcome(outcomeID);
 
--- One student's stake on one outcome of one market (design note #1 resolved:
--- market/wager split so many students can wager on the same bet). Stake is
--- stored explicitly, so refunds no longer need to be derived from payout/odds.
+-- One student's stake on one outcome of one market.
+-- stake is stored explicitly so refunds don't need to be derived.
 CREATE TABLE Wager (
   wagerID       INT AUTO_INCREMENT PRIMARY KEY,
   betID         INT NOT NULL,
   outcomeID     INT NOT NULL,            -- the outcome this student backed
   userID        INT NOT NULL,
   stake         DECIMAL(12,2) NOT NULL,
-  amountToBeWon DECIMAL(12,2) NOT NULL,  -- stake x chosen outcome's odds, frozen at placement
+  amountToBeWon DECIMAL(12,2) NOT NULL,  -- stake × odds, frozen at placement
   placedDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_wager_bet     FOREIGN KEY (betID)     REFERENCES Bet(betID) ON DELETE CASCADE,
   CONSTRAINT fk_wager_outcome FOREIGN KEY (outcomeID) REFERENCES BetOutcome(outcomeID),
   CONSTRAINT fk_wager_user    FOREIGN KEY (userID)    REFERENCES User(userID),
-  CONSTRAINT uq_wager UNIQUE (betID, userID)   -- one wager per student per bet
+  CONSTRAINT uq_wager UNIQUE (betID, userID)           -- one wager per student per bet
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Social (friends)
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 4: Social  (friends)
+-- ============================================================
 CREATE TABLE Friendship (
   friendshipID INT AUTO_INCREMENT PRIMARY KEY,
   requesterID  INT NOT NULL,
@@ -138,14 +148,16 @@ CREATE TABLE Friendship (
   CONSTRAINT uq_friend_pair UNIQUE (requesterID, addresseID)
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Groups / Leagues
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 5: Groups / Leagues
+-- password (bcrypt HASH; NULL = open group) added by migrate_group_password.
+-- maxMembers (excludes owner; NULL = unlimited) added by migrate_group_max_members.
+-- ============================================================
 CREATE TABLE `Group` (                    -- backticked: GROUP is a reserved word in MySQL
   groupID     INT AUTO_INCREMENT PRIMARY KEY,
   groupName   VARCHAR(100) NOT NULL,
   description VARCHAR(255),
-  password    VARCHAR(255) NULL,          -- optional join password (bcrypt HASH; NULL = open group)
+  password    VARCHAR(255) NULL,          -- bcrypt HASH; NULL means the group is open
   maxMembers  INT NULL,                   -- max joining members (EXCLUDES owner); NULL = unlimited
   createdBy   INT NOT NULL,
   createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -162,19 +174,22 @@ CREATE TABLE GroupMember (
   CONSTRAINT uq_gm UNIQUE (groupID, userID)
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Tasks (lecturer-set, reward MadiBucks)
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 6: Tasks / Quizzes  (lecturer-set, reward MadiBucks)
+-- correctAnswer added by migrate_task_answers.
+-- resultsRevealed added by migrate_quiz_reveal.
+-- TaskQuestion, TaskOption, TaskSubmission, TaskAnswer added by migrate_quiz_tasks.
+-- ============================================================
 CREATE TABLE Task (
-  taskID      INT AUTO_INCREMENT PRIMARY KEY,
-  title       VARCHAR(255) NOT NULL,
-  description VARCHAR(1000),
-  groupID     INT NOT NULL,                  -- Tasks are scoped to groups (D400/D500)
-  userID      INT,                           -- Optional specific assignee
-  amount      DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
-  createdBy   INT NOT NULL,                  -- lecturer userID
-  correctAnswer BOOLEAN NULL,                -- True/False answer for the task
-  resultsRevealed BOOLEAN NOT NULL DEFAULT 0,-- lecturer reveals quiz results to students
+  taskID          INT AUTO_INCREMENT PRIMARY KEY,
+  title           VARCHAR(255) NOT NULL,
+  description     VARCHAR(1000),
+  groupID         INT NOT NULL,                  -- tasks are scoped to a group
+  userID          INT,                           -- optional specific assignee
+  amount          DECIMAL(12,2) NOT NULL,        -- MadiBucks reward
+  createdBy       INT NOT NULL,                  -- lecturer userID
+  correctAnswer   BOOLEAN NULL,                  -- True/False answer for legacy single-answer tasks
+  resultsRevealed BOOLEAN NOT NULL DEFAULT 0,    -- lecturer reveals quiz results to students
   CONSTRAINT fk_task_group   FOREIGN KEY (groupID)   REFERENCES `Group`(groupID) ON DELETE CASCADE,
   CONSTRAINT fk_task_user    FOREIGN KEY (userID)    REFERENCES User(userID) ON DELETE SET NULL,
   CONSTRAINT fk_task_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
@@ -190,39 +205,41 @@ CREATE TABLE TaskCompletion (
   CONSTRAINT fk_tc_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- A Task is a QUIZ of up to 10 questions. Each question is TRUE_FALSE or
--- MULTIPLE_CHOICE and owns 2-4 options with exactly one flagged isCorrect.
--- Reward is a fixed 10 MadiBucks per correct answer, credited at submit time.
+-- A Task is a quiz of up to 10 questions.
+-- Each question is TRUE_FALSE or MULTIPLE_CHOICE and owns 2-4 options
+-- with exactly one flagged isCorrect.
 CREATE TABLE TaskQuestion (
-  questionID  INT AUTO_INCREMENT PRIMARY KEY,
-  taskID      INT NOT NULL,
-  prompt      VARCHAR(1000) NOT NULL,
-  type        ENUM('TRUE_FALSE','MULTIPLE_CHOICE') NOT NULL,
-  position    INT NOT NULL DEFAULT 0,
+  questionID INT AUTO_INCREMENT PRIMARY KEY,
+  taskID     INT NOT NULL,
+  prompt     VARCHAR(1000) NOT NULL,
+  type       ENUM('TRUE_FALSE','MULTIPLE_CHOICE') NOT NULL,
+  position   INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_tq_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE TaskOption (
-  optionID    INT AUTO_INCREMENT PRIMARY KEY,
-  questionID  INT NOT NULL,
-  optionText  VARCHAR(500) NOT NULL,
-  isCorrect   BOOLEAN NOT NULL DEFAULT 0,
-  position    INT NOT NULL DEFAULT 0,
+  optionID   INT AUTO_INCREMENT PRIMARY KEY,
+  questionID INT NOT NULL,
+  optionText VARCHAR(500) NOT NULL,
+  isCorrect  BOOLEAN NOT NULL DEFAULT 0,
+  position   INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_to_question FOREIGN KEY (questionID) REFERENCES TaskQuestion(questionID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- One submission per student per quiz (UNIQUE); the score + award are frozen
--- at submit time so results stay hidden until the student submits.
+-- One submission per student per quiz (UNIQUE).
+-- Score and award are frozen at submit time; results stay hidden until
+-- the lecturer sets resultsRevealed = 1 on the parent Task.
+-- Reward: 10 MadiBucks per correct answer, credited at submit time.
 CREATE TABLE TaskSubmission (
   submissionID     INT AUTO_INCREMENT PRIMARY KEY,
   taskID           INT NOT NULL,
   userID           INT NOT NULL,
-  score            INT NOT NULL DEFAULT 0,
-  awardedMadibucks INT NOT NULL DEFAULT 0,
+  score            INT NOT NULL DEFAULT 0,           -- number of correct answers
+  awardedMadibucks INT NOT NULL DEFAULT 0,           -- 10 × score
   submittedDate    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_ts_task FOREIGN KEY (taskID) REFERENCES Task(taskID) ON DELETE CASCADE,
   CONSTRAINT fk_ts_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE,
-  CONSTRAINT uq_ts UNIQUE (taskID, userID)
+  CONSTRAINT uq_ts UNIQUE (taskID, userID)           -- one attempt per student
 ) ENGINE=InnoDB;
 
 CREATE TABLE TaskAnswer (
@@ -232,15 +249,15 @@ CREATE TABLE TaskAnswer (
   chosenOptionID INT NULL,
   isCorrect      BOOLEAN NOT NULL DEFAULT 0,
   CONSTRAINT fk_ta_submission FOREIGN KEY (submissionID) REFERENCES TaskSubmission(submissionID) ON DELETE CASCADE,
-  CONSTRAINT fk_ta_question   FOREIGN KEY (questionID)   REFERENCES TaskQuestion(questionID)   ON DELETE CASCADE
+  CONSTRAINT fk_ta_question   FOREIGN KEY (questionID)   REFERENCES TaskQuestion(questionID)     ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Support queries
--- ------------------------------------------------------------
+-- ============================================================
+-- SECTION 7: Support
+-- ============================================================
 CREATE TABLE Query (
   queryID        INT AUTO_INCREMENT PRIMARY KEY,
-  title          VARCHAR(255) NOT NULL,
+  title          VARCHAR(255)  NOT NULL,
   description    VARCHAR(1000) NOT NULL,
   queryDate      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   userID         INT NOT NULL,
@@ -256,9 +273,9 @@ CREATE TABLE AccountDeletionRequest (
   CONSTRAINT fk_delreq_user FOREIGN KEY (userID) REFERENCES User(userID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Login-time messages for students (e.g. B400/B600: how their wager settled).
--- Written inside the settlement transaction; shown once at next login, then
--- flagged seen.
+-- Login-time messages for students (e.g. how their wager settled).
+-- Written at settlement time; shown once at next login, then flagged seen.
+-- Added by migrate_notifications.
 CREATE TABLE Notification (
   notificationID INT AUTO_INCREMENT PRIMARY KEY,
   userID         INT NOT NULL,
@@ -269,20 +286,27 @@ CREATE TABLE Notification (
 ) ENGINE=InnoDB;
 
 -- ============================================================
--- DESIGN NOTES (discuss as a team before building on this)
+-- SECTION 8: Seed Data
+-- Initial admin account (password: "12345", BCrypt hashed).
 -- ============================================================
--- 1. BET = MARKET + WAGER. RESOLVED 2026-08-10: split into Bet (market)
+INSERT INTO User (name, surname, email, password, userType)
+VALUES ('System', 'Admin', 'admin@mandela.ac.za',
+        '$2a$10$zDCw63WppOURRN5/s0LAReSBFNPW9yXHF4SphSH3IzPY1hRalzWi2', 'ADMIN');
+
+SET @adminId = LAST_INSERT_ID();
+
+INSERT INTO Admin (userID)
+VALUES (@adminId);
+
+-- ============================================================
+-- DESIGN NOTES
+-- ============================================================
+-- 1. BET = MARKET + WAGER. Resolved 2026-08-10: split into Bet (market)
 --    + Wager (one row per student stake, UNIQUE per bet+user). Multiple
---    students can now wager on the same market; settlement pays every
---    winning wager. Existing DBs: run db/migrate_multi_wager.sql.
--- 2. TRANSACTION has no owner in 3.1. B600/C400 need it. Uncomment the
---    accountID FK above (or add userID) once the team agrees.
--- 3. TASK has no groupID, but D400's narrative says tasks belong to a
---    group. If tasks are group-scoped, add groupID + FK to `Group`.
--- 4. BET TYPE (Academic/Sport/Social) appears in every bets UI but is not
---    in 3.1. Add e.g. category ENUM('ACADEMIC','SPORT','SOCIAL') to Bet
---    (or Event) if the demo needs the Type column.
--- 5. PASSWORDS: never store plaintext. Hash with bcrypt/Argon2 at register
---    (A100) and compare the hash at login (A200). POPI Act compliance.
--- 6. LEAGUES (business rule) are not modelled. Decide if in scope.
+--    students can wager on the same market; settlement pays every winning wager.
+-- 2. TRANSACTION has no owner in spec 3.1. B600/C400 need it. The accountID
+--    FK is already present above; add userID if the team prefers a direct link.
+-- 3. PASSWORDS: never store plaintext. Hash with BCrypt at registration (A100)
+--    and compare the hash at login (A200). POPI Act compliance.
+-- 4. LEAGUES (business rule) are not modelled. Decide if in scope.
 -- ============================================================

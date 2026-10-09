@@ -1102,7 +1102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Wire up sidebar nav clicks (handled via onclick attributes in HTML)
-    fetchBannerEvents();
 });
 
 // Interactive mouse-tracking light-up effect on MadiBets title
@@ -4662,100 +4661,4 @@ function sendContactEnquiryEmail() {
     showToast(`Opening email client to send enquiry to ${targetName}...`, 'info');
 }
 
-// ── Fetch Banner Events ──
-let bannerCarouselInterval = null;
-let currentBannerEvents = [];
-let currentBannerIndex = 0;
-let bannerRetryCount = 0;
-
-function updateBannerDOM() {
-    if (currentBannerEvents.length === 0) return;
-    const eventToDisplay = currentBannerEvents[currentBannerIndex];
-    
-    const titleEl = document.getElementById('dashboard-banner-title');
-    const dateEl = document.getElementById('dashboard-banner-date');
-    const linkEl = document.getElementById('dashboard-banner-link');
-    const bannerContainer = document.querySelector('.dashboard-event-banner');
-    
-    if (titleEl && dateEl && bannerContainer) {
-        bannerContainer.style.transition = 'opacity 0.3s ease';
-        bannerContainer.style.opacity = '0.5';
-        
-        setTimeout(() => {
-            titleEl.textContent = eventToDisplay.name;
-            dateEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ` 
-                                + eventToDisplay.date + " @ Nelson Mandela University";
-            if (linkEl) linkEl.href = eventToDisplay.url;
-            
-            bannerContainer.style.opacity = '1';
-        }, 300);
-    }
-}
-
-function setBannerFallback(message) {
-    const titleEl = document.getElementById('dashboard-banner-title');
-    const dateEl = document.getElementById('dashboard-banner-date');
-    if (titleEl) titleEl.textContent = message;
-    if (dateEl) dateEl.textContent = '';
-    if (bannerCarouselInterval) { clearInterval(bannerCarouselInterval); bannerCarouselInterval = null; }
-}
-
-async function fetchBannerEvents() {
-    try {
-        // 10-second timeout so the UI never hangs waiting for a slow backend
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const res = await fetch(`${API_BASE}/events`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-            setBannerFallback('Check back soon for more events!');
-            scheduleRetry();
-            return;
-        }
-
-        const data = await res.json();
-        // The API may return an array or { message, events } when empty
-        const events = Array.isArray(data) ? data : (data.events || []);
-
-        if (events.length > 0) {
-            const upcomingEvents = events.filter(e => e.date && e.date !== "Date not listed" && e.date !== "Date not found");
-            currentBannerEvents = upcomingEvents.length > 0 ? upcomingEvents : events;
-            
-            if (currentBannerIndex >= currentBannerEvents.length) {
-                currentBannerIndex = 0;
-            }
-            
-            updateBannerDOM();
-            
-            if (bannerCarouselInterval) clearInterval(bannerCarouselInterval);
-            if (currentBannerEvents.length > 1) {
-                bannerCarouselInterval = setInterval(() => {
-                    currentBannerIndex = (currentBannerIndex + 1) % currentBannerEvents.length;
-                    updateBannerDOM();
-                }, 5000);
-            }
-            bannerRetryCount = 0; // reset on success
-        } else {
-            setBannerFallback('Check back soon for more events!');
-        }
-    } catch (err) {
-        if (err.name === 'AbortError') {
-            console.warn('Banner events fetch timed out');
-        } else {
-            console.error('Failed to load banner events:', err);
-        }
-        setBannerFallback('Check back soon for more events!');
-    }
-
-    scheduleRetry();
-}
-
-function scheduleRetry() {
-    // Exponential backoff: 15s, 30s, 60s, 120s … capped at 5 min
-    const delay = Math.min(15000 * Math.pow(2, bannerRetryCount), 300000);
-    bannerRetryCount++;
-    setTimeout(fetchBannerEvents, delay);
-}
 

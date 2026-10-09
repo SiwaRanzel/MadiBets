@@ -1,7 +1,7 @@
 # MadiBets — Project Documentation
 
 > **Team**: The Bloodline | **Module**: WRRV301  
-> **Last Updated**: 18 August 2026  
+> **Last Updated**: 9 October 2026  
 
 ---
 
@@ -34,10 +34,7 @@ MadiBets/
 ├── README.md                             # Team onboarding guide
 ├── db/
 │   ├── db.properties.example             # Template — credentials placeholder
-│   ├── madibets_schema.sql               # Full schema: 16 tables, design notes
-│   ├── migrate_multi_outcome.sql         # Migration: add BetOutcome table
-│   ├── migrate_multi_wager.sql           # Migration: split Bet into market + Wager
-│   └── seed_admin.sql                    # Inserts the default Admin account
+│   └── madibets_schema.sql               # Complete schema (20 tables) + seed data — run once on a fresh DB
 ├── docs/
 │   ├── PROJECT_DOCUMENTATION.md          # This file
 │   └── controllers_readme.txt            # Controller layer notes
@@ -49,6 +46,7 @@ MadiBets/
 │   │   ├── User.java                     # ✅ userID, name, surname, email, password, userType, studentNo, staffNo, avatarPath, createdDate
 │   │   ├── Account.java                  # ✅ accountID, balance, userID
 │   │   ├── AccountDeletionRequest.java   # ✅ requestID, userID, requestDate, status, userName, userEmail
+│   │   ├── AvatarData.java               # ✅ Avatar binary + MIME type container
 │   │   ├── Bet.java                      # ✅ Market POJO — betID, userID, eventID, description, outcome, status, deadline, winningOutcomeID, proposedDate, gradedDate, gradedBy + transient outcomes/wagerCount/totalStaked
 │   │   ├── BetOutcome.java               # ✅ outcomeID, betID, label, odds, position
 │   │   ├── DashboardStats.java           # ✅ Admin dashboard aggregates
@@ -57,8 +55,10 @@ MadiBets/
 │   │   ├── Group.java                   # ✅ groupID, groupName, description, createdBy, createdDate
 │   │   ├── LecturerStats.java           # ✅ Lecturer dashboard aggregates
 │   │   ├── Query.java                   # ✅ queryID, title, description, queryDate, userID, resolvedStatus
-│   │   ├── Task.java                    # ✅ taskID, title, description, groupID, userID, amount, createdBy
+│   │   ├── Task.java                    # ✅ taskID, title, description, groupID, userID, amount, createdBy, correctAnswer, resultsRevealed
 │   │   ├── TaskCompletion.java          # ✅ completionID, taskID, userID, completionStatus, completionDate
+│   │   ├── TaskOption.java              # ✅ optionID, questionID, optionText, isCorrect, position
+│   │   ├── TaskQuestion.java            # ✅ questionID, taskID, prompt, type, position, options
 │   │   └── Wager.java                  # ✅ wagerID, betID, outcomeID, userID, stake, amountToBeWon, placedDate
 │   ├── dao/
 │   │   ├── UserDAO.java                  # ✅ Full CRUD + balance + avatar + counts + growth
@@ -71,8 +71,9 @@ MadiBets/
 │   │   ├── GroupDAO.java                # ✅ Group CRUD, member management, search
 │   │   ├── LeaderboardDAO.java          # ✅ Bet history, rankings, user stats, monthly allowance
 │   │   ├── LecturerDAO.java             # ✅ Lecturer dashboard stats
-│   │   ├── QueryDAO.java               # ✅ Support query CRUD with user join
-│   │   └── TaskDAO.java                # ✅ Task creation and queries by group/creator
+│   │   ├── NotificationDAO.java         # ✅ Settlement notification queue + read + mark seen
+│   │   ├── QueryDAO.java                # ✅ Support query CRUD with user join
+│   │   └── TaskDAO.java                # ✅ Quizzes, questions, options, submissions, grading
 │   ├── service/
 │   │   ├── AuthService.java             # ✅ Register (BCrypt) + Login
 │   │   ├── AccountService.java          # ✅ Balance reads (delegates to AccountDAO)
@@ -87,8 +88,9 @@ MadiBets/
 │       ├── GroupController.java         # ✅ REST: /api/groups/* (create, list, join, virtual groups)
 │       ├── LeaderboardController.java   # ✅ REST: /api/leaderboard/* (history, rankings, stats, allowance)
 │       ├── LecturerController.java      # ✅ REST: /api/lecturers/{id}/dashboard-stats
+│       ├── NotificationController.java  # ✅ REST: /api/notifications/* (fetch, mark seen)
 │       ├── QueryController.java         # ✅ REST: /api/queries/* (submit, list, status update)
-│       ├── TaskController.java          # ✅ REST: /api/tasks?createdBy=N
+│       ├── TaskController.java          # ✅ REST: /api/tasks/* (list, create, quiz submit)
 │       └── UserController.java          # ✅ REST: /api/users/* (profile, avatar, password, delete requests)
 ├── src/main/resources/
 │   ├── application.properties           # server.port=8081
@@ -108,7 +110,7 @@ MadiBets/
 
 ## 3. Database Schema
 
-The schema lives in [madibets_schema.sql](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/db/madibets_schema.sql) and defines **16 tables** in the `madibets` database:
+The schema lives in [madibets_schema.sql](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/db/madibets_schema.sql) — a single all-in-one script that creates the `madibets` database, all **22 tables**, and seeds the default admin account. All former migration scripts have been merged into this file.
 
 ### Entity-Relationship Summary
 
@@ -153,26 +155,29 @@ erDiagram
 | `BetOutcome` | 2–4 possible outcomes per bet | `outcomeID` (PK), `betID` (FK), `label`, `odds` (DECIMAL, null while PROPOSED), `position` |
 | `Wager` | One student's stake on one outcome | `wagerID` (PK), `betID` (FK), `outcomeID` (FK), `userID` (FK), `stake`, `amountToBeWon`, `placedDate`. UNIQUE (betID, userID) |
 | `Friendship` | Social connections | `friendshipID` (PK), `requesterID`/`addresseID` (FKs), `status` (ENUM: PENDING/ACCEPTED/REJECTED) |
-| `Group` | Leagues / groups | `groupID` (PK), `groupName`, `description`, `createdBy` (FK), `createdDate` |
+| `Group` | Leagues / groups | `groupID` (PK), `groupName`, `description`, `password` (bcrypt hash; NULL = open), `maxMembers` (NULL = unlimited), `createdBy` (FK), `createdDate` |
 | `GroupMember` | Group membership | `groupMemberID` (PK), `groupID`/`userID` (FKs), `role` (ENUM: OWNER/MEMBER). UNIQUE (groupID, userID) |
-| `Task` | Lecturer-set tasks (group-scoped) | `taskID` (PK), `title`, `description`, `groupID` (FK), `userID` (FK, nullable assignee), `amount` (MadiBucks reward), `createdBy` (FK) |
+| `Task` | Lecturer-set quiz tasks (group-scoped) | `taskID` (PK), `title`, `description`, `groupID` (FK), `userID` (FK, nullable assignee), `amount` (MadiBucks reward), `createdBy` (FK), `correctAnswer` (legacy T/F), `resultsRevealed` |
 | `TaskCompletion` | Task completion tracking | `completionID` (PK), `taskID`/`userID` (FKs), `completionStatus` (ENUM: PENDING/COMPLETED/REJECTED), `completionDate` |
+| `TaskQuestion` | Quiz questions (up to 10 per task) | `questionID` (PK), `taskID` (FK), `prompt`, `type` (ENUM: TRUE_FALSE/MULTIPLE_CHOICE), `position` |
+| `TaskOption` | Answer options per question (2–4) | `optionID` (PK), `questionID` (FK), `optionText`, `isCorrect`, `position` |
+| `TaskSubmission` | One submission per student per quiz | `submissionID` (PK), `taskID`/`userID` (FKs), `score`, `awardedMadibucks`, `submittedDate`. UNIQUE (taskID, userID) |
+| `TaskAnswer` | Per-question answer choices | `answerID` (PK), `submissionID`/`questionID` (FKs), `chosenOptionID`, `isCorrect` |
 | `Query` | Support tickets | `queryID` (PK), `title`, `description`, `queryDate`, `userID` (FK), `resolvedStatus` (ENUM: OPEN/RESOLVED) |
 | `AccountDeletionRequest` | Soft-delete workflow | `requestID` (PK), `userID` (FK), `requestDate`, `status` (ENUM: NEW/DONE/REJOIN) |
+| `Notification` | Login-time settlement messages | `notificationID` (PK), `userID` (FK), `message`, `createdDate`, `seen` (TINYINT) |
 
 ### Seed Data
 
-[seed_admin.sql](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/db/seed_admin.sql) creates the initial admin account:
+Seed data is included at the bottom of `madibets_schema.sql` — no separate file needed.
+The initial admin account is created automatically:
 - **Email**: `admin@mandela.ac.za`
 - **Password**: `12345` (stored as BCrypt hash)
 - **Balance**: 0.00 MB
 
-### Migration Scripts
-
-| File | Purpose |
-|---|---|
-| [migrate_multi_wager.sql](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/db/migrate_multi_wager.sql) | Splits the Bet table into market + Wager so multiple students can bet on one market |
-| [migrate_multi_outcome.sql](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/db/migrate_multi_outcome.sql) | Adds the BetOutcome table for multi-outcome markets |
+> [!NOTE]
+> All former migration scripts (`migrate_*.sql`) and `seed_admin.sql` have been merged
+> into `madibets_schema.sql`. Only that one file is needed for a fresh setup.
 
 ---
 
@@ -190,7 +195,7 @@ erDiagram
 
 ---
 
-### 4.2 Model Layer (14 POJOs)
+### 4.2 Model Layer (17 POJOs)
 
 | Model | Fields | Status |
 |---|---|---|
@@ -203,15 +208,18 @@ erDiagram
 | [Friendship.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/Friendship.java) | `friendshipID`, `requesterID`, `addresseID`, `status` + transient `requesterName`, `addresseName` | ✅ |
 | [Group.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/Group.java) | `groupID`, `groupName`, `description`, `createdBy`, `createdDate` | ✅ |
 | [Query.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/Query.java) | `queryID`, `title`, `description`, `queryDate`, `userID`, `resolvedStatus` | ✅ |
-| [Task.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/Task.java) | `taskID`, `title`, `description`, `groupID`, `userID`, `amount`, `createdBy` | ✅ |
+| [Task.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/Task.java) | `taskID`, `title`, `description`, `groupID`, `userID`, `amount`, `createdBy`, `correctAnswer`, `resultsRevealed` | ✅ |
 | [TaskCompletion.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/TaskCompletion.java) | `completionID`, `taskID`, `userID`, `completionStatus`, `completionDate` | ✅ |
+| [TaskQuestion.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/TaskQuestion.java) | `questionID`, `taskID`, `prompt`, `type`, `position`, `options` | ✅ |
+| [TaskOption.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/TaskOption.java) | `optionID`, `questionID`, `optionText`, `isCorrect`, `position` | ✅ |
 | [DashboardStats.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/DashboardStats.java) | Admin dashboard aggregates (8 metrics) | ✅ |
 | [LecturerStats.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/LecturerStats.java) | Lecturer dashboard aggregates | ✅ |
+| [AvatarData.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/AvatarData.java) | Avatar binary data + MIME type container | ✅ |
 | [AccountDeletionRequest.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/model/AccountDeletionRequest.java) | `requestID`, `userID`, `requestDate`, `status`, `userName`, `userEmail` | ✅ |
 
 ---
 
-### 4.3 DAO Layer (12 DAOs)
+### 4.3 DAO Layer (13 DAOs)
 
 #### [UserDAO.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/dao/UserDAO.java) — Owner: Siwapiwe
 
@@ -334,6 +342,14 @@ erDiagram
 | `updateStatus(int, String)` | Updates request status (e.g. NEW → DONE or REJOIN). |
 | `hasPendingDeleteRequest(int)` | Checks if a user has an active NEW request (blocks login). |
 
+#### [NotificationDAO.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/dao/NotificationDAO.java) — Owner: Kieran
+
+| Method | Description |
+|---|---|
+| `insert(Connection, int, String)` | In-transaction settlement notification write so messages match balance changes. |
+| `findUnseen(int)` | Returns all unread notifications for a user, oldest first. |
+| `markAllSeen(int)` | Flags all unread notifications as seen once displayed to the user. |
+
 ---
 
 ### 4.4 Service Layer (5 Services)
@@ -386,7 +402,7 @@ erDiagram
 
 ---
 
-### 4.5 Controller Layer (10 Controllers)
+### 4.5 Controller Layer (11 Controllers)
 
 #### [AuthController.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/controller/AuthController.java) — Owner: Siwapiwe
 
@@ -457,7 +473,11 @@ erDiagram
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `GET /api/tasks?createdBy=N` | D500 | Lists tasks created by a specific lecturer. |
+| `GET /api/tasks?createdBy=&groupID=` | D500 | Lists tasks filtered by creator or group. |
+| `GET /api/tasks/{id}/quiz?userId=N` | D500 | Fetches quiz details/questions. Privileged viewers (creator/admin) see answers. |
+| `POST /api/tasks/{id}/submit` | D500 | Student submits quiz answers; validates, grades, and credits 10 MB per correct answer. |
+| `DELETE /api/tasks/{id}?userID=N` | D500 | Lecturer deletes a quiz task. |
+| `POST /api/tasks/{id}/reveal?userID=N` | D500 | Lecturer reveals quiz results to students. |
 
 #### [QueryController.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/controller/QueryController.java) — Owner: Pieter
 
@@ -478,6 +498,13 @@ erDiagram
 | Endpoint | Method | Description |
 |---|---|---|
 | `GET /api/lecturers/{id}/dashboard-stats` | Lecturer Dashboard | Total groups, total students, new students this week, active today. |
+
+#### [NotificationController.java](file:///c:/Users/siwap/OneDrive/Documents/GitHub/MadiBets/src/main/java/com/bloodline/madibets/controller/NotificationController.java) — Owner: Kieran
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `GET /api/notifications/{userID}` | Unseen Notifications | Fetches unseen notifications for login-time toast/banner display. |
+| `POST /api/notifications/{userID}/seen` | Mark Notifications Seen | Flags all unseen notifications as seen. |
 
 ---
 
@@ -618,11 +645,24 @@ Base URL: `http://localhost:8081/api`
 | `/groups/{id}?userId=` | GET | — | `200 Group` | `404` / `500 { error }` |
 | `/groups/{id}/join` | POST | `{ userID }` | `200 { success: true }` | `409 { error }` |
 
-### Tasks
+### Tasks & Quizzes
 
 | Endpoint | Method | Request Body | Success Response | Error Response |
 |---|---|---|---|---|
 | `/tasks?createdBy=N` | GET | — | `200 [Task]` | `400` / `500 { error }` |
+| `/tasks?groupID=N` | GET | — | `200 [Task]` | `400` / `500 { error }` |
+| `/tasks/{id}/quiz?userId=N` | GET | — | `200 { quiz }` | `500 { error }` |
+| `/tasks/{id}/submit` | POST | `{ userID, answers: [...] }` | `200 { score, awardedMadibucks }` | `400` / `403` / `409` |
+| `/tasks/{id}?userID=N` | DELETE | — | `200 { success: true }` | `403` / `404` |
+| `/tasks/{id}/reveal?userID=N` | POST | — | `200 { success: true }` | `403` / `404` |
+| `/groups/{id}/tasks` | POST | `{ title, description, userID, questions: [...] }` | `201 { success, taskID }` | `400` / `403` |
+
+### Notifications
+
+| Endpoint | Method | Request Body | Success Response | Error Response |
+|---|---|---|---|---|
+| `/notifications/{userID}` | GET | — | `200 { notifications: [...] }` | `500 { error }` |
+| `/notifications/{userID}/seen` | POST | — | `200 { marked: N }` | `500 { error }` |
 
 ### Support Queries
 
@@ -687,20 +727,21 @@ Base URL: `http://localhost:8081/api`
 
 ---
 
-## 10. Remaining Work
+## 10. Remaining Work & Recent Architectural Changes
 
 > [!NOTE]
 > All four use-case series are fully implemented. The items below are polish/enhancement work, not blockers.
 
-### Backend
+### Recent Changes & Simplifications
+- **Events Portal Integration**: External NMU web scraper (`EventScraperService`, `EventScraperController`, `NmuEvent`, and `jsoup`) was removed in favor of a clean, responsive portal card linking directly to `events.mandela.ac.za` with an official Mandela events message.
+- **Support & Admin Contacts**: The contact panel clearly distinguishes formal Query ticket submissions from direct administrative contacts (displaying admin names rather than a single raw generic email address).
+- **Consolidated Database Setup**: All historical `migrate_*.sql` scripts and `seed_admin.sql` have been consolidated directly into `db/madibets_schema.sql` (22 tables + default admin account). `db/select_query.sql` removed.
 
-- [ ] **Task creation endpoint**: `TaskController` only exposes `GET /api/tasks?createdBy=N`. A `POST /api/tasks` endpoint is needed for the lecturer to create tasks from the UI.
-- [ ] **Task completion endpoint**: No controller for `TaskCompletion` yet — lecturers cannot mark tasks as completed via the API.
+### Backend Polish
 - [ ] **Password change**: `UserController.updatePassword()` embeds raw SQL — should delegate to a `UserDAO.updatePassword()` method.
-- [ ] **Event management**: No controller for creating/managing Events — bets can only reference existing events via direct DB inserts.
+- [ ] **Event management**: No controller for creating/managing Events — bets can reference existing events or be proposed independently.
 
-### Frontend
-
+### Frontend Polish
 - [ ] Wire remaining Admin panels (MadiBucks, Reports, Settings) to backend APIs
 - [ ] Implement the "What would you like to know?" prompt bar functionality
 
@@ -708,17 +749,18 @@ Base URL: `http://localhost:8081/api`
 
 | Decision | Status |
 |---|---|
-| Bet = Market + Wager split | ✅ Resolved (Aug 10) — `Bet` + `Wager` + `BetOutcome` tables |
+| Bet = Market + Wager split | ✅ Resolved — `Bet` + `Wager` + `BetOutcome` tables |
 | Transaction ownership | ✅ Resolved — `accountID` FK links transactions to accounts |
 | Task → Group linkage | ✅ Resolved — `groupID` FK on Task table |
-| Bet category (Academic/Sport/Social) | ❓ Not yet modelled — decide if in scope for demo |
-| Leagues concept | ❓ Not modelled — virtual "Overall" and "My Friends" groups serve a similar purpose |
+| Quiz system with automated grading | ✅ Resolved — `TaskQuestion` + `TaskOption` + `TaskSubmission` + `TaskAnswer` tables |
+| Notification system | ✅ Resolved — `Notification` table + `NotificationDAO` / `NotificationController` |
 
 ---
 
 ## 11. How to Run
 
-1. **Database**: Run `db/madibets_schema.sql` in MySQL Workbench, then optionally `db/seed_admin.sql`
+1. **Database**: Run `db/madibets_schema.sql` in MySQL Workbench.
+   This single script creates the database, all tables, and seeds the default admin account — no other SQL files are needed.
 2. **Credentials**: Copy `db/db.properties.example` → `src/main/resources/db.properties` and set your MySQL password
 3. **Start**: Run `Main.java` or `mvn spring-boot:run`
 4. **Access**: Open `http://localhost:8081` in a browser
