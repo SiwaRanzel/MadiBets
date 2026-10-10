@@ -1560,9 +1560,7 @@ function loadDashboardData(user, balance) {
 
     document.body.classList.toggle('is-lecturer', isLecturer);
     const lbStats = document.getElementById('leaderboard-user-stats');
-    const lbHistory = document.getElementById('leaderboard-bet-history');
     if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
-    if (lbHistory) lbHistory.style.display = isLecturer ? 'none' : 'block';
 
     const studentNav  = document.getElementById('nav-student');
     const lecturerNav = document.getElementById('nav-lecturer');
@@ -1741,25 +1739,29 @@ async function loadAccountData() {
             }
 
             // Populate table conditionally based on role
-            const tbody = document.getElementById('account-table-body');
+            const tbody = document.getElementById('bet-history-table-body') || document.getElementById('account-table-body');
             const tableTitle = document.getElementById('account-table-title');
             const stat2 = document.getElementById('account-stat-2');
             const stat1Label = document.getElementById('account-stat-1-label');
             const tableHeaderRow = document.getElementById('account-table-header');
+            const filterControls = document.getElementById('bet-history-filter-controls');
             
-            tbody.innerHTML = '';
+            if (tbody) tbody.innerHTML = '';
             
             if (u.userType === 'LECTURER') {
-                tableTitle.textContent = 'Task';
-                stat1Label.textContent = 'Total Students';
+                if (tableTitle) tableTitle.textContent = 'Task';
+                if (filterControls) filterControls.style.display = 'none';
+                if (stat1Label) stat1Label.textContent = 'Total Students';
                 if (stat2) stat2.style.display = 'none'; // Hide Pos for lecturer
                 
-                tableHeaderRow.innerHTML = `
-                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
-                `;
+                if (tableHeaderRow) {
+                    tableHeaderRow.innerHTML = `
+                        <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
+                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
+                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks</th>
+                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                    `;
+                }
 
                 // Fetch real data from backend
                 fetch(`http://localhost:8081/api/tasks?createdBy=${u.userID}`)
@@ -1771,7 +1773,7 @@ async function loadAccountData() {
                         }
 
                         if (tasks.length === 0) {
-                            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #6C7D93;">No tasks found.</td></tr>`;
+                            if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #6C7D93;">No tasks found.</td></tr>`;
                             return;
                         }
 
@@ -1785,73 +1787,41 @@ async function loadAccountData() {
                             const statusColor = '#E2E8F0';
                             const textColor = '#6C7D93';
 
-                            tbody.innerHTML += `
-                                <tr style="border-bottom: 1px solid #F0F2F5;">
-                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${type}</td>
-                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${bucks}</td>
-                                    <td style="text-align: center; padding: 15px 10px; color: #6C7D93; font-size: 0.95rem;">${title}</td>
-                                    <td style="text-align: center; padding: 15px 10px;">
-                                        <span style="background: ${statusColor}; color: ${textColor}; padding: 5px 15px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${status}</span>
-                                    </td>
-                                </tr>
-                            `;
+                            if (tbody) {
+                                tbody.innerHTML += `
+                                    <tr style="border-bottom: 1px solid #F0F2F5;">
+                                        <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${type}</td>
+                                        <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${bucks}</td>
+                                        <td style="text-align: center; padding: 15px 10px; color: #6C7D93; font-size: 0.95rem;">${title}</td>
+                                        <td style="text-align: center; padding: 15px 10px;">
+                                            <span style="background: ${statusColor}; color: ${textColor}; padding: 5px 15px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${status}</span>
+                                        </td>
+                                    </tr>
+                                `;
+                            }
                         });
                     })
                     .catch(err => {
                         console.error('Error fetching tasks:', err);
-                        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #D9534F;">Failed to load tasks.</td></tr>`;
+                        if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #D9534F;">Failed to load tasks.</td></tr>`;
                     });
             } else {
-                tableTitle.textContent = 'Bets Placed';
-                stat1Label.textContent = 'Total Students';
+                if (tableTitle) tableTitle.textContent = 'Your Bet History';
+                if (filterControls) filterControls.style.display = 'flex';
+                if (stat1Label) stat1Label.textContent = 'Total Students';
                 if (stat2) stat2.style.display = 'flex'; // Show Pos for student
 
-                tableHeaderRow.innerHTML = `
-                    <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Event</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Potential Win</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
-                    <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
-                `;
-
-                // Fetch real bet history
-                const betsResponse = await fetch(`${API_BASE}/leaderboard/history/${user.userID}`);
-                if (betsResponse.ok) {
-                    const bets = await betsResponse.json();
-                    if (bets.length === 0) {
-                        tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">No bets placed yet.</td></tr>`;
-                    } else {
-                        bets.forEach(b => {
-                            let statusColor, statusBg;
-                            switch (b.outcome) {
-                                case 'YES':
-                                    statusColor = '#28A745'; statusBg = '#E0F2E9'; break;
-                                case 'NO':
-                                    statusColor = '#D9534F'; statusBg = '#FEE2E2'; break;
-                                case 'CANCELLED':
-                                    statusColor = '#6C7D93'; statusBg = '#E2E8F0'; break;
-                                default:
-                                    statusColor = '#F5A623'; statusBg = '#FFF9E6'; break;
-                            }
-                            const outcomeLabel = b.outcome === 'YES' ? 'Won' : b.outcome === 'NO' ? 'Lost' : b.outcome === 'CANCELLED' ? 'Cancelled' : 'Pending';
-                            const dateStr = b.placedDate ? new Date(b.placedDate).toLocaleDateString() : 'N/A';
-
-                            tbody.innerHTML += `
-                                <tr style="border-bottom: 1px solid #F0F2F5;">
-                                    <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${b.description || b.eventDescription || 'N/A'}</td>
-                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600;">${b.odds ? b.odds.toFixed(2) : '-'}</td>
-                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${b.amountToBeWon ? b.amountToBeWon.toFixed(2) + ' MB' : '-'}</td>
-                                    <td style="text-align: center; padding: 15px 10px; color: #1B2F5E;">${dateStr}</td>
-                                    <td style="text-align: center; padding: 15px 10px;">
-                                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${outcomeLabel}</span>
-                                    </td>
-                                </tr>
-                            `;
-                        });
-                    }
-                } else {
-                    tbody.innerHTML += `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #D9534F;">Failed to load bets.</td></tr>`;
+                if (tableHeaderRow) {
+                    tableHeaderRow.innerHTML = `
+                        <th style="text-align: left; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Description</th>
+                        <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
+                        <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">To Win</th>
+                        <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
+                        <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Outcome</th>
+                    `;
                 }
+
+                await loadBetHistory(u.userID);
             }
         }
     } catch (err) {
@@ -2524,9 +2494,7 @@ async function loadLeaderboardData() {
 
     const isLecturer = user.userType === 'LECTURER';
     const lbStats = document.getElementById('leaderboard-user-stats');
-    const lbHistory = document.getElementById('leaderboard-bet-history');
     if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
-    if (lbHistory) lbHistory.style.display = isLecturer ? 'none' : 'block';
 
     await populateLeaderboardGroupOptions(user.userID);
 
@@ -2535,8 +2503,7 @@ async function loadLeaderboardData() {
     } else {
         await Promise.all([
             loadUserStats(user.userID),
-            loadRankings(),
-            loadBetHistory(user.userID)
+            loadRankings()
         ]);
     }
 }

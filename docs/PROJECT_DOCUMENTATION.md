@@ -522,11 +522,11 @@ The frontend is a **single-page application** (SPA) served as static files from 
 | **Lecturer Dashboard** (`panel-dashboard-lecturer`) | ✅ Working | Lecturer-specific layout with groups navigation, live stats |
 | **Admin Dashboard** (`panel-dashboard-admin`) | ✅ Working | Live admin metrics (8 aggregated stats) |
 | **Bets Panel** | ✅ Working | Browse active bets, place wagers, propose bets with 2-4 outcomes |
-| **Leaderboard Panel** | ✅ Working | Rankings table (sortable by balance/wins/totalBets), bet history |
+| **Leaderboard Panel** | ✅ Working | Rankings table (sortable by balance/wins/totalBets) |
 | **Friends Panel** | ✅ Working | Friend list, send/accept/reject requests, search by email |
 | **Groups Panel** (`panel-groups`) | ✅ Working | Virtual groups (Overall, My Friends) + custom groups. Create, search, join. |
 | **Help / Query Panel** (`panel-help`) | ✅ Working | Submit support queries (title + description → saved to DB) |
-| **Profile Panel** | ✅ Working | View/edit profile, upload avatar, change password |
+| **Account / Profile Panel** (`panel-account`) | ✅ Working | View/edit profile, upload avatar, change password, bet history |
 | **Admin: User Management** (`panel-user-management`) | ✅ Working | List all users, user counts with growth stats |
 | **Admin: Accounting** (`panel-accounting`) | ✅ Working | Review/approve/reject bet proposals, grade bets, manage active bets |
 | **Admin: Delete Requests** (`panel-delete-request`) | ✅ Working | View deletion requests, reinstate accounts |

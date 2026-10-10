@@ -3955,10 +3955,9 @@ body {
 }
 
 /* -------------------------------------------------------------
- * Lecturer Leaderboard: Hide personal user bet stats & bet history
+ * Lecturer Leaderboard: Hide personal user bet stats
  * ------------------------------------------------------------- */
-body.is-lecturer #leaderboard-user-stats,
-body.is-lecturer #leaderboard-bet-history {
+body.is-lecturer #leaderboard-user-stats {
     display: none !important;
 }
 

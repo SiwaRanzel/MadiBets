@@ -1370,42 +1370,6 @@
                         </tbody>
                     </table>
                 </div>
-
-                <!-- Bet History -->
-                <div id="leaderboard-bet-history" style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-                        <h3 style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Your Bet History</h3>
-                        <div style="display: flex; gap: 10px;">
-                            <select id="bet-history-type-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
-                                <option value="all">All Types</option>
-                                <option value="Academics">Academics</option>
-                                <option value="Sports">Sports</option>
-                                <option value="Social">Social</option>
-                                <option value="Class Room">Class Room</option>
-                            </select>
-                            <select id="bet-history-status-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
-                                <option value="all">All Status</option>
-                                <option value="PENDING">Pending</option>
-                                <option value="WON">Won</option>
-                                <option value="LOST">Lost</option>
-                            </select>
-                        </div>
-                    </div>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="border-bottom: 1px solid #F0F2F5;">
-                                <th style="text-align: left; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Description</th>
-                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
-                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">To Win</th>
-                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
-                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Outcome</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bet-history-table-body">
-                            <tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">Loading bet history...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
             <!-- ── Friends Panel (Jason C-series) ── -->
@@ -1509,31 +1473,38 @@
                     </div>
                 </div>
 
-                <!-- Main Content Table -->
+                <!-- Main Content Table / Your Bet History -->
                 <div class="data-table-container" style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 30px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 id="account-table-title" style="font-size: 1.25rem; color: #1B2F5E; font-weight: 700;">Bets Placed</h3>
-                        <div style="display: flex; gap: 10px;">
-                            <div class="search-input-wrapper" style="position: relative;">
-                                <svg style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #6C7D93;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                <input type="text" placeholder="Search" style="padding: 10px 10px 10px 40px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.9rem; color: #1B2F5E; width: 200px; outline: none;">
-                            </div>
-                            <select style="padding: 10px 15px; border: none; background: #F8FAFC; border-radius: 8px; font-size: 0.9rem; color: #1B2F5E; cursor: pointer; outline: none; appearance: none; padding-right: 30px;">
-                                <option>Short by: Newest</option>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                        <h3 id="account-table-title" style="color: #1B2F5E; font-size: 1.25rem; font-weight: 700; margin: 0;">Your Bet History</h3>
+                        <div id="bet-history-filter-controls" style="display: flex; gap: 10px;">
+                            <select id="bet-history-type-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                <option value="all">All Types</option>
+                                <option value="Academics">Academics</option>
+                                <option value="Sports">Sports</option>
+                                <option value="Social">Social</option>
+                                <option value="Class Room">Class Room</option>
+                            </select>
+                            <select id="bet-history-status-filter" onchange="filterBetHistory()" style="padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.85rem; color: #1B2F5E; outline: none; background: white; cursor: pointer;">
+                                <option value="all">All Status</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="WON">Won</option>
+                                <option value="LOST">Lost</option>
                             </select>
                         </div>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr id="account-table-header" style="border-bottom: 1px solid #F0F2F5;">
-                                <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
-                                <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
-                                <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks/Bets</th>
-                                <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
+                                <th style="text-align: left; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Description</th>
+                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Odds</th>
+                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">To Win</th>
+                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Date</th>
+                                <th style="text-align: center; padding: 12px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Outcome</th>
                             </tr>
                         </thead>
-                        <tbody id="account-table-body">
-                            <!-- Populated by JS -->
+                        <tbody id="bet-history-table-body">
+                            <tr><td colspan="5" style="padding: 20px; text-align: center; color: #A0B2D6;">Loading bet history...</td></tr>
                         </tbody>
                     </table>
                 </div>
