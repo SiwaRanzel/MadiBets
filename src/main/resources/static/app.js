@@ -2720,6 +2720,17 @@ async function loadLeaderboardData() {
     const lbStats = document.getElementById('leaderboard-user-stats');
     if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
 
+    // The "My Friends" scope is a student-only view (the board ranks students),
+    // so hide that option for lecturers. Reset the selection to "Everyone" if a
+    // lecturer happened to have it selected.
+    const friendsOption = document.getElementById('lb-scope-friends-option');
+    const scopeSelect = document.getElementById('lb-scope-select');
+    if (friendsOption) friendsOption.style.display = isLecturer ? 'none' : '';
+    if (isLecturer && scopeSelect && scopeSelect.value === 'friends') {
+        scopeSelect.value = 'all';
+        currentLeaderboardScope = 'all';
+    }
+
     await populateLeaderboardGroupOptions(user.userID);
 
     if (isLecturer) {
