@@ -1513,6 +1513,59 @@ body {
     transform: translateY(-1px);
 }
 
+/* Consistent group action buttons (Join / Leave / Edit / Delete / Create Quiz).
+   Same size & shape; variants only change colour. */
+.group-action-btn {
+    background: var(--color-nmu-navy);
+    color: #fff;
+    border: 1px solid var(--color-nmu-navy);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s, color 0.2s;
+}
+.group-action-btn:hover { background: #243d76; transform: translateY(-1px); }
+
+.group-action-btn.gold { background: var(--color-nmu-gold); color: var(--color-nmu-navy); border-color: var(--color-nmu-gold); }
+.group-action-btn.gold:hover { background: #E0921B; }
+
+.group-action-btn.danger { background: #fff; color: #D9534F; border-color: #D9534F; }
+.group-action-btn.danger:hover { background: #FDECEC; }
+
+/* Group detail tabs (mirrors the User Management tab bar). */
+.group-tab-bar {
+    display: flex;
+    gap: 20px;
+    border-bottom: 1px solid #F0F2F5;
+    margin-bottom: 18px;
+}
+.group-tab-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: #A0B2D6;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 2px 10px;
+    position: relative;
+    transition: color 0.2s;
+}
+.group-tab-btn:hover { color: #1B2F5E; }
+.group-tab-btn.active { color: #1B2F5E; }
+.group-tab-btn.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: #F5A623;
+    border-radius: 2px;
+}
+
 .group-empty-state {
     color: #A0B2D6;
     font-size: 0.88rem;
