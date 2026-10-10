@@ -337,6 +337,30 @@ public class GroupDAO {
         }
     }
 
+    /** Owner edit: update a group's description. */
+    public boolean updateDescription(int groupID, String description) throws SQLException {
+        String sql = "UPDATE `Group` SET description = ? WHERE groupID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, description);
+            ps.setInt(2, groupID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Owner delete: remove the group entirely. GroupMember and Task rows (and
+     * their quiz children) cascade via their ON DELETE CASCADE foreign keys.
+     */
+    public boolean deleteGroup(int groupID) throws SQLException {
+        String sql = "DELETE FROM `Group` WHERE groupID = ?";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, groupID);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     private Group map(ResultSet rs) throws SQLException {
         Group g = new Group();
         g.setGroupID(rs.getInt("groupID"));

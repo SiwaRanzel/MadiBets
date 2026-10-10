@@ -184,6 +184,89 @@ public class GroupController {
     }
 
     // ------------------------------------------------------------------
+    // Owner management: edit description, delete group, remove members
+    // ------------------------------------------------------------------
+
+    /** PUT /api/groups/{id} — owner edits the group description. Body: { userID, description }. */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateGroup(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
+            }
+            Object userRaw = body == null ? null : body.get("userID");
+            if (!(userRaw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "userID must be numeric"));
+            }
+            int userID = ((Number) userRaw).intValue();
+
+            Group g = groupDAO.findById(id);
+            if (g == null) return ResponseEntity.notFound().build();
+            if (g.getCreatedBy() != userID) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can edit this group."));
+            }
+
+            String description = body.get("description") instanceof String s ? s : "";
+            boolean updated = groupDAO.updateDescription(id, description);
+            if (updated) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.internalServerError().body(Map.of("error", "Update failed"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** DELETE /api/groups/{id}?userID=N — owner deletes the whole group. */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteGroup(@PathVariable int id, @RequestParam int userID) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
+            }
+            Group g = groupDAO.findById(id);
+            if (g == null) return ResponseEntity.notFound().build();
+            if (g.getCreatedBy() != userID) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can delete this group."));
+            }
+            boolean deleted = groupDAO.deleteGroup(id);
+            if (deleted) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.internalServerError().body(Map.of("error", "Delete failed"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** DELETE /api/groups/{id}/members/{memberId}?ownerID=N — owner removes a member. */
+    @DeleteMapping("/{id}/members/{memberId}")
+    public ResponseEntity<?> removeGroupMember(@PathVariable int id, @PathVariable int memberId,
+                                               @RequestParam int ownerID) {
+        try {
+            if (id <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid group id"));
+            }
+            Group g = groupDAO.findById(id);
+            if (g == null) return ResponseEntity.notFound().build();
+            if (g.getCreatedBy() != ownerID) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can remove members."));
+            }
+            if (memberId == ownerID) {
+                return ResponseEntity.badRequest().body(Map.of("error", "The owner cannot remove themselves. Delete the group instead."));
+            }
+            // removeMember refuses to delete the OWNER row, so this only kicks regular members.
+            boolean removed = groupDAO.removeMember(id, memberId);
+            if (removed) {
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            return ResponseEntity.badRequest().body(Map.of("error", "That user is not a removable member of this group."));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Tasks scoped to a group (D400/D500)
     // ------------------------------------------------------------------
 

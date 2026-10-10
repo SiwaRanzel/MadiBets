@@ -336,7 +336,7 @@ function closeGroupDetailModal() {
     if (m) m.classList.add('hidden');
 }
 
-async function loadGroupDetail(groupID) {
+async function loadGroupDetail(groupID, section) {
     try {
         const saved = sessionStorage.getItem('user');
         const user = saved ? JSON.parse(saved) : null;
@@ -365,9 +365,10 @@ async function loadGroupDetail(groupID) {
             <div style="color:#A0B2D6; font-size:0.85rem; margin-bottom:18px;">${capacityText}</div>`;
         body.appendChild(header);
 
-        // Actions
+        // Actions — all buttons share a consistent style (variants only change colour).
         const isMember = data.isMember === true;
         const isAdmin = user && user.userType === 'ADMIN';
+        const isOwner = user && data.createdBy === user.userID;
         const actions = document.createElement('div');
         actions.style = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center;';
         if (isAdmin) {
@@ -378,78 +379,132 @@ async function loadGroupDetail(groupID) {
             actions.appendChild(note);
         } else if (!isMember) {
             const joinBtn = document.createElement('button');
-            joinBtn.className = 'group-join-btn';
+            joinBtn.className = 'group-action-btn gold';
             joinBtn.textContent = 'Join Group';
             joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
             actions.appendChild(joinBtn);
-        } else {
+        } else if (!isOwner) {
+            // Non-owner members can leave; the owner manages/deletes instead.
             const leaveBtn = document.createElement('button');
-            leaveBtn.style = 'padding:8px 16px; background:none; border:1px solid #D9534F; color:#D9534F; border-radius:8px; font-weight:600; cursor:pointer;';
+            leaveBtn.className = 'group-action-btn danger';
             leaveBtn.textContent = 'Leave Group';
             leaveBtn.onclick = () => leaveGroup(groupID);
             actions.appendChild(leaveBtn);
         }
         if (!isAdmin && isMember && user && user.userType === 'LECTURER') {
             const createBtn = document.createElement('button');
-            createBtn.className = 'group-create-task-btn';
+            createBtn.className = 'group-action-btn';
             createBtn.textContent = '+ Create Quiz';
             createBtn.onclick = () => openCreateTaskModal(groupID);
             actions.appendChild(createBtn);
         }
+        // Owner management controls.
+        if (isOwner) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'group-action-btn';
+            editBtn.textContent = 'Edit Description';
+            editBtn.onclick = () => openEditGroupDescription(groupID, data.description || '');
+            actions.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'group-action-btn danger';
+            deleteBtn.textContent = 'Delete Group';
+            deleteBtn.onclick = () => deleteGroup(groupID);
+            actions.appendChild(deleteBtn);
+        }
         if (actions.children.length) body.appendChild(actions);
 
-        // Two-panel: leaderboard (left) + tasks (right)
-        const panels = document.createElement('div');
-        panels.style = 'display:flex; gap:20px;';
+        // ── Tabbed content: Members (default) / Quizzes, mirroring User Management ──
+        const tabBar = document.createElement('div');
+        tabBar.className = 'group-tab-bar';
+        const membersTab = document.createElement('button');
+        membersTab.className = 'group-tab-btn active';
+        membersTab.textContent = 'Members';
+        const quizzesTab = document.createElement('button');
+        quizzesTab.className = 'group-tab-btn';
+        quizzesTab.textContent = 'Quizzes';
+        tabBar.appendChild(membersTab);
+        tabBar.appendChild(quizzesTab);
+        body.appendChild(tabBar);
 
-        // Leaderboard
-        const lbPanel = document.createElement('div');
-        lbPanel.style = 'flex:1; min-width:0;';
-        lbPanel.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Member Leaderboard</h4>';
-        const members = data.members || [];
-        if (members.length === 0) {
-            lbPanel.innerHTML += '<div class="group-empty-state">No members yet.</div>';
+        const content = document.createElement('div');
+        content.id = 'group-detail-section';
+        body.appendChild(content);
+
+        membersTab.onclick = () => {
+            membersTab.classList.add('active');
+            quizzesTab.classList.remove('active');
+            renderGroupMembersSection(content, data, groupID, isOwner, user);
+        };
+        quizzesTab.onclick = () => {
+            quizzesTab.classList.add('active');
+            membersTab.classList.remove('active');
+            renderGroupQuizzesSection(content, groupID, user);
+        };
+
+        // Default view: Members, unless a section was requested (e.g. 'quizzes').
+        if (section === 'quizzes') {
+            quizzesTab.onclick();
         } else {
-            members.forEach((m, i) => {
-                const row = document.createElement('div');
-                row.className = `group-leaderboard-row ${i < 3 ? 'rank-' + (i + 1) : ''}`;
-                const balance = m.balance != null ? parseFloat(m.balance).toFixed(2) : '0.00';
-                row.innerHTML =
-                    `<div class="group-leaderboard-rank">${i + 1}</div>
-                     <div class="group-leaderboard-name" onclick="showUserPopup(${m.userID})">${escapeHtml((m.name || '') + ' ' + (m.surname || ''))}</div>
-                     <span class="group-leaderboard-role">${m.role === 'OWNER' ? 'Owner' : ''}</span>
-                     <span class="group-leaderboard-balance">${balance} MB</span>`;
-                lbPanel.appendChild(row);
-            });
+            renderGroupMembersSection(content, data, groupID, isOwner, user);
         }
-        panels.appendChild(lbPanel);
-
-        // Tasks (quizzes)
-        const tkPanel = document.createElement('div');
-        tkPanel.style = 'flex:1; min-width:0;';
-        tkPanel.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Quizzes</h4>';
-        try {
-            const tr = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
-            const td = await tr.json();
-            if (tr.ok && Array.isArray(td)) {
-                if (td.length === 0) {
-                    tkPanel.innerHTML += '<div class="group-empty-state">No quizzes yet.</div>';
-                } else {
-                    td.forEach(task => tkPanel.appendChild(renderTaskCard(task, user)));
-                }
-            }
-        } catch (err) {
-            console.error(err);
-            tkPanel.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
-        }
-        panels.appendChild(tkPanel);
-        body.appendChild(panels);
 
         // Show the modal
         document.getElementById('group-detail-modal').classList.remove('hidden');
     } catch (err) {
         console.error(err);
         showToast('Error loading group detail', 'error');
+    }
+}
+
+// Render the member leaderboard into the group detail content area.
+function renderGroupMembersSection(container, data, groupID, isOwner, user) {
+    container.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Member Leaderboard</h4>';
+    const members = data.members || [];
+    if (members.length === 0) {
+        container.innerHTML += '<div class="group-empty-state">No members yet.</div>';
+        return;
+    }
+    members.forEach((m, i) => {
+        const row = document.createElement('div');
+        row.className = `group-leaderboard-row ${i < 3 ? 'rank-' + (i + 1) : ''}`;
+        const balance = m.balance != null ? parseFloat(m.balance).toFixed(2) : '0.00';
+        row.innerHTML =
+            `<div class="group-leaderboard-rank">${i + 1}</div>
+             <div class="group-leaderboard-name" onclick="showUserPopup(${m.userID})">${escapeHtml((m.name || '') + ' ' + (m.surname || ''))}</div>
+             <span class="group-leaderboard-role">${m.role === 'OWNER' ? 'Owner' : ''}</span>
+             <span class="group-leaderboard-balance">${balance} MB</span>`;
+        // Owner can remove non-owner members (not themselves).
+        if (isOwner && m.role !== 'OWNER' && m.userID !== user.userID) {
+            const rm = document.createElement('button');
+            rm.textContent = '✕';
+            rm.title = 'Remove from group';
+            rm.style = 'margin-left:8px; background:none; border:none; color:#D9534F; font-weight:700; cursor:pointer; font-size:0.95rem;';
+            rm.onclick = (e) => { e.stopPropagation(); removeGroupMember(groupID, m.userID, `${m.name || ''} ${m.surname || ''}`.trim()); };
+            row.appendChild(rm);
+        }
+        container.appendChild(row);
+    });
+}
+
+// Render the quizzes list into the group detail content area.
+async function renderGroupQuizzesSection(container, groupID, user) {
+    container.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Quizzes</h4>';
+    try {
+        const tr = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
+        const td = await tr.json();
+        if (tr.ok && Array.isArray(td)) {
+            if (td.length === 0) {
+                container.innerHTML += '<div class="group-empty-state">No quizzes yet.</div>';
+            } else {
+                td.forEach(task => container.appendChild(renderTaskCard(task, user)));
+            }
+        } else {
+            container.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
+        }
+    } catch (err) {
+        console.error(err);
+        container.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
     }
 }
 
@@ -550,7 +605,7 @@ async function deleteTask(taskID) {
         const data = await resp.json().catch(() => ({}));
         if (resp.ok) {
             showToast('Quiz deleted.', 'success');
-            if (currentGroupID) loadGroupDetail(currentGroupID);
+            if (currentGroupID) loadGroupDetail(currentGroupID, 'quizzes');
         } else {
             showToast(data.error || 'Failed to delete quiz', 'error');
         }
@@ -712,7 +767,7 @@ async function revealQuiz(taskID) {
         if (resp.ok) {
             showToast('Answers revealed to students.', 'success');
             await openTakeQuiz(taskID);            // refresh the modal (badge/button update)
-            if (currentGroupID) loadGroupDetail(currentGroupID);
+            if (currentGroupID) loadGroupDetail(currentGroupID, 'quizzes');
         } else {
             showToast(data.error || 'Failed to reveal answers', 'error');
         }
@@ -764,7 +819,7 @@ async function submitQuiz() {
             // Re-open in the gated (locked) state.
             await openTakeQuiz(takeQuizData.taskID);
             // Refresh group detail behind the quiz modal
-            if (currentGroupID) loadGroupDetail(currentGroupID);
+            if (currentGroupID) loadGroupDetail(currentGroupID, 'quizzes');
         } else if (resp.status === 409) {
             showToast('You have already completed this quiz.', 'error');
         } else {
@@ -807,6 +862,11 @@ function addQuizQuestion() {
 }
 
 function removeQuizQuestion(idx) {
+    // A quiz must have at least one question — don't allow removing the last one.
+    if (quizQuestions.length <= 1) {
+        showToast('A quiz must have at least one question.', 'error');
+        return;
+    }
     quizQuestions.splice(idx, 1);
     renderQuizBuilder();
 }
@@ -838,7 +898,7 @@ function renderQuizBuilder() {
         const block = document.createElement('div');
         block.className = 'quiz-question-builder';
         let html = `<div class="quiz-question-builder-header"><h4>Question ${qi + 1}</h4><button class="quiz-q-remove" onclick="removeQuizQuestion(${qi})">✕ Remove</button></div>`;
-        html += `<div class="form-field-group"><label>Prompt</label><textarea class="quiz-q-prompt" data-qi="${qi}" rows="2" placeholder="Enter the question text">${escapeHtml(q.prompt || '')}</textarea></div>`;
+        html += `<div class="form-field-group"><label>Prompt</label><textarea class="quiz-q-prompt" data-qi="${qi}" rows="2" placeholder="Enter the question text" style="resize:none; height:80px; overflow-y:auto;">${escapeHtml(q.prompt || '')}</textarea></div>`;
         html += `<div class="quiz-type-toggle">
             <button type="button" class="quiz-type-btn ${q.type === 'TRUE_FALSE' ? 'selected' : ''}" onclick="setQuizQuestionType(${qi},'TRUE_FALSE')">True / False</button>
             <button type="button" class="quiz-type-btn ${q.type === 'MULTIPLE_CHOICE' ? 'selected' : ''}" onclick="setQuizQuestionType(${qi},'MULTIPLE_CHOICE')">Multiple Choice</button>
@@ -921,7 +981,7 @@ async function createTask() {
         if (resp.status === 201) {
             showToast('Quiz created successfully!', 'success');
             closeCreateTaskModal();
-            if (currentGroupID) loadGroupDetail(currentGroupID);
+            if (currentGroupID) loadGroupDetail(currentGroupID, 'quizzes');
         } else {
             showToast(data.error || 'Failed to create quiz', 'error');
         }
@@ -932,8 +992,46 @@ async function createTask() {
 }
 
 // ── Group create + join (with password support) + leave ──
+const GROUP_DESC_MAX_WORDS = 100;
+
+// Count words in a string (whitespace-separated, ignoring empties).
+function countWords(str) {
+    const t = (str || '').trim();
+    return t ? t.split(/\s+/).length : 0;
+}
+
+// Enforce the 100-word cap on the group description as the user types,
+// and keep the live word counter in sync.
+function limitGroupDescWords() {
+    const el = document.getElementById('new-group-desc');
+    const counter = document.getElementById('new-group-desc-count');
+    if (!el) return;
+    let words = el.value.trim().split(/\s+/).filter(Boolean);
+    if (words.length > GROUP_DESC_MAX_WORDS) {
+        // Trim back to the limit, preserving a trailing space if the user was typing one.
+        const trailingSpace = /\s$/.test(el.value) ? ' ' : '';
+        el.value = words.slice(0, GROUP_DESC_MAX_WORDS).join(' ') + trailingSpace;
+        words = el.value.trim().split(/\s+/).filter(Boolean);
+    }
+    if (counter) counter.textContent = `${words.length} / ${GROUP_DESC_MAX_WORDS} words`;
+}
+
+// Max-members field: stepping the down arrow below 1 clears it back to blank
+// (= unlimited), rather than being stuck at a minimum of 1.
+function normalizeMaxMembers() {
+    const el = document.getElementById('new-group-max-members');
+    if (!el) return;
+    if (el.value === '') return;                 // blank stays blank (unlimited)
+    const n = parseInt(el.value, 10);
+    if (isNaN(n) || n < 1) {
+        el.value = '';                           // 0 / below 1 → unlimited
+    }
+}
+
 function openCreateGroupModal() {
     document.getElementById('create-group-modal').classList.remove('hidden');
+    const counter = document.getElementById('new-group-desc-count');
+    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_WORDS} words`;
 }
 
 function closeCreateGroupModal(event) {
@@ -944,6 +1042,8 @@ function closeCreateGroupModal(event) {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    const counter = document.getElementById('new-group-desc-count');
+    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_WORDS} words`;
 }
 
 async function createGroup() {
@@ -955,6 +1055,11 @@ async function createGroup() {
     if (!saved) { showToast('You must be logged in to create groups.', 'error'); return; }
     const user = JSON.parse(saved);
     if (!name) { showToast('Please provide a group name.', 'error'); return; }
+
+    if (countWords(desc) > GROUP_DESC_MAX_WORDS) {
+        showToast(`Description must be ${GROUP_DESC_MAX_WORDS} words or fewer.`, 'error');
+        return;
+    }
 
     let maxMembers = null;
     if (maxMembersRaw) {
@@ -1075,6 +1180,125 @@ async function leaveGroup(groupID) {
     } catch (err) {
         console.error(err);
         showToast('Server error leaving group', 'error');
+    }
+}
+
+// ── Owner management: edit description, delete group, remove member ──
+
+// Open the Edit Description popup (fixed-size, scrolling textarea).
+let editGroupDescID = null;
+
+function openEditGroupDescription(groupID, currentDesc) {
+    editGroupDescID = groupID;
+    const input = document.getElementById('edit-group-desc-input');
+    if (input) input.value = currentDesc || '';
+    document.getElementById('edit-group-desc-modal').classList.remove('hidden');
+    limitEditGroupDescWords();   // sync counter + enforce cap on the loaded text
+    if (input) input.focus();
+}
+
+// Enforce the 100-word cap on the edit-description textarea (same rule as create).
+function limitEditGroupDescWords() {
+    const el = document.getElementById('edit-group-desc-input');
+    const counter = document.getElementById('edit-group-desc-count');
+    if (!el) return;
+    let words = el.value.trim().split(/\s+/).filter(Boolean);
+    if (words.length > GROUP_DESC_MAX_WORDS) {
+        const trailingSpace = /\s$/.test(el.value) ? ' ' : '';
+        el.value = words.slice(0, GROUP_DESC_MAX_WORDS).join(' ') + trailingSpace;
+        words = el.value.trim().split(/\s+/).filter(Boolean);
+    }
+    if (counter) counter.textContent = `${words.length} / ${GROUP_DESC_MAX_WORDS} words`;
+}
+
+function closeEditGroupDescription() {
+    const m = document.getElementById('edit-group-desc-modal');
+    if (m) m.classList.add('hidden');
+    editGroupDescID = null;
+}
+
+async function saveGroupDescription() {
+    const groupID = editGroupDescID;
+    if (groupID == null) return;
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
+    const user = JSON.parse(saved);
+    const input = document.getElementById('edit-group-desc-input');
+    const description = input ? input.value.trim() : '';
+
+    if (countWords(description) > GROUP_DESC_MAX_WORDS) {
+        showToast(`Description must be ${GROUP_DESC_MAX_WORDS} words or fewer.`, 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/groups/${groupID}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userID: user.userID, description })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+            showToast('Group description updated.', 'success');
+            closeEditGroupDescription();
+            loadGroupDetail(groupID);   // re-render with the new description
+            refreshGroups();
+        } else {
+            showToast(data.error || 'Failed to update description', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error updating description', 'error');
+    }
+}
+
+async function deleteGroup(groupID) {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
+    const user = JSON.parse(saved);
+
+    const confirmed = await showConfirmModal('Delete Group',
+        'Delete this group permanently? All members, quizzes and submissions in it will be removed. This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/groups/${groupID}?userID=${user.userID}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+            showToast('Group deleted.', 'success');
+            closeGroupDetailModal();
+            refreshGroups();
+        } else {
+            showToast(data.error || 'Failed to delete group', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error deleting group', 'error');
+    }
+}
+
+async function removeGroupMember(groupID, memberID, memberName) {
+    const saved = sessionStorage.getItem('user');
+    if (!saved) { showToast('You must be logged in.', 'error'); return; }
+    const user = JSON.parse(saved);
+
+    const confirmed = await showConfirmModal('Remove Member',
+        `Remove ${memberName || 'this member'} from the group?`);
+    if (!confirmed) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/groups/${groupID}/members/${memberID}?ownerID=${user.userID}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+            showToast('Member removed.', 'success');
+            loadGroupDetail(groupID);
+            refreshGroups();
+        } else {
+            showToast(data.error || 'Failed to remove member', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Server error removing member', 'error');
     }
 }
 

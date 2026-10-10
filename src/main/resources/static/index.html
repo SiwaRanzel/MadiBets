@@ -788,7 +788,10 @@
                         </div>
                         <div class="form-field-group">
                             <label>Description</label>
-                            <textarea id="new-group-desc" rows="3" placeholder="Optional description"></textarea>
+                            <textarea id="new-group-desc" rows="3" placeholder="Optional description (max 100 words)"
+                                      style="resize:none; height:80px; overflow-y:auto;"
+                                      oninput="limitGroupDescWords()"></textarea>
+                            <small id="new-group-desc-count" style="color:#6C7D93; font-size:0.8rem;">0 / 100 words</small>
                         </div>
                         <div class="form-field-group">
                             <label>Password (optional)</label>
@@ -797,8 +800,8 @@
                         </div>
                         <div class="form-field-group">
                             <label>Max Members (optional)</label>
-                            <input type="number" id="new-group-max-members" min="1" step="1" placeholder="Leave blank for unlimited" />
-                            <small style="color:#6C7D93; font-size:0.8rem;">Maximum members who can join (you, the owner, don't count toward this).</small>
+                            <input type="number" id="new-group-max-members" min="0" step="1" placeholder="Leave blank for unlimited" oninput="normalizeMaxMembers()" />
+                            <small style="color:#6C7D93; font-size:0.8rem;">Maximum members who can join (you, the owner, don't count toward this). Step below 1 to clear it (unlimited).</small>
                         </div>
                         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
                             <button type="button" class="btn" onclick="closeCreateGroupModal()">Cancel</button>
@@ -1762,6 +1765,21 @@
             <button class="about-modal-close" onclick="closeGroupDetailModal()">&times;</button>
             <div id="group-detail-modal-body">
                 <!-- populated by loadGroupDetail -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Group Description Modal -->
+    <div id="edit-group-desc-modal" class="confirm-modal-overlay hidden" style="z-index: 50001;" onclick="if(event.target===this) closeEditGroupDescription()">
+        <div class="confirm-modal-box" onclick="event.stopPropagation()">
+            <h3 class="confirm-modal-title" style="margin-bottom:12px;">Edit Description</h3>
+            <textarea id="edit-group-desc-input" rows="4" placeholder="Group description (max 100 words)"
+                      style="width:100%; box-sizing:border-box; resize:none; height:110px; overflow-y:auto; padding:10px 12px; border:1px solid #E6EDF7; border-radius:8px; font-size:0.9rem;"
+                      oninput="limitEditGroupDescWords()"></textarea>
+            <small id="edit-group-desc-count" style="display:block; text-align:left; color:#6C7D93; font-size:0.8rem; margin-top:4px;">0 / 100 words</small>
+            <div class="confirm-modal-buttons" style="margin-top:16px;">
+                <button class="confirm-modal-btn confirm-btn-cancel" onclick="closeEditGroupDescription()">Cancel</button>
+                <button class="confirm-modal-btn confirm-btn-confirm" id="edit-group-desc-save" onclick="saveGroupDescription()">Save</button>
             </div>
         </div>
     </div>
