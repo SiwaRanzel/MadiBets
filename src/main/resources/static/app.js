@@ -1016,28 +1016,19 @@ async function createTask() {
 }
 
 // ── Group create + join (with password support) + leave ──
-const GROUP_DESC_MAX_WORDS = 100;
+// Description is capped by CHARACTERS so it always fits the DB column (VARCHAR(255)).
+const GROUP_DESC_MAX_CHARS = 255;
 
-// Count words in a string (whitespace-separated, ignoring empties).
-function countWords(str) {
-    const t = (str || '').trim();
-    return t ? t.split(/\s+/).length : 0;
-}
-
-// Enforce the 100-word cap on the group description as the user types,
-// and keep the live word counter in sync.
+// Enforce the character cap on the group description as the user types,
+// and keep the live counter in sync.
 function limitGroupDescWords() {
     const el = document.getElementById('new-group-desc');
     const counter = document.getElementById('new-group-desc-count');
     if (!el) return;
-    let words = el.value.trim().split(/\s+/).filter(Boolean);
-    if (words.length > GROUP_DESC_MAX_WORDS) {
-        // Trim back to the limit, preserving a trailing space if the user was typing one.
-        const trailingSpace = /\s$/.test(el.value) ? ' ' : '';
-        el.value = words.slice(0, GROUP_DESC_MAX_WORDS).join(' ') + trailingSpace;
-        words = el.value.trim().split(/\s+/).filter(Boolean);
+    if (el.value.length > GROUP_DESC_MAX_CHARS) {
+        el.value = el.value.slice(0, GROUP_DESC_MAX_CHARS);
     }
-    if (counter) counter.textContent = `${words.length} / ${GROUP_DESC_MAX_WORDS} words`;
+    if (counter) counter.textContent = `${el.value.length} / ${GROUP_DESC_MAX_CHARS} characters`;
 }
 
 // Max-members field: stepping the down arrow below 1 clears it back to blank
@@ -1055,7 +1046,7 @@ function normalizeMaxMembers() {
 function openCreateGroupModal() {
     document.getElementById('create-group-modal').classList.remove('hidden');
     const counter = document.getElementById('new-group-desc-count');
-    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_WORDS} words`;
+    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_CHARS} characters`;
 }
 
 function closeCreateGroupModal(event) {
@@ -1067,7 +1058,7 @@ function closeCreateGroupModal(event) {
         if (el) el.value = '';
     });
     const counter = document.getElementById('new-group-desc-count');
-    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_WORDS} words`;
+    if (counter) counter.textContent = `0 / ${GROUP_DESC_MAX_CHARS} characters`;
 }
 
 async function createGroup() {
@@ -1080,8 +1071,8 @@ async function createGroup() {
     const user = JSON.parse(saved);
     if (!name) { showToast('Please provide a group name.', 'error'); return; }
 
-    if (countWords(desc) > GROUP_DESC_MAX_WORDS) {
-        showToast(`Description must be ${GROUP_DESC_MAX_WORDS} words or fewer.`, 'error');
+    if (desc.length > GROUP_DESC_MAX_CHARS) {
+        showToast(`Description must be ${GROUP_DESC_MAX_CHARS} characters or fewer.`, 'error');
         return;
     }
 
@@ -1221,18 +1212,15 @@ function openEditGroupDescription(groupID, currentDesc) {
     if (input) input.focus();
 }
 
-// Enforce the 100-word cap on the edit-description textarea (same rule as create).
+// Enforce the character cap on the edit-description textarea (same rule as create).
 function limitEditGroupDescWords() {
     const el = document.getElementById('edit-group-desc-input');
     const counter = document.getElementById('edit-group-desc-count');
     if (!el) return;
-    let words = el.value.trim().split(/\s+/).filter(Boolean);
-    if (words.length > GROUP_DESC_MAX_WORDS) {
-        const trailingSpace = /\s$/.test(el.value) ? ' ' : '';
-        el.value = words.slice(0, GROUP_DESC_MAX_WORDS).join(' ') + trailingSpace;
-        words = el.value.trim().split(/\s+/).filter(Boolean);
+    if (el.value.length > GROUP_DESC_MAX_CHARS) {
+        el.value = el.value.slice(0, GROUP_DESC_MAX_CHARS);
     }
-    if (counter) counter.textContent = `${words.length} / ${GROUP_DESC_MAX_WORDS} words`;
+    if (counter) counter.textContent = `${el.value.length} / ${GROUP_DESC_MAX_CHARS} characters`;
 }
 
 function closeEditGroupDescription() {
@@ -1250,8 +1238,8 @@ async function saveGroupDescription() {
     const input = document.getElementById('edit-group-desc-input');
     const description = input ? input.value.trim() : '';
 
-    if (countWords(description) > GROUP_DESC_MAX_WORDS) {
-        showToast(`Description must be ${GROUP_DESC_MAX_WORDS} words or fewer.`, 'error');
+    if (description.length > GROUP_DESC_MAX_CHARS) {
+        showToast(`Description must be ${GROUP_DESC_MAX_CHARS} characters or fewer.`, 'error');
         return;
     }
 

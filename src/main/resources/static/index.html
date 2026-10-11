@@ -774,10 +774,10 @@
                         </div>
                         <div class="form-field-group">
                             <label>Description</label>
-                            <textarea id="new-group-desc" rows="3" placeholder="Optional description (max 100 words)"
+                            <textarea id="new-group-desc" rows="3" maxlength="255" placeholder="Optional description (max 255 characters)"
                                       style="resize:none; height:80px; overflow-y:auto;"
                                       oninput="limitGroupDescWords()"></textarea>
-                            <small id="new-group-desc-count" style="color:#6C7D93; font-size:0.8rem;">0 / 100 words</small>
+                            <small id="new-group-desc-count" style="color:#6C7D93; font-size:0.8rem;">0 / 255 characters</small>
                         </div>
                         <div class="form-field-group">
                             <label>Password (optional)</label>
@@ -1730,10 +1730,10 @@
     <div id="edit-group-desc-modal" class="confirm-modal-overlay hidden" style="z-index: 50001;" onclick="if(event.target===this) closeEditGroupDescription()">
         <div class="confirm-modal-box" onclick="event.stopPropagation()">
             <h3 class="confirm-modal-title" style="margin-bottom:12px;">Edit Description</h3>
-            <textarea id="edit-group-desc-input" rows="4" placeholder="Group description (max 100 words)"
+            <textarea id="edit-group-desc-input" rows="4" maxlength="255" placeholder="Group description (max 255 characters)"
                       style="width:100%; box-sizing:border-box; resize:none; height:110px; overflow-y:auto; padding:10px 12px; border:1px solid #E6EDF7; border-radius:8px; font-size:0.9rem;"
                       oninput="limitEditGroupDescWords()"></textarea>
-            <small id="edit-group-desc-count" style="display:block; text-align:left; color:#6C7D93; font-size:0.8rem; margin-top:4px;">0 / 100 words</small>
+            <small id="edit-group-desc-count" style="display:block; text-align:left; color:#6C7D93; font-size:0.8rem; margin-top:4px;">0 / 255 characters</small>
             <div class="confirm-modal-buttons" style="margin-top:16px;">
                 <button class="confirm-modal-btn confirm-btn-cancel" onclick="closeEditGroupDescription()">Cancel</button>
                 <button class="confirm-modal-btn confirm-btn-confirm" id="edit-group-desc-save" onclick="saveGroupDescription()">Save</button>
