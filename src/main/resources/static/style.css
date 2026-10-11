@@ -1582,12 +1582,17 @@ body {
     align-items: flex-start;
 }
 .groups-col {
-    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
     background: white;
     border-radius: 16px;
     padding: 22px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.04);
     min-width: 0;
+}
+/* Give the groups list more room now that it's a single full-width pane. */
+.groups-col .groups-list {
+    max-height: 60vh;
 }
 .groups-col-header {
     margin-bottom: 14px;
@@ -1654,6 +1659,17 @@ body {
     display: inline-flex;
     align-items: center;
     color: #A0B2D6;
+}
+.group-owner-badge {
+    display: inline-block;
+    background: #EEF2FF;
+    color: #1B2F5E;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 10px;
 }
 
 /* Group detail modal — bigger, with scrolling on the inner body so the

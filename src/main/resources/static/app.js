@@ -219,79 +219,91 @@ function toggleSidebar() {
 }
 
 // -------------------- Groups UI / API Helpers --------------------
-let allGroupsSearchTimeout = null;
-let myGroupsCache = [];   // full "my groups" list (for client-side filtering)
+// Single filtered pane: My Groups / All Groups / Not Joined, with search
+// applied within the active filter.
+let myGroupsCache = [];     // groups the user belongs to
+let allGroupsCache = [];    // every group
+let groupFilter = 'mine';   // 'mine' | 'all' (all = groups I'm not part of)
+let groupSearchTerm = '';
 
-// Debounced server search for the All Groups column.
-function debouncedSearchAllGroups() {
-    if (allGroupsSearchTimeout) clearTimeout(allGroupsSearchTimeout);
-    allGroupsSearchTimeout = setTimeout(() => {
-        const q = (document.getElementById('all-groups-search').value || '').trim();
-        loadAllGroups(q);
-    }, 300);
+function groupIdOf(g) {
+    return g.groupID !== undefined ? g.groupID : (g.groupId || 0);
 }
 
-// Load the groups the current user belongs to (left column).
-async function loadMyGroups() {
+// Fetch both the user's groups and all groups, then render the active view.
+async function refreshGroups() {
     const saved = sessionStorage.getItem('user');
     const user = saved ? JSON.parse(saved) : null;
-    const container = document.getElementById('my-groups-list');
-    if (!container) return;
-    if (!user) {
-        container.innerHTML = '<p style="color:#6C7D93; text-align:center; padding:40px 8px;">Please log in to see your groups.</p>';
-        return;
-    }
     try {
-        const resp = await fetch(`${API_BASE}/groups?userId=${user.userID}`);
-        const data = await resp.json();
-        if (!resp.ok) {
-            container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
-            return;
-        }
-        myGroupsCache = Array.isArray(data) ? data : [];
-        filterMyGroups();
+        const [allResp, myResp] = await Promise.all([
+            fetch(`${API_BASE}/groups`),
+            user ? fetch(`${API_BASE}/groups?userId=${user.userID}`) : Promise.resolve(null)
+        ]);
+        const allData = allResp && allResp.ok ? await allResp.json() : [];
+        const myData = myResp && myResp.ok ? await myResp.json() : [];
+        allGroupsCache = Array.isArray(allData) ? allData : [];
+        myGroupsCache = Array.isArray(myData) ? myData : [];
     } catch (err) {
         console.error(err);
-        container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:40px 8px;">Could not load groups.</p>';
+        allGroupsCache = [];
+        myGroupsCache = [];
     }
+    applyGroupFilter();
 }
 
-// Client-side filter of My Groups by the search box.
-function filterMyGroups() {
-    const container = document.getElementById('my-groups-list');
-    if (!container) return;
-    const term = (document.getElementById('my-groups-search')?.value || '').trim().toLowerCase();
-    const filtered = term
-        ? myGroupsCache.filter(g => (g.groupName || '').toLowerCase().includes(term))
-        : myGroupsCache;
-    renderGroupList(filtered, container, 'You are not a member of any groups yet.');
-}
-
-// Load all groups (right column), optionally filtered by a search term server-side.
-async function loadAllGroups(q) {
-    const container = document.getElementById('all-groups-list');
-    if (!container) return;
-    const qTrim = (q || '').trim();
-    try {
-        const url = qTrim ? `${API_BASE}/groups?q=${encodeURIComponent(qTrim)}` : `${API_BASE}/groups`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Failed to load groups');
-        renderGroupList(Array.isArray(data) ? data : [], container, 'No groups found.');
-    } catch (err) {
-        console.error(err);
-        container.innerHTML = '<p style="color:#D9534F; text-align:center; padding:24px 8px; font-size:0.9rem;">Failed to load groups.</p>';
+// Set the active filter (from the tab buttons).
+function setGroupFilter(filter, btn) {
+    groupFilter = filter;
+    document.querySelectorAll('#groups-filter-bar .group-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    else {
+        const target = document.querySelector(`#groups-filter-bar .group-tab-btn[data-filter="${filter}"]`);
+        if (target) target.classList.add('active');
     }
+    applyGroupFilter();
 }
 
-// Refresh both columns.
-function refreshGroups() {
-    loadMyGroups();
-    const allSearch = document.getElementById('all-groups-search');
-    loadAllGroups(allSearch ? allSearch.value.trim() : '');
+function onGroupSearchInput() {
+    groupSearchTerm = (document.getElementById('groups-search')?.value || '').trim().toLowerCase();
+    applyGroupFilter();
 }
 
-function renderGroupList(items, container, emptyMsg) {
+// Compute the base set from the filter, apply the search term, and render.
+function applyGroupFilter() {
+    const container = document.getElementById('groups-list');
+    if (!container) return;
+
+    const saved = sessionStorage.getItem('user');
+    const loggedIn = !!saved;
+    const user = saved ? JSON.parse(saved) : null;
+    const myUserID = user ? user.userID : null;
+
+    let base;
+    let emptyMsg;
+    if (groupFilter === 'mine') {
+        // Groups I'm in, with the ones I own listed first.
+        base = [...myGroupsCache].sort((a, b) => {
+            const aOwned = myUserID != null && a.createdBy === myUserID ? 0 : 1;
+            const bOwned = myUserID != null && b.createdBy === myUserID ? 0 : 1;
+            if (aOwned !== bOwned) return aOwned - bOwned;
+            return (a.groupName || '').localeCompare(b.groupName || '');
+        });
+        emptyMsg = loggedIn ? 'You are not a member of any groups yet.' : 'Please log in to see your groups.';
+    } else { // 'all' — groups I'm NOT already part of
+        const myIds = new Set(myGroupsCache.map(groupIdOf));
+        base = allGroupsCache.filter(g => !myIds.has(groupIdOf(g)));
+        emptyMsg = 'No groups left to join.';
+    }
+
+    const filtered = groupSearchTerm
+        ? base.filter(g => (g.groupName || '').toLowerCase().includes(groupSearchTerm))
+        : base;
+
+    // Flag ownership so the renderer can show an "Owner" badge (My Groups view).
+    renderGroupList(filtered, container, groupSearchTerm ? 'No groups match your search.' : emptyMsg, myUserID);
+}
+
+function renderGroupList(items, container, emptyMsg, myUserID) {
     container.innerHTML = '';
     if (!items || items.length === 0) {
         container.innerHTML = `<p style="color:#6C7D93; text-align:center; padding:40px 8px;">${escapeHtml(emptyMsg || 'No groups found.')}</p>`;
@@ -304,6 +316,7 @@ function renderGroupList(items, container, emptyMsg) {
         const name = it.groupName || it.group_name || `Group ${groupID}`;
         const desc = it.description || '';
         const locked = it.hasPassword === true;
+        const owned = myUserID != null && it.createdBy === myUserID;
 
         const row = document.createElement('div');
         row.className = 'group-row-card';
@@ -312,10 +325,13 @@ function renderGroupList(items, container, emptyMsg) {
         const lock = locked
             ? '<span class="group-lock-badge" title="Password protected"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>'
             : '';
+        const ownerBadge = owned
+            ? '<span class="group-owner-badge">Owner</span>'
+            : '';
 
         row.innerHTML =
             `<div style="flex:1; min-width:0;">
-                <div class="group-row-name">${escapeHtml(name)} ${lock}</div>
+                <div class="group-row-name">${escapeHtml(name)} ${lock} ${ownerBadge}</div>
                 ${desc ? `<div class="group-row-desc">${escapeHtml(desc)}</div>` : ''}
             </div>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
@@ -414,17 +430,33 @@ async function loadGroupDetail(groupID, section) {
         }
         if (actions.children.length) body.appendChild(actions);
 
+        // Fetch this group's quizzes up front so we know whether to show the Quizzes tab.
+        let quizzes = [];
+        try {
+            const tr = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
+            const td = await tr.json();
+            if (tr.ok && Array.isArray(td)) quizzes = td;
+        } catch (err) {
+            console.error(err);
+        }
+        const hasQuizzes = quizzes.length > 0;
+
         // ── Tabbed content: Members (default) / Quizzes, mirroring User Management ──
         const tabBar = document.createElement('div');
         tabBar.className = 'group-tab-bar';
         const membersTab = document.createElement('button');
         membersTab.className = 'group-tab-btn active';
         membersTab.textContent = 'Members';
-        const quizzesTab = document.createElement('button');
-        quizzesTab.className = 'group-tab-btn';
-        quizzesTab.textContent = 'Quizzes';
         tabBar.appendChild(membersTab);
-        tabBar.appendChild(quizzesTab);
+
+        // Quizzes tab is only shown once the group actually has a quiz.
+        let quizzesTab = null;
+        if (hasQuizzes) {
+            quizzesTab = document.createElement('button');
+            quizzesTab.className = 'group-tab-btn';
+            quizzesTab.textContent = 'Quizzes';
+            tabBar.appendChild(quizzesTab);
+        }
         body.appendChild(tabBar);
 
         const content = document.createElement('div');
@@ -433,17 +465,19 @@ async function loadGroupDetail(groupID, section) {
 
         membersTab.onclick = () => {
             membersTab.classList.add('active');
-            quizzesTab.classList.remove('active');
+            if (quizzesTab) quizzesTab.classList.remove('active');
             renderGroupMembersSection(content, data, groupID, isOwner, user);
         };
-        quizzesTab.onclick = () => {
-            quizzesTab.classList.add('active');
-            membersTab.classList.remove('active');
-            renderGroupQuizzesSection(content, groupID, user);
-        };
+        if (quizzesTab) {
+            quizzesTab.onclick = () => {
+                quizzesTab.classList.add('active');
+                membersTab.classList.remove('active');
+                renderGroupQuizzesSection(content, quizzes, user);
+            };
+        }
 
-        // Default view: Members, unless a section was requested (e.g. 'quizzes').
-        if (section === 'quizzes') {
+        // Default view: Members, unless the Quizzes section was requested and exists.
+        if (section === 'quizzes' && quizzesTab) {
             quizzesTab.onclick();
         } else {
             renderGroupMembersSection(content, data, groupID, isOwner, user);
@@ -487,25 +521,15 @@ function renderGroupMembersSection(container, data, groupID, isOwner, user) {
     });
 }
 
-// Render the quizzes list into the group detail content area.
-async function renderGroupQuizzesSection(container, groupID, user) {
+// Render the quizzes list (pre-fetched in loadGroupDetail) into the content area.
+function renderGroupQuizzesSection(container, quizzes, user) {
     container.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Quizzes</h4>';
-    try {
-        const tr = await fetch(`${API_BASE}/groups/${groupID}/tasks?userId=${user ? user.userID : 0}`);
-        const td = await tr.json();
-        if (tr.ok && Array.isArray(td)) {
-            if (td.length === 0) {
-                container.innerHTML += '<div class="group-empty-state">No quizzes yet.</div>';
-            } else {
-                td.forEach(task => container.appendChild(renderTaskCard(task, user)));
-            }
-        } else {
-            container.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
-        }
-    } catch (err) {
-        console.error(err);
-        container.innerHTML += '<div class="group-empty-state">Could not load quizzes.</div>';
+    const list = Array.isArray(quizzes) ? quizzes : [];
+    if (list.length === 0) {
+        container.innerHTML += '<div class="group-empty-state">No quizzes yet.</div>';
+        return;
     }
+    list.forEach(task => container.appendChild(renderTaskCard(task, user)));
 }
 
 // ── Quiz task card in group detail ──
@@ -1366,7 +1390,7 @@ function switchPanel(panelId) {
         'panel-bets':        { title: 'Bets', desc: 'Explore open markets and place your wagers' },
         'panel-account':     { title: 'Account', desc: 'View your balance, betting statistics and history' },
         'panel-leaderboard': { title: 'Leaderboard', desc: 'Rankings and player performance across campus' },
-        'panel-groups':      { title: 'Groups', desc: 'Manage and browse study groups and leagues' },
+        'panel-groups':      { title: 'Groups', desc: 'View and manage groups' },
         'panel-friends':     { title: 'Friends', desc: 'Connect with fellow students and manage friend requests' },
         'panel-help':        { title: 'Help & Support', desc: 'Find answers, view user guides, or contact support' }
     };
@@ -1380,8 +1404,9 @@ function switchPanel(panelId) {
             headerDescEl.textContent = '';
         } else if (STUDENT_PAGE_HEADERS[panelId]) {
             headerTitleEl.innerHTML = STUDENT_PAGE_HEADERS[panelId].title;
-            headerDescEl.textContent = STUDENT_PAGE_HEADERS[panelId].desc;
-            headerDescEl.style.display = 'block';
+            const desc = STUDENT_PAGE_HEADERS[panelId].desc;
+            headerDescEl.textContent = desc;
+            headerDescEl.style.display = desc ? 'block' : 'none';
         }
     }
 

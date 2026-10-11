@@ -741,35 +741,21 @@
             <div id="panel-groups" class="hidden">
                 <div class="admin-page-title" id="groups-admin-header" style="display: none;">
                     <h2>Groups</h2>
-                    <p>Manage and browse study groups and leagues</p>
+                    <p>View and manage groups</p>
                 </div>
-                <div class="groups-two-col">
-                    <!-- My Groups -->
-                    <div class="groups-col">
-                        <div class="groups-col-header">
-                            <h3 class="groups-col-title">My Groups</h3>
-                        </div>
-                        <div class="groups-search-wrapper">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            <input id="my-groups-search" type="text" placeholder="Search my groups" oninput="filterMyGroups()">
-                        </div>
-                        <div id="my-groups-list" class="groups-list">
-                            <!-- Groups the user belongs to render here -->
-                        </div>
+                <div class="groups-col">
+                    <!-- Filter tabs -->
+                    <div class="group-tab-bar" id="groups-filter-bar">
+                        <button class="group-tab-btn active" data-filter="mine" onclick="setGroupFilter('mine', this)">My Groups</button>
+                        <button class="group-tab-btn" data-filter="all" onclick="setGroupFilter('all', this)">All Groups</button>
                     </div>
-
-                    <!-- All Groups -->
-                    <div class="groups-col">
-                        <div class="groups-col-header">
-                            <h3 class="groups-col-title">All Groups</h3>
-                        </div>
-                        <div class="groups-search-wrapper">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            <input id="all-groups-search" type="text" placeholder="Search all groups" oninput="debouncedSearchAllGroups()">
-                        </div>
-                        <div id="all-groups-list" class="groups-list">
-                            <!-- Every group renders here -->
-                        </div>
+                    <!-- Search within the active filter -->
+                    <div class="groups-search-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0B2D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input id="groups-search" type="text" placeholder="Search groups" oninput="onGroupSearchInput()">
+                    </div>
+                    <div id="groups-list" class="groups-list">
+                        <!-- Groups render here based on the active filter + search -->
                     </div>
                 </div>
 
