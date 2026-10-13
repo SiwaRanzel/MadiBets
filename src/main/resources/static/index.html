@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=9">
+    <link rel="stylesheet" href="style.css?v=10">
 </head>
 
 <body>
@@ -621,12 +621,13 @@
                     </div>
 
                     <!-- B200: the proposal form -->
-                    <div id="bets-propose-view" class="hidden">
-                        <p style="color: #6C7D93; font-size: 0.9rem; margin-bottom: 18px;">
+                    <div id="bets-propose-view" class="hidden propose-form">
+                        <p class="propose-intro">
                             Describe the bet you would like to propose. An admin will review it and assign the odds.</p>
-                        <div class="form-field-group" style="max-width: 220px; margin-bottom: 15px;">
+                        <div class="form-field-group" style="max-width: 240px; margin-bottom: 18px;">
                             <label for="propose-type">Bet type</label>
-                            <select id="propose-type" onchange="updateOutcomePlaceholders()">
+                            <select id="propose-type" class="propose-select"
+                                onchange="updateOutcomePlaceholders(); updateProposalCounter()">
                                 <option>Academics</option>
                                 <option>Sports</option>
                                 <option>Social</option>
@@ -635,9 +636,12 @@
                         </div>
                         <div class="form-field-group">
                             <label for="propose-description">Proposal</label>
-                            <textarea id="propose-description" rows="4"
-                                placeholder="Include the bet type and make it detailed"
-                                style="width: 100%; background-color: #F8FAFC; border: 1px solid #D1D9E4; border-radius: 6px; padding: 12px 14px; font-family: var(--font-secondary); font-size: 1rem; color: #2A3B50; outline: none; resize: vertical;"></textarea>
+                            <!-- maxlength is set per bet type by updateProposalCounter():
+                                 Bet.description is VARCHAR(255) and stores "Type: " too -->
+                            <textarea id="propose-description" class="propose-textarea" rows="4" maxlength="244"
+                                placeholder="Describe the bet in detail, e.g. what decides the outcome and when"
+                                oninput="updateProposalCounter()"></textarea>
+                            <div id="propose-desc-counter" class="propose-counter">0 / 244</div>
                         </div>
                         <div class="form-field-group" style="margin-top: 15px;">
                             <label>Possible outcomes (2&ndash;4) &mdash; an admin assigns the odds</label>
@@ -645,8 +649,7 @@
                                 <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Above 60%">
                                 <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Below 60%">
                             </div>
-                            <button type="button" id="btn-add-outcome" onclick="addOutcomeField()"
-                                style="margin-top: 8px; background: none; border: none; color: #1B2F5E; font-weight: 600; cursor: pointer; padding: 0; font-size: 0.85rem;">
+                            <button type="button" id="btn-add-outcome" class="propose-add-outcome" onclick="addOutcomeField()">
                                 + Add outcome</button>
                         </div>
                         <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
@@ -1164,9 +1167,9 @@
                                 <th style="width: 100px;">Date</th>
                                 <th style="width: 100px;">Type</th>
                                 <th>Description</th>
-                                <th style="width: 230px;">Outcomes &amp; Odds</th>
-                                <th style="width: 190px;">Wagering deadline</th>
-                                <th style="width: 170px;">Action</th>
+                                <th style="width: 290px;">Outcomes &amp; Odds</th>
+                                <th style="width: 230px;">Wagering deadline</th>
+                                <th style="width: 130px;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="acct-proposed-body"></tbody>
@@ -2210,7 +2213,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=20"></script>
 </body>
 
 </html>

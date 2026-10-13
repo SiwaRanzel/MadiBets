@@ -3058,13 +3058,14 @@ body {
 .acct-menu-dropdown .acct-menu-danger { color: #D9534F; }
 .acct-menu-dropdown .acct-menu-danger:hover { background: #FDECEA; }
 
-/* Approve is the primary action — brand gold CTA (team UI guidelines) */
+/* Approve: solid green so it reads as "go" next to the red Reject */
 .acct-btn.acct-btn-approve {
-    background: var(--color-nmu-gold);
-    color: var(--color-nmu-navy);
+    background: #1E8E4E;
+    color: white;
     font-family: var(--font-primary);
+    box-shadow: 0 2px 6px rgba(30, 142, 78, 0.25);
 }
-.acct-btn.acct-btn-approve:hover { background: #E0921B; filter: none; }
+.acct-btn.acct-btn-approve:hover { background: #17733F; filter: none; }
 
 /* Accounting section titles: navy with a short gold underline (brand accent) */
 .acct-section-title {
@@ -3096,6 +3097,62 @@ body {
 }
 .acct-proposed-row td:last-child {
     border-radius: 0 8px 8px 0;
+}
+
+/* Every cell starts on the same line, directly under its header; text cells
+   get a little extra top padding so they line up with the first control row. */
+.acct-proposed-row td {
+    vertical-align: top;
+    padding-top: 16px;
+    padding-bottom: 16px;
+}
+.acct-proposed-row td.acct-date-cell,
+.acct-proposed-row td:nth-child(2),
+.acct-proposed-row td:nth-child(3) {
+    padding-top: 23px;
+}
+.acct-date-cell { white-space: nowrap; }
+
+/* Outcome labels in one column, odds inputs in a straight second column */
+.acct-odds-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 95px;
+    gap: 6px 8px;
+    align-items: center;
+}
+.acct-odds-grid .acct-outcome-label {
+    min-width: 0;
+    text-align: left;
+}
+
+/* B300 wagering deadline: navy field with a gold calendar icon */
+.acct-deadline-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1.5px solid var(--color-nmu-navy);
+    border-left: 4px solid var(--color-nmu-gold);
+    border-radius: 8px;
+    background: white;
+    color: var(--color-nmu-navy);
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    color-scheme: light;
+    accent-color: var(--color-nmu-navy);
+    outline: none;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+}
+.acct-deadline-input:focus {
+    box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.3);
+}
+.acct-deadline-input::-webkit-datetime-edit-fields-wrapper { color: var(--color-nmu-navy); }
+.acct-deadline-input::-webkit-calendar-picker-indicator {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F5A623' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 /* B300 review queue: NMU-branded type chip, description and outcome labels */
@@ -3205,6 +3262,87 @@ body {
     background: #FDECEA;
     border-color: #D9534F;
     color: #D9534F;
+}
+
+/* B200 proposal form, NMU-branded: navy labels and borders, gold accents */
+.propose-intro {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 18px;
+    padding-left: 12px;
+    border-left: 3px solid var(--color-nmu-gold);
+}
+.propose-form .form-field-group label {
+    color: var(--color-nmu-navy);
+}
+.propose-form .form-field-group select.propose-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F5A623' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 14px center / 16px no-repeat;
+    padding-right: 42px;
+    border: 1.5px solid var(--color-nmu-navy);
+    border-left: 4px solid var(--color-nmu-gold);
+    border-radius: 8px;
+    color: var(--color-nmu-navy);
+    font-family: var(--font-primary);
+    font-weight: 600;
+    cursor: pointer;
+}
+.propose-select option {
+    color: var(--color-nmu-navy);
+    font-weight: 500;
+}
+.propose-textarea,
+.propose-form .propose-outcome-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #F8FAFC;
+    border: 1.5px solid var(--color-input-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--font-secondary);
+    font-size: 0.95rem;
+    color: var(--color-nmu-navy);
+    outline: none;
+    transition: var(--animation-speed);
+}
+.propose-textarea { resize: vertical; }
+.propose-textarea:hover,
+.propose-form .propose-outcome-input:hover { border-color: #A0B2D6; }
+.propose-form .form-field-group select.propose-select:focus,
+.propose-textarea:focus,
+.propose-form .propose-outcome-input:focus {
+    border-color: var(--color-nmu-navy);
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.25);
+}
+/* Character counter under the proposal box */
+.propose-counter {
+    align-self: flex-end;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #A0B2D6;
+}
+.propose-counter.near { color: #B8760B; }
+.propose-counter.over { color: var(--color-crimson); }
+.propose-add-outcome {
+    align-self: flex-start;
+    margin-top: 10px;
+    background: none;
+    border: 1.5px dashed var(--color-nmu-navy);
+    border-radius: 20px;
+    padding: 7px 16px;
+    color: var(--color-nmu-navy);
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--animation-speed);
+}
+.propose-add-outcome:hover {
+    background: var(--color-nmu-gold);
+    border-color: var(--color-nmu-gold);
+    border-style: solid;
 }
 
 /* ── FAQ Modal ── */

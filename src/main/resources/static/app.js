@@ -3911,6 +3911,7 @@ function switchBetsTab(tab) {
     const search = document.getElementById('bets-search');
     if (search) search.classList.toggle('hidden', tab !== 'place');
     if (tab === 'place') loadBetsPanel();
+    else updateProposalCounter();
 }
 
 /** "2026-08-20T18:00" -> "2026-08-20 18:00" for table cells. */
@@ -4148,6 +4149,28 @@ function removeOutcomeField(btn) {
     updateAddOutcomeBtn();
 }
 
+/** Bet.description is VARCHAR(255) and stores the "Type: " prefix as well,
+ *  so the room left for the proposal text depends on the chosen type. */
+const BET_DESCRIPTION_MAX = 255;
+
+function proposalTextLimit() {
+    const type = document.getElementById('propose-type').value;
+    return BET_DESCRIPTION_MAX - `${type}: `.length;
+}
+
+/** Live "n / max" counter under the proposal box; maxlength stops typing at
+ *  the limit, and the counter turns red if a type switch pushes it over. */
+function updateProposalCounter() {
+    const box = document.getElementById('propose-description');
+    const counter = document.getElementById('propose-desc-counter');
+    const limit = proposalTextLimit();
+    box.maxLength = limit;
+    const len = box.value.trim().length;
+    counter.textContent = `${len} / ${limit}`;
+    counter.classList.toggle('near', len >= limit - 20 && len <= limit);
+    counter.classList.toggle('over', len > limit);
+}
+
 /** Back to the two base fields (used after a successful submission). */
 function resetOutcomeFields() {
     document.querySelectorAll('.propose-outcome-row').forEach(r => r.remove());
@@ -4163,6 +4186,10 @@ async function submitProposal() {
     const text = document.getElementById('propose-description').value.trim();
     if (!text) {
         showToast('Please describe the bet you want to propose.', 'error');
+        return;
+    }
+    if (text.length > proposalTextLimit()) {
+        showToast(`Keep the proposal to ${proposalTextLimit()} characters for a ${type} bet.`, 'error');
         return;
     }
     const outcomes = Array.from(document.querySelectorAll('.propose-outcome-input'))
@@ -4186,6 +4213,7 @@ async function submitProposal() {
         if (res.ok) {
             showToast('Proposal sent to the admins for review!', 'success');
             document.getElementById('propose-description').value = '';
+            updateProposalCounter();
             resetOutcomeFields();
             switchBetsTab('place');
         } else {
@@ -4242,6 +4270,14 @@ async function refreshAccountingBadge() {
     }
 }
 
+/** Local "now" as YYYY-MM-DDTHH:MM, the format datetime-local's min wants.
+ *  Used as the deadline min so the picker greys out days already past. */
+function nowForDateTimeInput() {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+}
+
 function renderProposedTable(bets) {
     setAccountingBadge(bets.length);
     const tbody = document.getElementById('acct-proposed-body');
@@ -4251,20 +4287,20 @@ function renderProposedTable(bets) {
         acctCache[b.betID] = b;
         const date = b.proposedDate ? String(b.proposedDate).slice(0, 10) : '—';
         // One odds input per proposed outcome — all required to approve.
+        // A two-column grid keeps every odds input in one straight column,
+        // however long the outcome labels are.
         const oddsInputs = (b.outcomes || []).map(o => `
-            <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
                 <span class="acct-outcome-label">${escapeHtml(o.label)}</span>
                 <input type="number" id="odds-input-${b.betID}-${o.outcomeID}" class="acct-odds-input"
-                    min="1.01" step="0.01" placeholder="e.g. 2.50">
-            </div>`).join('');
+                    min="1.01" step="0.01" placeholder="e.g. 2.50">`).join('');
         tbody.innerHTML += `
             <tr class="acct-proposed-row">
-                <td>${date}</td>
+                <td class="acct-date-cell">${date}</td>
                 <td><span class="acct-type-chip">${escapeHtml(betTypeOf(b.description))}</span></td>
                 <td><span class="acct-bet-desc">${escapeHtml(betTextOf(b.description))}</span></td>
-                <td>${oddsInputs}</td>
-                <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-odds-input"
-                        style="width: 175px;"></td>
+                <td><div class="acct-odds-grid">${oddsInputs}</div></td>
+                <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-deadline-input"
+                        min="${nowForDateTimeInput()}" onfocus="this.min = nowForDateTimeInput()"></td>
                 <td>
                     <div class="acct-btn-stack">
                         <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
@@ -4373,6 +4409,11 @@ async function approveProposalUI(betID) {
     const deadline = document.getElementById(`deadline-input-${betID}`).value;
     if (!deadline) {
         showToast('Set the wagering deadline before approving.', 'error');
+        return;
+    }
+    // min greys out past days in the picker, but a typed-in date can still slip past it.
+    if (deadline < nowForDateTimeInput()) {
+        showToast('The wagering deadline must be in the future.', 'error');
         return;
     }
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/approve`, {

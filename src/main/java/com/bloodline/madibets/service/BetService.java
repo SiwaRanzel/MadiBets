@@ -37,6 +37,8 @@ public class BetService {
     private static final BigDecimal MAX_ODDS = new BigDecimal("9999.99");
     private static final int MIN_OUTCOMES = 2;
     private static final int MAX_OUTCOMES = 4;
+    /** Bet.description is VARCHAR(255), "Type: " prefix included. */
+    private static final int MAX_DESCRIPTION = 255;
 
     private final BetDAO betDAO = new BetDAO();
     private final EventDAO eventDAO = new EventDAO();
@@ -69,6 +71,10 @@ public class BetService {
                           List<String> outcomeLabels) throws SQLException {
         if (description == null || description.isBlank()) {
             throw new IllegalArgumentException("A proposal needs a description.");
+        }
+        if (description.trim().length() > MAX_DESCRIPTION) {
+            throw new IllegalArgumentException(
+                    "The proposal is too long — keep it to " + MAX_DESCRIPTION + " characters including the bet type.");
         }
         List<String> labels = cleanOutcomeLabels(outcomeLabels);
         if (eventID != null) {
