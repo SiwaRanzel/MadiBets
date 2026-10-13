@@ -3147,6 +3147,24 @@ body {
 .acct-deadline-input:focus {
     box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.3);
 }
+.acct-deadline-hint {
+    margin-top: 5px;
+    font-size: 0.72rem;
+    color: #A0B2D6;
+}
+
+/* Active bets: winner buttons in equal-width cells, two per row */
+.acct-winner-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+.acct-winner-grid .acct-btn {
+    margin-right: 0;
+    width: 100%;
+    text-align: center;
+}
+
 .acct-deadline-input::-webkit-datetime-edit-fields-wrapper { color: var(--color-nmu-navy); }
 .acct-deadline-input::-webkit-calendar-picker-indicator {
     width: 18px;

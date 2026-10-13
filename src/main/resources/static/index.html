@@ -11,7 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <!-- ?v= busts the browser cache when the frontend changes — bump it alongside API changes -->
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=11">
 </head>
 
 <body>
@@ -641,7 +641,7 @@
                             <textarea id="propose-description" class="propose-textarea" rows="4" maxlength="244"
                                 placeholder="Describe the bet in detail, e.g. what decides the outcome and when"
                                 oninput="updateProposalCounter()"></textarea>
-                            <div id="propose-desc-counter" class="propose-counter">0 / 244</div>
+                            <div id="propose-desc-counter" class="propose-counter">0 / 40 words</div>
                         </div>
                         <div class="form-field-group" style="margin-top: 15px;">
                             <label>Possible outcomes (2&ndash;4) &mdash; an admin assigns the odds</label>
@@ -2213,7 +2213,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=20"></script>
+    <script src="app.js?v=23"></script>
 </body>
 
 </html>

@@ -39,6 +39,8 @@ public class BetService {
     private static final int MAX_OUTCOMES = 4;
     /** Bet.description is VARCHAR(255), "Type: " prefix included. */
     private static final int MAX_DESCRIPTION = 255;
+    /** Word cap on the proposal text itself (the "Type: " prefix not counted). */
+    private static final int MAX_DESCRIPTION_WORDS = 40;
 
     private final BetDAO betDAO = new BetDAO();
     private final EventDAO eventDAO = new EventDAO();
@@ -75,6 +77,12 @@ public class BetService {
         if (description.trim().length() > MAX_DESCRIPTION) {
             throw new IllegalArgumentException(
                     "The proposal is too long — keep it to " + MAX_DESCRIPTION + " characters including the bet type.");
+        }
+        String text = description.contains(": ")
+                ? description.substring(description.indexOf(": ") + 2) : description;
+        if (text.trim().split("\\s+").length > MAX_DESCRIPTION_WORDS) {
+            throw new IllegalArgumentException(
+                    "The proposal is too long — keep it to " + MAX_DESCRIPTION_WORDS + " words.");
         }
         List<String> labels = cleanOutcomeLabels(outcomeLabels);
         if (eventID != null) {
@@ -124,7 +132,7 @@ public class BetService {
 
     /**
      * B300: an admin approves a proposal — prices every outcome and sets the
-     * wagering deadline, which must be in the future. Odds are decimal ("for
+     * wagering deadline, which must fall on a later day than today. Odds are decimal ("for
      * one"): 1.00 would pay back exactly the stake, so they must be strictly
      * greater. Every outcome of the bet must be priced — no half-priced
      * markets (that was the old Yes-only model's flaw).
@@ -132,8 +140,8 @@ public class BetService {
     public void approveProposal(int betID, Map<Integer, BigDecimal> oddsByOutcomeID,
                                 LocalDateTime deadline, int adminUserID) throws SQLException {
         requireAdmin(adminUserID, "review bet proposals");
-        if (deadline == null || !deadline.isAfter(LocalDateTime.now())) {
-            throw new IllegalArgumentException("The wagering deadline must be in the future.");
+        if (deadline == null || !deadline.toLocalDate().isAfter(java.time.LocalDate.now())) {
+            throw new IllegalArgumentException("The wagering deadline must be tomorrow or later.");
         }
         for (BigDecimal odds : oddsByOutcomeID.values()) {
             if (odds == null || odds.compareTo(BigDecimal.ONE) <= 0 || odds.compareTo(MAX_ODDS) > 0) {

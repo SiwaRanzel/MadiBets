@@ -240,7 +240,12 @@ public class UserDAO {
         String updateGroups = "UPDATE `Group` SET createdBy=1 WHERE createdBy=?";
         String updateTasks = "UPDATE Task SET createdBy=1 WHERE createdBy=?";
         String updateGradedBets = "UPDATE Bet SET gradedBy=1 WHERE gradedBy=?";
-        String deleteBets = "DELETE FROM Bet WHERE userID=?";
+        // Proposed bets pass to the admin rather than being deleted: other
+        // students' wagers, payouts and history hang off them (and deleting a
+        // graded bet trips fk_bet_winner).
+        String reassignBets = "UPDATE Bet SET userID=1 WHERE userID=?";
+        // The user's own wagers block the delete (Wager.userID has no cascade).
+        String deleteWagers = "DELETE FROM Wager WHERE userID=?";
         String deleteTransactions = "DELETE FROM Transaction WHERE accountID IN (SELECT accountID FROM Account WHERE userID=?)";
         String sql = "DELETE FROM User WHERE userID=?";
         
@@ -259,9 +264,13 @@ public class UserDAO {
                     ps2b.setInt(1, userID);
                     ps2b.executeUpdate();
                 }
-                try (PreparedStatement ps3 = con.prepareStatement(deleteBets)) {
+                try (PreparedStatement ps3 = con.prepareStatement(reassignBets)) {
                     ps3.setInt(1, userID);
                     ps3.executeUpdate();
+                }
+                try (PreparedStatement ps3b = con.prepareStatement(deleteWagers)) {
+                    ps3b.setInt(1, userID);
+                    ps3b.executeUpdate();
                 }
                 try (PreparedStatement ps4 = con.prepareStatement(deleteTransactions)) {
                     ps4.setInt(1, userID);

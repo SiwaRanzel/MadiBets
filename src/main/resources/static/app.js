@@ -62,7 +62,8 @@ async function fetchUserCounts() {
 
 // ── Fetch & display live user rank ──
 async function fetchUserRank() {
-    const userStr = localStorage.getItem('madibets_user');
+    // Login keeps the user in sessionStorage['user'] (see the login handler).
+    const userStr = sessionStorage.getItem('user');
     if (!userStr) return;
     try {
         const user = JSON.parse(userStr);
@@ -4158,17 +4159,29 @@ function proposalTextLimit() {
     return BET_DESCRIPTION_MAX - `${type}: `.length;
 }
 
-/** Live "n / max" counter under the proposal box; maxlength stops typing at
- *  the limit, and the counter turns red if a type switch pushes it over. */
+/** Proposals are capped at this many words (BetService enforces it too). */
+const PROPOSAL_MAX_WORDS = 40;
+
+function countWords(text) {
+    const t = text.trim();
+    return t ? t.split(/\s+/).length : 0;
+}
+
+/** Live "n / 40 words" counter under the proposal box. Typing or pasting
+ *  past 40 words is cut back to the first 40; maxlength separately keeps
+ *  the text inside the VARCHAR(255) column. */
 function updateProposalCounter() {
     const box = document.getElementById('propose-description');
     const counter = document.getElementById('propose-desc-counter');
     const limit = proposalTextLimit();
     box.maxLength = limit;
-    const len = box.value.trim().length;
-    counter.textContent = `${len} / ${limit}`;
-    counter.classList.toggle('near', len >= limit - 20 && len <= limit);
-    counter.classList.toggle('over', len > limit);
+    if (countWords(box.value) > PROPOSAL_MAX_WORDS) {
+        box.value = box.value.match(new RegExp(`^\\s*(?:\\S+\\s+){${PROPOSAL_MAX_WORDS - 1}}\\S+`))[0];
+    }
+    const words = countWords(box.value);
+    counter.textContent = `${words} / ${PROPOSAL_MAX_WORDS} words`;
+    counter.classList.toggle('near', words >= PROPOSAL_MAX_WORDS - 5);
+    counter.classList.toggle('over', box.value.trim().length > limit);
 }
 
 /** Back to the two base fields (used after a successful submission). */
@@ -4186,6 +4199,10 @@ async function submitProposal() {
     const text = document.getElementById('propose-description').value.trim();
     if (!text) {
         showToast('Please describe the bet you want to propose.', 'error');
+        return;
+    }
+    if (countWords(text) > PROPOSAL_MAX_WORDS) {
+        showToast(`Keep the proposal to ${PROPOSAL_MAX_WORDS} words.`, 'error');
         return;
     }
     if (text.length > proposalTextLimit()) {
@@ -4270,12 +4287,17 @@ async function refreshAccountingBadge() {
     }
 }
 
-/** Local "now" as YYYY-MM-DDTHH:MM, the format datetime-local's min wants.
- *  Used as the deadline min so the picker greys out days already past. */
-function nowForDateTimeInput() {
+/** Every bet closes for wagering at this time on its deadline day. */
+const DEADLINE_TIME = '23:59';
+
+/** Earliest pickable deadline day as YYYY-MM-DD (the date input's min):
+ *  always tomorrow — a bet may not close on the day it is approved.
+ *  Earlier days grey out in the picker. */
+function minDeadlineDate() {
     const d = new Date();
+    d.setDate(d.getDate() + 1);
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+    return d.toISOString().slice(0, 10);
 }
 
 function renderProposedTable(bets) {
@@ -4299,8 +4321,9 @@ function renderProposedTable(bets) {
                 <td><span class="acct-type-chip">${escapeHtml(betTypeOf(b.description))}</span></td>
                 <td><span class="acct-bet-desc">${escapeHtml(betTextOf(b.description))}</span></td>
                 <td><div class="acct-odds-grid">${oddsInputs}</div></td>
-                <td><input type="datetime-local" id="deadline-input-${b.betID}" class="acct-deadline-input"
-                        min="${nowForDateTimeInput()}" onfocus="this.min = nowForDateTimeInput()"></td>
+                <td><input type="date" id="deadline-input-${b.betID}" class="acct-deadline-input"
+                        min="${minDeadlineDate()}" onfocus="this.min = minDeadlineDate()">
+                    <div class="acct-deadline-hint">Closes at ${DEADLINE_TIME} on this day</div></td>
                 <td>
                     <div class="acct-btn-stack">
                         <button class="acct-btn acct-btn-approve" onclick="approveProposalUI(${b.betID})">Approve</button>
@@ -4340,7 +4363,7 @@ function renderActiveAdminTable(bets) {
                     <div style="display: flex; align-items: flex-start; gap: 6px;">
                         <div style="flex: 1;">
                             <div style="font-size: 0.72rem; color: #A0B2D6; margin-bottom: 3px;">Winner:</div>
-                            ${winnerBtns}
+                            <div class="acct-winner-grid">${winnerBtns}</div>
                         </div>
                         <div class="acct-menu">
                             <button class="acct-menu-btn" title="More actions"
@@ -4406,16 +4429,17 @@ async function approveProposalUI(betID) {
         }
         odds[o.outcomeID] = v;
     }
-    const deadline = document.getElementById(`deadline-input-${betID}`).value;
-    if (!deadline) {
+    const day = document.getElementById(`deadline-input-${betID}`).value;
+    if (!day) {
         showToast('Set the wagering deadline before approving.', 'error');
         return;
     }
     // min greys out past days in the picker, but a typed-in date can still slip past it.
-    if (deadline < nowForDateTimeInput()) {
-        showToast('The wagering deadline must be in the future.', 'error');
+    if (day < minDeadlineDate()) {
+        showToast('The deadline must be tomorrow or later.', 'error');
         return;
     }
+    const deadline = `${day}T${DEADLINE_TIME}`;
     acctCall(() => fetch(`${API_BASE}/bets/${betID}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

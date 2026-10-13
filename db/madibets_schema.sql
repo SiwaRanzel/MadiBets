@@ -161,7 +161,8 @@ CREATE TABLE `Group` (                    -- backticked: GROUP is a reserved wor
   maxMembers  INT NULL,                   -- max joining members (EXCLUDES owner); NULL = unlimited
   createdBy   INT NOT NULL,
   createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_group_creator FOREIGN KEY (createdBy) REFERENCES User(userID)
+  CONSTRAINT fk_group_creator FOREIGN KEY (createdBy) REFERENCES User(userID),
+  CONSTRAINT uq_group_name UNIQUE (groupName)   -- case-insensitive under utf8mb4_unicode_ci
 ) ENGINE=InnoDB;
 
 CREATE TABLE GroupMember (

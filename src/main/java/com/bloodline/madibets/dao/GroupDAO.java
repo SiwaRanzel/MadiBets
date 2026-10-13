@@ -15,6 +15,19 @@ import java.util.Map;
 
 public class GroupDAO {
 
+    /** True if a group already uses this name — trimmed, and case-insensitive
+     *  via the table's utf8mb4_unicode_ci collation. */
+    public boolean nameExists(String groupName) throws SQLException {
+        String sql = "SELECT 1 FROM `Group` WHERE groupName = ? LIMIT 1";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, groupName.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     /** D100 Create Group (CREATE). Returns generated groupID or -1 on failure. */
     public int create(Group g) throws SQLException {
         String insertGroupSql = "INSERT INTO `Group` (groupName, description, password, maxMembers, createdBy) VALUES (?, ?, ?, ?, ?)";

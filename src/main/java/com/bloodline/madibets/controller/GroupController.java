@@ -30,12 +30,21 @@ public class GroupController {
             if (g.getGroupName() == null || g.getGroupName().isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Group name is required"));
             }
+            g.setGroupName(g.getGroupName().trim());
+            if (groupDAO.nameExists(g.getGroupName())) {
+                return ResponseEntity.status(409).body(Map.of("error",
+                        "A group called '" + g.getGroupName() + "' already exists. Please choose another name."));
+            }
             int id = groupDAO.create(g);
             if (id > 0) {
                 return ResponseEntity.status(201).body(Map.of("groupID", id));
             } else {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Create failed"));
             }
+        } catch (java.sql.SQLIntegrityConstraintViolationException e) {
+            // uq_group_name: lost a race with someone creating the same name
+            return ResponseEntity.status(409).body(Map.of("error",
+                    "A group called '" + g.getGroupName() + "' already exists. Please choose another name."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
