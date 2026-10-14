@@ -246,7 +246,7 @@ public class UserDAO {
         String reassignBets = "UPDATE Bet SET userID=1 WHERE userID=?";
         // The user's own wagers block the delete (Wager.userID has no cascade).
         String deleteWagers = "DELETE FROM Wager WHERE userID=?";
-        String deleteTransactions = "DELETE FROM Transaction WHERE accountID IN (SELECT accountID FROM Account WHERE userID=?)";
+        String deleteTransactions = "DELETE FROM `Transaction` WHERE accountID IN (SELECT accountID FROM Account WHERE userID=?)";
         String sql = "DELETE FROM User WHERE userID=?";
         
         try (Connection con = DatabaseConnection.getConnection()) {

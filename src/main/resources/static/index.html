@@ -851,7 +851,7 @@
                         </div>
                         <h3 class="help-card-title">FAQ</h3>
                         <p class="help-card-desc">Find answers to frequently asked questions</p>
-                        <div class="help-faq-links">
+                        <div class="help-faq-links" id="help-faq-links-container">
                             <a href="#" class="help-faq-link" onclick="openFaqModal('faq-place-bet'); return false;">How do I place a bet on MadiBets?</a>
                             <a href="#" class="help-faq-link" onclick="openFaqModal('faq-what-are-madibucks'); return false;">What are MadiBucks and how do I earn them?</a>
                             <a href="#" class="help-faq-link" onclick="openFaqModal('faq-deadline-passes'); return false;">How does bet grading work?</a>
@@ -1031,8 +1031,6 @@
                 </div>
                 
                 <div style="background: white; border-radius: 20px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
-                    <h3 style="color: #1B2F5E; font-size: 1.1rem; margin-bottom: 20px;">Requests</h3>
-                    
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px;">
                         <div style="flex: 1; position: relative;">
                             <span style="position: absolute; left: 15px; top: 12px; color: #A0B2D6;">
@@ -1217,10 +1215,6 @@
                 </div>
 
                 <div class="admin-query-card">
-                    <div class="admin-query-header">
-                        <h3 class="admin-query-title">Queries</h3>
-                    </div>
-
                     <div class="admin-query-toolbar">
                         <div class="admin-search-wrapper">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -1891,206 +1885,7 @@
                 <input type="text" id="faq-search-input" placeholder="Search questions..." oninput="filterFaq(this.value)">
             </div>
 
-            <div class="faq-accordion" id="faq-accordion">
-
-                <!-- Category: Getting Started -->
-                <div class="faq-category-label">Getting Started</div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        What is MadiBets?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        MadiBets is a university prediction-market platform built for Nelson Mandela University students and lecturers.
-                        Students propose and wager on real-world events using virtual currency called <strong>MadiBucks</strong>.
-                        Lecturers and admins oversee markets and engage with the leaderboard.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        Who can register on MadiBets?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Any Nelson Mandela University student or lecturer can register using their official <strong>@mandela.ac.za</strong> email address.
-                        Select your role (Student or Lecturer) on the login screen before registering.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I log in?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        From the landing page, click <strong>Log In</strong>, choose your role (Student / Lecturer), enter your NMU email and password, then click <strong>LOG IN</strong>.
-                        If you have forgotten your password, contact your administrator to have it reset.
-                    </div>
-                </div>
-
-                <!-- Category: Bets & Wagering -->
-                <div class="faq-category-label">Bets &amp; Wagering</div>
-
-                <div class="faq-item" id="faq-place-bet">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I place a bet?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Navigate to the <strong>Bets</strong> section from the sidebar. Browse the list of active markets, click on one you are interested in,
-                        choose an outcome, enter your stake (in MadiBucks), and confirm. Your potential winnings are displayed before you confirm,
-                        calculated as <em>stake &times; odds</em>.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I propose a new bet?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Go to <strong>Bets &rarr; Propose a Bet</strong>. Enter a clear description of the event, then add between
-                        2 and 4 possible outcomes. Your proposal will be reviewed by an admin who will set the odds and wagering deadline before
-                        activating the market. You will receive a notification once it is approved or rejected.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        Can I cancel or change a wager after placing it?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        No. Once a wager is placed it is <strong>final</strong>. MadiBucks are deducted immediately from your balance.
-                        Make sure you are happy with your chosen outcome and stake before confirming.
-                    </div>
-                </div>
-
-                <div class="faq-item" id="faq-deadline-passes">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        What happens after the wagering deadline passes?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        No new wagers are accepted once the deadline passes. The market stays visible but shows as <strong>Closed</strong>.
-                        The admin will grade the bet by selecting the winning outcome, after which payouts are credited automatically.
-                    </div>
-                </div>
-
-                <!-- Category: MadiBucks & Account -->
-                <div class="faq-category-label">MadiBucks &amp; Account</div>
-
-                <div class="faq-item" id="faq-what-are-madibucks">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        What are MadiBucks?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        MadiBucks are the virtual currency of MadiBets. They are used exclusively on the platform and have no real-money value.
-                        Your current balance is always visible in your Account page.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I earn MadiBucks?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        You earn MadiBucks by winning wagers — your payout is your stake multiplied by the odds of the outcome you backed.
-                        Lecturers may also grant MadiBucks to students for completing tasks and quizzes.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I update my profile or change my password?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Open the <strong>Account</strong> section from the sidebar. From there you can edit your display name, upload a profile avatar,
-                        and change your password. All changes are saved immediately.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I delete my account?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Go to <strong>Help &rarr; Contact Support</strong> and click <strong>Delete Account</strong>.
-                        Your deletion request is sent to an administrator for review. You will be notified once the request is processed.
-                        Note: deletion is permanent and all your data will be removed.
-                    </div>
-                </div>
-
-                <!-- Category: Leaderboard & Social -->
-                <div class="faq-category-label">Leaderboard &amp; Social</div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How is the leaderboard ranked?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        The leaderboard ranks students by their total MadiBucks balance. The more successful wagers you place, the higher you climb.
-                        Your current position and total players are shown on the dashboard.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I add friends on MadiBets?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Navigate to the <strong>Friends</strong> section from the sidebar. Search for a student by name or email and send them a friend request.
-                        Once they accept, you can see each other's leaderboard positions and activity.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        What are Groups and how do I join one?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Groups are private communities where members can bet together and track a shared leaderboard.
-                        Browse open groups in the <strong>Groups</strong> section and click <strong>Join</strong>. Some groups require a password set by the creator.
-                        You can also create your own group and optionally restrict the number of members.
-                    </div>
-                </div>
-
-                <!-- Category: Tasks & Quizzes (Lecturer) -->
-                <div class="faq-category-label">Tasks &amp; Quizzes</div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        What are Tasks?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Tasks are activities set by lecturers. They may include multiple-choice quizzes where students can earn MadiBucks by answering correctly.
-                        Check the <strong>Tasks</strong> panel to see tasks that are currently available to you.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-question" onclick="toggleFaq(this)">
-                        How do I complete a quiz and earn MadiBucks?
-                        <span class="faq-chevron">&#8964;</span>
-                    </button>
-                    <div class="faq-answer">
-                        Open a task from the <strong>Tasks</strong> list and click <strong>Take Quiz</strong>.
-                        Answer all the questions and submit. Your score is calculated instantly and MadiBucks are awarded based on correct answers.
-                        Each quiz can only be completed once.
-                    </div>
-                </div>
-
-            </div><!-- end faq-accordion -->
+            <div class="faq-accordion" id="faq-accordion"></div>
 
             <div style="display:flex; justify-content:flex-end; padding: 20px 28px 24px;">
                 <button class="btn btn-gold-cta" onclick="closeFaqModal()">Close</button>
