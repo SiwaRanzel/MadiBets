@@ -4129,7 +4129,7 @@ function addOutcomeField() {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'propose-outcome-input';
-    input.maxLength = 100;
+    input.maxLength = 30;   // matches BetService.MAX_OUTCOME_LABEL
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'propose-outcome-remove';

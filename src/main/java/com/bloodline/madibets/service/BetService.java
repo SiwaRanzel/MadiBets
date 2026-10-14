@@ -41,6 +41,8 @@ public class BetService {
     private static final int MAX_DESCRIPTION = 255;
     /** Word cap on the proposal text itself (the "Type: " prefix not counted). */
     private static final int MAX_DESCRIPTION_WORDS = 40;
+    /** Outcome labels render as buttons, so keep them short (column is VARCHAR(100)). */
+    private static final int MAX_OUTCOME_LABEL = 30;
 
     private final BetDAO betDAO = new BetDAO();
     private final EventDAO eventDAO = new EventDAO();
@@ -115,8 +117,9 @@ public class BetService {
         for (String s : raw) {
             if (s == null || s.isBlank()) continue;
             String label = s.trim();
-            if (label.length() > 100) {
-                throw new IllegalArgumentException("Outcome labels must be 100 characters or fewer.");
+            if (label.length() > MAX_OUTCOME_LABEL) {
+                throw new IllegalArgumentException(
+                        "Outcome labels must be " + MAX_OUTCOME_LABEL + " characters or fewer.");
             }
             if (!seen.add(label.toLowerCase())) {
                 throw new IllegalArgumentException("Outcome '" + label + "' is listed twice.");
