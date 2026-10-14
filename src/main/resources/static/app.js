@@ -1393,7 +1393,11 @@ function switchPanel(panelId) {
             headerDescEl.textContent = '';
         } else if (STUDENT_PAGE_HEADERS[panelId]) {
             headerTitleEl.innerHTML = STUDENT_PAGE_HEADERS[panelId].title;
-            const desc = STUDENT_PAGE_HEADERS[panelId].desc;
+            const userObj = JSON.parse(sessionStorage.getItem('user') || '{}');
+            let desc = STUDENT_PAGE_HEADERS[panelId].desc;
+            if (panelId === 'panel-account' && userObj.userType === 'LECTURER') {
+                desc = 'Manage your account settings and profile';
+            }
             headerDescEl.textContent = desc;
             headerDescEl.style.display = desc ? 'block' : 'none';
         }
@@ -1451,6 +1455,8 @@ function switchPanel(panelId) {
         loadBetsPanel();
     } else if (panelId === 'panel-accounting') {
         loadAccountingPanel();
+    } else if (panelId === 'panel-help') {
+        updateHelpFaqCard();
     }
 }
 
@@ -1799,6 +1805,7 @@ function loadDashboardData(user, balance) {
     document.body.classList.toggle('is-lecturer', isLecturer);
     const lbStats = document.getElementById('leaderboard-user-stats');
     if (lbStats) lbStats.style.display = isLecturer ? 'none' : 'flex';
+    updateHelpFaqCard();
 
     const studentNav  = document.getElementById('nav-student');
     const lecturerNav = document.getElementById('nav-lecturer');
@@ -1983,67 +1990,17 @@ async function loadAccountData() {
             const stat1Label = document.getElementById('account-stat-1-label');
             const tableHeaderRow = document.getElementById('account-table-header');
             const filterControls = document.getElementById('bet-history-filter-controls');
-            
-            if (tbody) tbody.innerHTML = '';
+            const tableContainer = document.querySelector('#panel-account .data-table-container');
+            const headerDescEl = document.getElementById('header-greeting-desc');
             
             if (u.userType === 'LECTURER') {
-                if (tableTitle) tableTitle.textContent = 'Task';
-                if (filterControls) filterControls.style.display = 'none';
+                if (headerDescEl) headerDescEl.textContent = 'Manage your account settings and profile';
+                if (tableContainer) tableContainer.style.display = 'none';
                 if (stat1Label) stat1Label.textContent = 'Total Students';
                 if (stat2) stat2.style.display = 'none'; // Hide Pos for lecturer
-                
-                if (tableHeaderRow) {
-                    tableHeaderRow.innerHTML = `
-                        <th style="text-align: left; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Type</th>
-                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">MadiBucks</th>
-                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Tasks</th>
-                        <th style="text-align: center; padding: 15px 10px; color: #A0B2D6; font-weight: 500; font-size: 0.85rem;">Status</th>
-                    `;
-                }
-
-                // Fetch real data from backend
-                fetch(`http://localhost:8081/api/tasks?createdBy=${u.userID}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        let tasks = [];
-                        if (Array.isArray(data)) {
-                            tasks = data;
-                        }
-
-                        if (tasks.length === 0) {
-                            if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #6C7D93;">No tasks found.</td></tr>`;
-                            return;
-                        }
-
-                        tasks.forEach(task => {
-                            // Backend Task has: title, description, amount, etc.
-                            // Default to "Academics" and "Active" since DB doesn't track these yet.
-                            const type = 'Academics';
-                            const status = 'Active';
-                            const bucks = task.amount || 0;
-                            const title = task.title || 'Untitled Task';
-                            const statusColor = '#E2E8F0';
-                            const textColor = '#6C7D93';
-
-                            if (tbody) {
-                                tbody.innerHTML += `
-                                    <tr style="border-bottom: 1px solid #F0F2F5;">
-                                        <td style="padding: 15px 10px; color: #1B2F5E; font-size: 0.95rem;">${type}</td>
-                                        <td style="text-align: center; padding: 15px 10px; color: #1B2F5E; font-weight: 600; font-size: 0.95rem;">${bucks}</td>
-                                        <td style="text-align: center; padding: 15px 10px; color: #6C7D93; font-size: 0.95rem;">${title}</td>
-                                        <td style="text-align: center; padding: 15px 10px;">
-                                            <span style="background: ${statusColor}; color: ${textColor}; padding: 5px 15px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${status}</span>
-                                        </td>
-                                    </tr>
-                                `;
-                            }
-                        });
-                    })
-                    .catch(err => {
-                        console.error('Error fetching tasks:', err);
-                        if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #D9534F;">Failed to load tasks.</td></tr>`;
-                    });
             } else {
+                if (tableContainer) tableContainer.style.display = 'block';
+                if (tbody) tbody.innerHTML = '';
                 if (tableTitle) tableTitle.textContent = 'Your Bet History';
                 if (filterControls) filterControls.style.display = 'flex';
                 if (stat1Label) stat1Label.textContent = 'Total Students';
@@ -4517,12 +4474,273 @@ function closeUserProfileModal(event) {
     document.getElementById('user-profile-modal').classList.add('hidden');
 }
 
-// ── FAQ Modal ──────────────────────────────────────────────────────────────
+// ── Role-Tailored FAQ Data & Logic ──────────────────────────────────────────
+
+const STUDENT_FAQ = [
+    {
+        category: 'Getting Started',
+        items: [
+            {
+                id: 'faq-what-is-madibets',
+                q: 'What is MadiBets?',
+                a: 'MadiBets is a university prediction-market platform built for Nelson Mandela University students and lecturers. Students propose and wager on real-world events using virtual currency called <strong>MadiBucks</strong>. Lecturers and admins oversee markets and engage with the leaderboard.'
+            },
+            {
+                id: 'faq-who-can-register',
+                q: 'Who can register on MadiBets?',
+                a: 'Any Nelson Mandela University student or lecturer can register using their official <strong>@mandela.ac.za</strong> email address. Select your role (Student or Lecturer) on the login screen before registering.'
+            },
+            {
+                id: 'faq-how-do-i-login',
+                q: 'How do I log in?',
+                a: 'From the landing page, click <strong>Log In</strong>, choose your role (Student / Lecturer), enter your NMU email and password, then click <strong>LOG IN</strong>. If you have forgotten your password, contact your administrator to have it reset.'
+            }
+        ]
+    },
+    {
+        category: 'Bets & Wagering',
+        items: [
+            {
+                id: 'faq-place-bet',
+                q: 'How do I place a bet?',
+                a: 'Navigate to the <strong>Bets</strong> section from the sidebar. Browse the list of active markets, click on one you are interested in, choose an outcome, enter your stake (in MadiBucks), and confirm. Your potential winnings are displayed before you confirm, calculated as <em>stake &times; odds</em>.'
+            },
+            {
+                id: 'faq-propose-bet',
+                q: 'How do I propose a new bet?',
+                a: 'Go to <strong>Bets &rarr; Propose a Bet</strong>. Enter a clear description of the event, then add between 2 and 4 possible outcomes. Your proposal will be reviewed by an admin who will set the odds and wagering deadline before activating the market. You will receive a notification once it is approved or rejected.'
+            },
+            {
+                id: 'faq-cancel-wager',
+                q: 'Can I cancel or change a wager after placing it?',
+                a: 'No. Once a wager is placed it is <strong>final</strong>. MadiBucks are deducted immediately from your balance. Make sure you are happy with your chosen outcome and stake before confirming.'
+            },
+            {
+                id: 'faq-deadline-passes',
+                q: 'What happens after the wagering deadline passes?',
+                a: 'No new wagers are accepted once the deadline passes. The market stays visible but shows as <strong>Closed</strong>. The admin will grade the bet by selecting the winning outcome, after which payouts are credited automatically.'
+            }
+        ]
+    },
+    {
+        category: 'MadiBucks & Account',
+        items: [
+            {
+                id: 'faq-what-are-madibucks',
+                q: 'What are MadiBucks?',
+                a: 'MadiBucks are the virtual currency of MadiBets. They are used exclusively on the platform and have no real-money value. Your current balance is always visible in your Account page.'
+            },
+            {
+                id: 'faq-how-earn-madibucks',
+                q: 'How do I earn MadiBucks?',
+                a: 'You earn MadiBucks by winning wagers &mdash; your payout is your stake multiplied by the odds of the outcome you backed. Lecturers may also grant MadiBucks to students for completing tasks and quizzes.'
+            },
+            {
+                id: 'faq-update-profile',
+                q: 'How do I update my profile or change my password?',
+                a: 'Open the <strong>Account</strong> section from the sidebar. From there you can edit your display name, upload a profile avatar, and change your password. All changes are saved immediately.'
+            },
+            {
+                id: 'faq-delete-account',
+                q: 'How do I delete my account?',
+                a: 'Go to <strong>Help &rarr; Contact Support</strong> and click <strong>Delete Account</strong>. Your deletion request is sent to an administrator for review. You will be notified once the request is processed. Note: deletion is permanent and all your data will be removed.'
+            }
+        ]
+    },
+    {
+        category: 'Leaderboard & Social',
+        items: [
+            {
+                id: 'faq-leaderboard-ranked',
+                q: 'How is the leaderboard ranked?',
+                a: 'The leaderboard ranks students by their total MadiBucks balance. The more successful wagers you place, the higher you climb. Your current position and total players are shown on the dashboard.'
+            },
+            {
+                id: 'faq-add-friends',
+                q: 'How do I add friends on MadiBets?',
+                a: 'Navigate to the <strong>Friends</strong> section from the sidebar. Search for a student by name or email and send them a friend request. Once they accept, you can see each other\'s leaderboard positions and activity.'
+            },
+            {
+                id: 'faq-groups-join',
+                q: 'What are Groups and how do I join one?',
+                a: 'Groups are private communities where members can bet together and track a shared leaderboard. Browse open groups in the <strong>Groups</strong> section and click <strong>Join</strong>. Some groups require a password set by the creator. You can also create your own group and optionally restrict the number of members.'
+            }
+        ]
+    },
+    {
+        category: 'Tasks & Quizzes',
+        items: [
+            {
+                id: 'faq-what-are-tasks',
+                q: 'What are Tasks?',
+                a: 'Tasks are activities set by lecturers. They may include multiple-choice quizzes where students can earn MadiBucks by answering correctly. Check the <strong>Tasks</strong> panel to see tasks that are currently available to you.'
+            },
+            {
+                id: 'faq-complete-quiz',
+                q: 'How do I complete a quiz and earn MadiBucks?',
+                a: 'Open a task from the <strong>Tasks</strong> list and click <strong>Take Quiz</strong>. Answer all the questions and submit. Your score is calculated instantly and MadiBucks are awarded based on correct answers. Each quiz can only be completed once.'
+            }
+        ]
+    }
+];
+
+const LECTURER_FAQ = [
+    {
+        category: 'Getting Started',
+        items: [
+            {
+                id: 'faq-lecturer-role',
+                q: 'What is the role of a Lecturer on MadiBets?',
+                a: 'Lecturers use MadiBets to facilitate academic engagement. You can create private class or module groups, design multiple-choice quiz tasks, award MadiBucks to participating students, and monitor student progress and leaderboard performance.'
+            },
+            {
+                id: 'faq-lecturer-betting',
+                q: 'Can lecturers place bets or wager MadiBucks?',
+                a: 'No. Wagering, proposing prediction markets, and placing bets are student-only features. Lecturers do not participate in betting markets and do not have a betting balance.'
+            },
+            {
+                id: 'faq-lecturer-register',
+                q: 'Who can register with the Lecturer role?',
+                a: 'Any Nelson Mandela University faculty member or lecturer with an official <strong>@mandela.ac.za</strong> email address and staff number can register. Select the <strong>Lecturer</strong> tab during registration.'
+            }
+        ]
+    },
+    {
+        category: 'Groups & Class Management',
+        items: [
+            {
+                id: 'faq-lecturer-create-group',
+                q: 'How do I create a group for my class?',
+                a: 'Go to <strong>Groups</strong> from the sidebar and click <strong>Create Group</strong>. Enter a group name (such as your module code, e.g., <em>WRAP301</em>), a brief description, an optional member limit, and an optional password to restrict membership to your students.'
+            },
+            {
+                id: 'faq-lecturer-students-join',
+                q: 'How do students join my class group?',
+                a: 'Students browse or search for your group name in their <strong>Groups</strong> panel and click <strong>Join</strong>. If you configured a password, share it with your students during lecture or via Moodle so they can enter.'
+            },
+            {
+                id: 'faq-lecturer-manage-group',
+                q: 'Can I edit group details, remove members, or delete a group?',
+                a: 'Yes. In the <strong>Groups</strong> panel, click on your group under <strong>My Groups</strong>. As the owner, you can edit the group description (up to 100 words), remove specific members, or permanently delete the group and its quizzes.'
+            }
+        ]
+    },
+    {
+        category: 'Quizzes & Tasks',
+        items: [
+            {
+                id: 'faq-lecturer-create-quiz',
+                q: 'How do I create a quiz task for my students?',
+                a: 'Open your group from the <strong>Groups</strong> panel and click <strong>Create Quiz</strong>. Enter the quiz title, description, reward amount in MadiBucks, and define multiple-choice questions with answer choices and indicate the correct answer.'
+            },
+            {
+                id: 'faq-lecturer-rewards',
+                q: 'How are MadiBucks awarded to students who complete quizzes?',
+                a: 'When students take your quiz, their answers are graded automatically. Once completed, the designated MadiBucks reward is credited directly to each student\'s balance, boosting their platform ranking.'
+            },
+            {
+                id: 'faq-lecturer-reveal-results',
+                q: 'When do students see their quiz results and answers?',
+                a: 'You control when results are released. In the group quiz list, click <strong>Reveal Results</strong> when you are ready for students to see the correct answers and their individual scores.'
+            }
+        ]
+    },
+    {
+        category: 'Leaderboard & Student Monitoring',
+        items: [
+            {
+                id: 'faq-lecturer-leaderboard',
+                q: 'How do I monitor student rankings and performance?',
+                a: 'Click <strong>Leaderboard</strong> in the sidebar. You can view platform-wide rankings or use the group filter dropdown to inspect rankings and MadiBucks performance specifically within your class group.'
+            },
+            {
+                id: 'faq-lecturer-student-profile',
+                q: 'What student information can I view?',
+                a: 'Clicking any student in the leaderboard or within your group member list opens their profile preview, showing their full name, student number, avatar, and total MadiBucks balance.'
+            }
+        ]
+    },
+    {
+        category: 'Account & Support',
+        items: [
+            {
+                id: 'faq-lecturer-account',
+                q: 'How do I change my password or update my avatar?',
+                a: 'Navigate to <strong>Account</strong> in the sidebar. You can change your password and upload a new profile photo. For changes to your staff number or email, contact an administrator.'
+            },
+            {
+                id: 'faq-lecturer-query',
+                q: 'How do I contact support or report an issue?',
+                a: 'Go to <strong>Help & Support</strong> in the sidebar and use the <strong>Send a Query</strong> card. Enter a subject and description, then click <strong>Save</strong> to submit a query to the platform administrators.'
+            },
+            {
+                id: 'faq-lecturer-delete',
+                q: 'How do I delete my account?',
+                a: 'In the <strong>Help & Support</strong> panel under Contact Support, click <strong>Delete Account</strong> to submit an account deletion request for administrator review.'
+            }
+        ]
+    }
+];
+
+function renderFaqAccordion(faqData) {
+    const container = document.getElementById('faq-accordion');
+    if (!container) return;
+    let html = '';
+    faqData.forEach(cat => {
+        html += `<div class="faq-category-label">${cat.category}</div>`;
+        cat.items.forEach(item => {
+            html += `
+                <div class="faq-item" id="${item.id}">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        ${item.q}
+                        <span class="faq-chevron">&#8964;</span>
+                    </button>
+                    <div class="faq-answer">
+                        ${item.a}
+                    </div>
+                </div>
+            `;
+        });
+    });
+    container.innerHTML = html;
+}
+
+function updateHelpFaqCard() {
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+    const isLecturer = user && user.userType === 'LECTURER';
+    const container = document.getElementById('help-faq-links-container');
+    if (!container) return;
+    if (isLecturer) {
+        container.innerHTML = `
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-lecturer-role'); return false;">What is the role of a Lecturer on MadiBets?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-lecturer-create-group'); return false;">How do I create a group for my class?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-lecturer-create-quiz'); return false;">How do I create a quiz task for my students?</a>
+        `;
+    } else {
+        container.innerHTML = `
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-place-bet'); return false;">How do I place a bet on MadiBets?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-what-are-madibucks'); return false;">What are MadiBucks and how do I earn them?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-deadline-passes'); return false;">How does bet grading work?</a>
+        `;
+    }
+}
 
 function openFaqModal(targetId) {
     const overlay = document.getElementById('faq-modal-overlay');
     if (!overlay) return;
     
+    const saved = sessionStorage.getItem('user');
+    const user  = saved ? JSON.parse(saved) : null;
+    const isLecturer = user && user.userType === 'LECTURER';
+    const faqData = isLecturer ? LECTURER_FAQ : STUDENT_FAQ;
+    
+    const titleEl = document.querySelector('.faq-modal-title');
+    const subEl   = document.querySelector('.faq-modal-subtitle');
+    if (titleEl) titleEl.textContent = isLecturer ? 'Lecturer Frequently Asked Questions' : 'Frequently Asked Questions';
+    if (subEl)   subEl.textContent   = isLecturer ? 'Everything you need to know as a Lecturer on MadiBets' : 'Everything you need to know about MadiBets';
+    
+    renderFaqAccordion(faqData);
+
     const searchInput = document.getElementById('faq-search-input');
     if (searchInput) searchInput.value = '';
     filterFaq('');
@@ -4587,155 +4805,170 @@ function filterFaq(query) {
 
 const STUDENT_GUIDE = [
     {
-        id: 'sg-start', label: 'Getting Started',
+        id: 'sg-start', label: 'Overview',
         title: 'Getting Started on MadiBets',
         intro: 'Welcome to MadiBets! Follow these steps to set up your account and get familiar with the platform.',
         steps: [
-            { title: 'Register your account', body: 'From the landing page click <strong>Register</strong>. Make sure <strong>Student</strong> is selected, then fill in your name, surname, NMU student number, and <strong>@mandela.ac.za</strong> email. Choose a strong password and click <strong>REGISTER</strong>.' },
-            { title: 'Log in', body: 'Click <strong>Log In</strong> on the landing page. Select <strong>Student</strong>, enter your email and password, then click <strong>LOG IN</strong>. You will be taken straight to your Dashboard.' },
-            { title: 'Explore the sidebar', body: 'The left sidebar is your main navigation. It contains: <strong>Dashboard</strong>, <strong>Bets</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, <strong>Friends</strong>, and <strong>Help</strong>. Click any item to switch panels.' },
-            { title: 'Collapse the sidebar', body: 'Click the hamburger \u2630 icon in the top-left of the sidebar to collapse it. Click it again to expand.' },
+            { title: 'Register your account', body: 'From the landing page click <strong>Register</strong>. Make sure <strong>Student</strong> is selected, then fill in your name, surname, 9-digit NMU student number, and <strong>@mandela.ac.za</strong> email. Choose a secure password and click <strong>REGISTER</strong>.' },
+            { title: 'Log in', body: 'Click <strong>Log In</strong> on the landing page. Select <strong>Student</strong>, enter your email and password, then click <strong>LOG IN</strong> to access your dashboard.' },
+            { title: 'Explore the sidebar', body: 'The left sidebar provides your navigation: <strong>Dashboard</strong>, <strong>Bets</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, <strong>Friends</strong>, and <strong>Help</strong>. Click any item to switch panels.' },
+            { title: 'Collapse the sidebar', body: 'Click the hamburger &#9776; icon at the top of the sidebar to collapse it and maximize your screen space.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Your MadiBucks balance is always shown in the top header bar so you always know what you have available.'
+        tip: '💡 <strong>Tip:</strong> Your current MadiBucks balance is displayed in the top header bar so you always know what you have available for wagers.'
     },
     {
-        id: 'sg-bets', label: 'Bets & Wagering',
+        id: 'sg-bets', label: 'Bets',
         title: 'Placing and Managing Bets',
-        intro: 'MadiBets is built around prediction markets. Here\'s how to browse, wager on, and propose your own bets.',
+        intro: 'MadiBets lets you wager virtual currency (MadiBucks) on campus sports, academic milestones, and social events.',
         steps: [
-            { title: 'Browse active bets', body: 'Click <strong>Bets</strong> in the sidebar. You will see all currently active markets. Each card shows the description, outcomes, odds, and wagering deadline.' },
-            { title: 'Place a wager', body: 'Click any active bet card to expand it. Select your preferred outcome, enter your stake in MadiBucks, then click <strong>Place Wager</strong>. Your potential payout — <em>stake \u00d7 odds</em> — is shown before you confirm.' },
-            { title: 'Confirm your wager', body: 'A confirmation dialog will appear. Click <strong>Confirm</strong> to lock it in. MadiBucks are deducted immediately. <strong>Wagers cannot be cancelled once placed.</strong>' },
-            { title: 'View your wagers', body: 'Scroll to <strong>My Wagers</strong> in the Bets panel. All your active and past wagers are listed here with status, stake, and potential payout.' },
-            { title: 'Propose a new bet', body: 'Scroll to <strong>Propose a Bet</strong> at the bottom of the Bets panel. Enter a description and 2\u20134 possible outcomes. Click <strong>Submit Proposal</strong>. An admin will review, set odds, and activate it.' },
-            { title: 'Grading notifications', body: 'When an admin grades a bet you wagered on you will receive an in-app notification. Winners are paid out automatically.' },
+            { title: 'Browse active bets', body: 'Click <strong>Bets</strong> in the sidebar. Browse through open prediction markets showing descriptions, categories, outcomes, odds, and wagering deadlines.' },
+            { title: 'Place a wager', body: 'Click any active market card. Choose your predicted outcome, specify your stake in MadiBucks, and review your potential payout (<em>stake &times; odds</em>).' },
+            { title: 'Confirm your wager', body: 'Click <strong>Place Wager</strong> and confirm. MadiBucks are deducted from your balance immediately. <strong>Wagers cannot be cancelled or changed once placed.</strong>' },
+            { title: 'Track your bets', body: 'Scroll to <strong>My Wagers</strong> in the Bets panel or check <strong>Your Bet History</strong> in the Account panel to monitor active bets and settled outcomes.' },
+            { title: 'Propose a new bet', body: 'Scroll to <strong>Propose a Bet</strong> at the bottom of the Bets panel. Enter a clear description (up to 40 words) and 2 to 4 possible outcomes. An administrator will review your proposal and set the odds.' },
+            { title: 'Automated payouts & notifications', body: 'When an admin grades a market, winning payouts are credited automatically to your balance and an in-app notification is sent.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> A bet\'s deadline is shown on the card. Once it passes no new wagers are accepted \u2014 place yours in time!'
+        tip: '💡 <strong>Tip:</strong> Pay attention to the wagering deadline on each bet card &mdash; once the deadline date arrives, the market closes and no further wagers are accepted.'
     },
     {
-        id: 'sg-account', label: 'Account & Profile',
-        title: 'Managing Your Account',
-        intro: 'Keep your profile up to date and track your MadiBucks balance.',
+        id: 'sg-groups-tasks', label: 'Groups & Quizzes',
+        title: 'Groups and Quizzes',
+        intro: 'Collaborate with fellow students in groups, compete on group leaderboards, and take quizzes created by your lecturers.',
         steps: [
-            { title: 'Open your Account', body: 'Click <strong>Account</strong> in the sidebar. You will see your profile photo, name, student number, email, and current MadiBucks balance.' },
-            { title: 'Edit your profile', body: 'Click <strong>Edit Profile</strong>. Update your first name, last name, or email address, then click <strong>Save Changes</strong>.' },
-            { title: 'Change your password', body: 'In the Account panel, find the <strong>Change Password</strong> section. Enter your current password, your new password, confirm it, and click <strong>Update Password</strong>.' },
-            { title: 'Upload a profile avatar', body: 'Click the avatar circle at the top of the Account panel and choose an image file. Your photo appears in the sidebar and on the leaderboard.' },
-            { title: 'Check your balance', body: 'Your live MadiBucks balance is shown in the header bar at all times, and also in the Account panel. It updates automatically after each winning payout.' },
-            { title: 'Request account deletion', body: 'Go to <strong>Help \u2192 Contact Support</strong> and click <strong>Delete Account</strong>. A deletion request is sent to the admin who will process it.' },
+            { title: 'Browse and join groups', body: 'Click <strong>Groups</strong> in the sidebar. Explore available groups in the right column. Click <strong>Join</strong> on open groups or enter the password for protected class groups.' },
+            { title: 'Create your own group', body: 'Click <strong>Create Group</strong>. Enter a unique name, an optional description (up to 100 words), an optional maximum member count, and an optional password to keep it private.' },
+            { title: 'View group members & leaderboards', body: 'Click any group under <strong>My Groups</strong> to view its member list and see who leads the group in total MadiBucks.' },
+            { title: 'Take quizzes to earn MadiBucks', body: 'In academic groups managed by lecturers, open the group details to view assigned quizzes. Click <strong>Take Quiz</strong>, answer the questions, and submit to earn bonus MadiBucks.' },
+            { title: 'Group management', body: 'If you created the group, you can update its description, remove members, or delete the group from the group details modal.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Upload a profile photo \u2014 it shows on the leaderboard and makes you recognisable to friends!'
+        tip: '💡 <strong>Tip:</strong> Join your module\'s study group &mdash; completing lecturer quizzes is one of the best ways to earn extra MadiBucks without risking wagers!'
     },
     {
-        id: 'sg-social', label: 'Leaderboard & Friends',
+        id: 'sg-social', label: 'Leaderboard',
         title: 'Leaderboard & Friends',
-        intro: 'Compete with fellow students and build your network.',
+        intro: 'Compete on campus leaderboards, connect with classmates, and send friend requests.',
         steps: [
-            { title: 'View the Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar. Students are ranked by total MadiBucks balance. Your rank is shown at the top.' },
-            { title: 'Add a friend', body: 'Click <strong>Friends</strong> in the sidebar, then <strong>Add Friend</strong>. Search by name or email, then click <strong>Send Request</strong>.' },
-            { title: 'Accept friend requests', body: 'A badge on the Friends menu item shows pending requests. Open Friends and check the <strong>Pending Requests</strong> tab to accept or decline.' },
-            { title: 'View a friend\'s profile', body: 'Click any friend\'s name to see their balance and leaderboard rank.' },
+            { title: 'View the campus Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar. All students are ranked by total MadiBucks. The top three positions are highlighted with gold, silver, and bronze badges.' },
+            { title: 'Filter rankings', body: 'Use the dropdown filter to view rankings for <strong>Everyone</strong>, <strong>My Friends</strong>, or filtered specifically to members of your <strong>Groups</strong>.' },
+            { title: 'Add friends', body: 'Navigate to <strong>Friends</strong> in the sidebar. Click <strong>Add Friend</strong>, search by student number, full name, or email, and send a friend request.' },
+            { title: 'Accept or decline requests', body: 'The red badge on the Friends sidebar icon alerts you to pending requests. Open the <strong>Pending Requests</strong> tab to accept or decline.' },
+            { title: 'View student profiles', body: 'Click any student row on the leaderboard or in group member lists to preview their avatar, full name, student number, and balance.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Adding friends lets you track each other on the leaderboard \u2014 a little friendly competition goes a long way!'
+        tip: '💡 <strong>Tip:</strong> Use the "My Friends" filter on the leaderboard to run friendly wager competitions with your close peers.'
     },
     {
-        id: 'sg-groups', label: 'Groups',
-        title: 'Groups',
-        intro: 'Join or create groups to bet competitively within a private community.',
+        id: 'sg-account', label: 'Account',
+        title: 'Your Account & Security',
+        intro: 'Monitor your stats, review your complete wager history, and update security credentials.',
         steps: [
-            { title: 'Browse groups', body: 'Click <strong>Groups</strong> in the sidebar. The right column shows all available groups. Search by name to find specific ones.' },
-            { title: 'Join a group', body: 'Click <strong>Join</strong> next to any open group. Password-protected groups will prompt you for the group\'s password.' },
-            { title: 'Create your own group', body: 'Click <strong>Create Group</strong>. Enter a name, optional description, and optionally set a password and a maximum member count. Click <strong>Create</strong>.' },
-            { title: 'View group details', body: 'Click any group in <strong>My Groups</strong> to see the member list and leaderboard rankings within that group.' },
-            { title: 'Leave a group', body: 'Open the group details and click <strong>Leave Group</strong>. Confirm when prompted.' },
+            { title: 'Check your rank and stats', body: 'Click <strong>Account</strong> in the sidebar. View your current campus leaderboard position and total platform students.' },
+            { title: 'Filter your Bet History', body: 'Review all past wagers in the <strong>Your Bet History</strong> table. Filter bets by category (Academics, Sports, Social, Class Room) or status (Won, Lost, Pending).' },
+            { title: 'Change your password', body: 'Find the <strong>Change Password</strong> section. Enter your new password, confirm it, and click <strong>Confirm</strong> to update your credentials immediately.' },
+            { title: 'Upload a profile avatar', body: 'Under <strong>Profile Picture</strong>, choose an image file from your device and click <strong>Upload</strong>. Your avatar will appear on leaderboards and group views.' },
+            { title: 'Account deletion', body: 'If you ever wish to remove your account, navigate to <strong>Help &rarr; Contact Support</strong> and click <strong>Delete Account</strong> to submit a deletion request.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Set a password on your group so only people you invite can join.'
+        tip: '💡 <strong>Tip:</strong> Uploading an avatar makes it much easier for friends and classmates to recognize you on leaderboards and in group member lists.'
     },
     {
-        id: 'sg-help', label: 'Help & Support',
+        id: 'sg-help', label: 'Help',
         title: 'Getting Help',
-        intro: 'Need assistance? MadiBets has multiple support options built right in.',
+        intro: 'Find answers quickly or contact platform administrators for assistance.',
         steps: [
-            { title: 'Open the Help panel', body: 'Click <strong>Help</strong> in the sidebar to access the FAQ, User Guide, Contact Support, and Send a Query cards.' },
-            { title: 'Browse the FAQ', body: 'Click <strong>View FAQ</strong> to open the searchable FAQ modal. Type any keyword to filter questions instantly.' },
-            { title: 'Send a query', body: 'In the <strong>Send a Query</strong> card enter a title and your message, then click <strong>Save</strong>. The admin team will respond.' },
-            { title: 'Contact support directly', body: 'Use the details in the <strong>Contact Support</strong> card for urgent issues or to initiate an account deletion request.' },
+            { title: 'Browse the FAQ', body: 'In the <strong>Help</strong> panel, click <strong>View FAQ</strong> to search answers about betting rules, MadiBucks, account deletion, and groups.' },
+            { title: 'Use this User Guide', body: 'Click <strong>View Guide</strong> on the Help page to review step-by-step instructions for any platform feature.' },
+            { title: 'Submit a Query', body: 'Use the <strong>Send a Query</strong> card to send a support ticket directly to administrators. Track resolution status in the admin response queue.' },
+            { title: 'Contact Support', body: 'For account issues or deletion requests, refer to the contact details in the <strong>Contact Support</strong> card.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Check the FAQ before sending a query \u2014 most common questions are already answered there!'
+        tip: '💡 <strong>Tip:</strong> The FAQ search bar filters questions in real time &mdash; start typing a keyword like "odds" or "password" to jump straight to the answer.'
     },
 ];
 
 const LECTURER_GUIDE = [
     {
-        id: 'lg-start', label: 'Getting Started',
+        id: 'lg-start', label: 'Overview',
         title: 'Getting Started as a Lecturer',
-        intro: 'As a Lecturer on MadiBets you have a focused set of tools to monitor students, manage groups, and track engagement.',
+        intro: 'Welcome to MadiBets! As a Lecturer you facilitate academic engagement by creating module groups, assigning quizzes, and rewarding students with MadiBucks.',
         steps: [
-            { title: 'Log in as Lecturer', body: 'From the landing page click <strong>Log In</strong>. Select the <strong>Lecturer</strong> tab, enter your <strong>@mandela.ac.za</strong> email and password, then click <strong>LOG IN</strong>.' },
-            { title: 'Your Dashboard', body: 'Your Dashboard gives an at-a-glance overview of student activity, total registered students, and platform engagement metrics.' },
-            { title: 'Your sidebar navigation', body: 'As a Lecturer you have access to: <strong>Dashboard</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, and <strong>Help</strong>.' },
-            { title: 'Collapse the sidebar', body: 'Click the hamburger \u2630 icon in the top-left to collapse the sidebar and free up screen space.' },
+            { title: 'Register and log in', body: 'From the landing page click <strong>Log In</strong>, select the <strong>Lecturer</strong> tab, and enter your <strong>@mandela.ac.za</strong> staff email and password. (New lecturers can register using their staff number).' },
+            { title: 'Your dedicated navigation', body: 'As a Lecturer your workspace is focused on: <strong>Dashboard</strong>, <strong>Account</strong>, <strong>Leaderboard</strong>, <strong>Groups</strong>, and <strong>Help</strong>.' },
+            { title: 'Lecturer scope', body: 'Lecturers do not place bets, wager currency, or hold betting balances. Your role is educational engagement, group moderation, and quiz assignment.' },
+            { title: 'Collapse sidebar', body: 'Click the hamburger &#9776; icon at the top of the sidebar to collapse the navigation and expand your workspace.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Your Dashboard shows live student counts and engagement trends \u2014 check it before class to see participation levels.'
+        tip: '💡 <strong>Tip:</strong> Your dashboard displays live student counts and weekly activity trends &mdash; check it before class to see platform participation.'
     },
     {
         id: 'lg-dashboard', label: 'Dashboard',
         title: 'Understanding Your Dashboard',
-        intro: 'The Lecturer Dashboard surfaces key metrics about student activity on the platform.',
+        intro: 'The Lecturer Dashboard provides real-time aggregates and insights into student engagement across Nelson Mandela University.',
         steps: [
-            { title: 'Total Students stat', body: 'The <strong>Total Students</strong> card shows the current count of registered student accounts with a weekly growth trend percentage.' },
-            { title: 'Platform activity', body: 'Additional stat cards show total bets placed and active markets \u2014 giving you a sense of overall student engagement.' },
-            { title: 'Event banner', body: 'The banner at the top highlights upcoming NMU events that have been added as betting markets by the admin.' },
+            { title: 'My Groups stat', body: 'Displays the total number of class and module groups created and managed by you this semester.' },
+            { title: 'Total Students metric', body: 'Shows the total registered student population on MadiBets along with a weekly growth indicator.' },
+            { title: 'Active Today overview', body: 'Tracks student activity and engagement for the current day.' },
+            { title: 'Upcoming events banner', body: 'Highlights upcoming university academic, sport, and campus events.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Use the Dashboard as your starting point to gauge whether students are actively engaging before a class session.'
+        tip: '💡 <strong>Tip:</strong> Use your dashboard metrics to gauge overall student participation before introducing class quizzes and group activities.'
+    },
+    {
+        id: 'lg-groups', label: 'Groups',
+        title: 'Managing Course & Class Groups',
+        intro: 'Create module-specific communities where your students can interact, track course leaderboards, and take quizzes.',
+        steps: [
+            { title: 'View your groups', body: 'Click <strong>Groups</strong> in the sidebar. The left column lists <strong>My Groups</strong> (groups you created or joined); the right column displays all university groups.' },
+            { title: 'Create a module group', body: 'Click <strong>Create Group</strong>. Enter a unique group name (e.g., your module code such as <em>WRAP301</em>), a description (up to 100 words), an optional maximum member count, and a password.' },
+            { title: 'Distribute group credentials', body: 'Share the group name and password with your students in class or post them on Moodle so only enrolled students can join.' },
+            { title: 'Inspect group members', body: 'Click your group under <strong>My Groups</strong> to view all enrolled students and their individual MadiBucks rankings within your course.' },
+            { title: 'Owner controls', body: 'As the group owner, you can edit the group description, remove individual members, or permanently delete the group and its quizzes.' },
+        ],
+        tip: '💡 <strong>Tip:</strong> Password-protecting your class group ensures only students currently registered for your module can join and access your quizzes.'
+    },
+    {
+        id: 'lg-quizzes', label: 'Quizzes',
+        title: 'Creating Quizzes & Rewarding Students',
+        intro: 'Design multiple-choice quiz tasks to test student knowledge and incentivize participation with MadiBucks rewards.',
+        steps: [
+            { title: 'Open group quiz manager', body: 'Click on your module group under <strong>My Groups</strong> in the Groups panel to open the group modal.' },
+            { title: 'Create a new quiz', body: 'Click <strong>Create Quiz</strong>. Enter a title, description, and the reward amount in MadiBucks (e.g. 50 or 100 MadiBucks).' },
+            { title: 'Add multiple-choice questions', body: 'Add question prompts with multiple answer choices and designate the correct answer option.' },
+            { title: 'Automatic grading & payouts', body: 'When students take your quiz, MadiBets automatically evaluates their responses and grants the reward directly to their balance.' },
+            { title: 'Reveal results to students', body: 'You control when quiz solutions become visible. In the group quiz list, click <strong>Reveal Results</strong> when you are ready for students to view correct answers and performance.' },
+        ],
+        tip: '💡 <strong>Tip:</strong> Quizzes are a fantastic way to boost lecture attendance and reward students for completing pre-class readings or tutorial prep.'
     },
     {
         id: 'lg-leaderboard', label: 'Leaderboard',
         title: 'Monitoring the Leaderboard',
-        intro: 'The Leaderboard lets you see how students rank across the platform.',
+        intro: 'Track student rankings across the university or filter performance directly within your class groups.',
         steps: [
-            { title: 'Open the Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar. All student accounts are ranked from highest to lowest MadiBucks balance.' },
-            { title: 'Identify top performers', body: 'The top three students are highlighted with gold, silver, and bronze indicators. Use this to recognise highly engaged students.' },
-            { title: 'View a student\'s profile', body: 'Click any student row to see their profile popup \u2014 avatar, full name, and current balance.' },
+            { title: 'Open the Leaderboard', body: 'Click <strong>Leaderboard</strong> in the sidebar to view student rankings ordered by total MadiBucks balance.' },
+            { title: 'Filter by your class group', body: 'Use the group dropdown filter at the top of the leaderboard to view rankings exclusively for students enrolled in your module group.' },
+            { title: 'Celebrate student achievement', body: 'Identify top performers in your module and celebrate their achievements in class to encourage healthy academic competition.' },
+            { title: 'Inspect student profiles', body: 'Click any student row to view their profile popup with their student number, full name, avatar, and total MadiBucks.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Use the Leaderboard to celebrate top-performing students in class \u2014 it boosts participation!'
-    },
-    {
-        id: 'lg-groups', label: 'Groups',
-        title: 'Managing Groups',
-        intro: 'Groups let students bet within a private community. As a Lecturer you can create and manage groups for your class.',
-        steps: [
-            { title: 'View all groups', body: 'Click <strong>Groups</strong> in the sidebar. Left column shows your groups; right column shows all available groups.' },
-            { title: 'Create a class group', body: 'Click <strong>Create Group</strong>. Enter a name (e.g. your module code), a description, and a password so only your students can join. Click <strong>Create</strong>.' },
-            { title: 'Share access with students', body: 'Share the group name and password with your students. They find and join it from their own <strong>Groups</strong> panel.' },
-            { title: 'View group members', body: 'Click on your group in <strong>My Groups</strong> to see the full member list and their leaderboard rankings within the group.' },
-            { title: 'Leave a group', body: 'Open the group details and click <strong>Leave Group</strong>. Note: leaving does not delete the group.' },
-        ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> A module-specific password-protected group is the best way to run a private leaderboard competition for your class!'
+        tip: '💡 <strong>Tip:</strong> Filtering the leaderboard by your course group lets you see which students are most active in earning quiz rewards.'
     },
     {
         id: 'lg-account', label: 'Account',
-        title: 'Your Account & Profile',
-        intro: 'Keep your profile information current.',
+        title: 'Lecturer Account & Credentials',
+        intro: 'Manage your lecturer credentials and profile settings.',
         steps: [
-            { title: 'Open your Account', body: 'Click <strong>Account</strong> in the sidebar. You will see your name, staff number, email, and profile photo.' },
-            { title: 'Edit your profile', body: 'Click <strong>Edit Profile</strong> to update your first name, last name, or email. Click <strong>Save Changes</strong>.' },
-            { title: 'Change your password', body: 'Use the <strong>Change Password</strong> section in the Account panel. Enter your current password, new password, confirm it, and click <strong>Update Password</strong>.' },
-            { title: 'Upload an avatar', body: 'Click your avatar circle to upload a profile image. This appears in the sidebar and in any shared view.' },
+            { title: 'Open Account settings', body: 'Click <strong>Account</strong> in the sidebar. View your total student reach and account management tools.' },
+            { title: 'Change password', body: 'In the <strong>Change Password</strong> section, enter your new password, confirm it, and click <strong>Confirm</strong> to update your credentials immediately.' },
+            { title: 'Upload profile picture', body: 'Under <strong>Profile Picture</strong>, choose an avatar photo from your computer and upload it so students can easily identify you in groups.' },
+            { title: 'Account deletion', body: 'If needed, you can submit an account deletion request to platform administrators via <strong>Help &rarr; Contact Support</strong>.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> Keeping your profile up to date helps students recognise you in group or leaderboard contexts.'
+        tip: '💡 <strong>Tip:</strong> Uploading a clear profile photo makes your class groups immediately recognizable to your students.'
     },
     {
-        id: 'lg-help', label: 'Help & Support',
-        title: 'Getting Help',
-        intro: 'Find answers and contact support when you need assistance.',
+        id: 'lg-help', label: 'Help',
+        title: 'Help & Administrator Queries',
+        intro: 'Access lecturer-tailored documentation and submit administrative queries.',
         steps: [
-            { title: 'Open the Help panel', body: 'Click <strong>Help</strong> in the sidebar to access the FAQ, User Guide, Contact Support, and Send a Query cards.' },
-            { title: 'Browse the FAQ', body: 'Click <strong>View FAQ</strong> to open the searchable FAQ modal. Type a keyword to filter questions.' },
-            { title: 'Send a query', body: 'Use the <strong>Send a Query</strong> card to submit a question or issue. Enter a title and message, then click <strong>Save</strong>.' },
-            { title: 'Contact support', body: 'For urgent matters use the contact details in the <strong>Contact Support</strong> card.' },
+            { title: 'Lecturer-Tailored FAQ', body: 'Click <strong>View FAQ</strong> in the Help panel to access questions and answers customized specifically for lecturers and course managers.' },
+            { title: 'User Guide', body: 'Open <strong>View Guide</strong> at any time to review step-by-step lecturer instructions and workflows.' },
+            { title: 'Send a Query', body: 'Use the <strong>Send a Query</strong> card to report technical questions or platform issues directly to the system administrators.' },
+            { title: 'Contact Support', body: 'View direct administrator email contact details for urgent inquiries or platform support.' },
         ],
-        tip: '\ud83d\udca1 <strong>Tip:</strong> If a student reports an issue you can\'t solve, direct them to <strong>Help \u2192 Send a Query</strong> so the admin team can assist.'
+        tip: '💡 <strong>Tip:</strong> If students encounter technical issues with quiz submissions, submit a query via <strong>Help &rarr; Send a Query</strong> with the group name for quick assistance.'
     },
 ];
 
