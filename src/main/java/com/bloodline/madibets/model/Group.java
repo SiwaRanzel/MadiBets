@@ -12,6 +12,9 @@ public class Group {
     private Integer maxMembers; // max joining members (EXCLUDES owner); null = unlimited
     private int createdBy;
     private java.sql.Timestamp createdDate;
+    private boolean createdByAdmin;
+    private String createdByType;  // STUDENT | LECTURER | ADMIN
+    private String creatorName;    // Full name of the creator (e.g. "Jason Sauls")
 
     public Group() {}
 
@@ -89,6 +92,34 @@ public class Group {
 
     public void setCreatedDate(java.sql.Timestamp createdDate) {
         this.createdDate = createdDate;
+    }
+
+    public boolean isCreatedByAdmin() {
+        return createdByAdmin;
+    }
+
+    public void setCreatedByAdmin(boolean createdByAdmin) {
+        this.createdByAdmin = createdByAdmin;
+    }
+
+    public String getCreatedByType() {
+        return createdByType;
+    }
+
+    public void setCreatedByType(String createdByType) {
+        this.createdByType = createdByType;
+    }
+
+    public String getCreatorName() {
+        return creatorName;
+    }
+
+    public void setCreatorName(String creatorName) {
+        this.creatorName = creatorName;
+    }
+
+    public boolean isCreatedByLecturer() {
+        return "LECTURER".equalsIgnoreCase(createdByType);
     }
 
     @Override

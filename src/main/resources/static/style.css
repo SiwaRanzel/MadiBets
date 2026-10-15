@@ -1671,6 +1671,20 @@ body {
     padding: 2px 8px;
     border-radius: 10px;
 }
+.group-admin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #EEF2FF;
+    color: #1B2F5E;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #D0D9E8;
+}
 
 /* Group detail modal — bigger, with scrolling on the inner body so the
    scrollbar sits inside the padded content rather than hugging the rounded edge. */

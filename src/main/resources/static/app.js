@@ -235,6 +235,12 @@ function groupIdOf(g) {
 async function refreshGroups() {
     const saved = sessionStorage.getItem('user');
     const user = saved ? JSON.parse(saved) : null;
+
+    // Admins are never members of groups — default to the All Groups view.
+    if (user && user.userType === 'ADMIN' && groupFilter === 'mine') {
+        setGroupFilter('all');
+    }
+
     try {
         const [allResp, myResp] = await Promise.all([
             fetch(`${API_BASE}/groups`),
@@ -281,6 +287,7 @@ function applyGroupFilter() {
 
     let base;
     let emptyMsg;
+    const isAdmin = user && user.userType === 'ADMIN';
     if (groupFilter === 'mine') {
         // Groups I'm in, with the ones I own listed first.
         base = [...myGroupsCache].sort((a, b) => {
@@ -289,11 +296,12 @@ function applyGroupFilter() {
             if (aOwned !== bOwned) return aOwned - bOwned;
             return (a.groupName || '').localeCompare(b.groupName || '');
         });
-        emptyMsg = loggedIn ? 'You are not a member of any groups yet.' : 'Please log in to see your groups.';
+        emptyMsg = isAdmin ? 'Admins are not members of any groups.'
+            : (loggedIn ? 'You are not a member of any groups yet.' : 'Please log in to see your groups.');
     } else { // 'all' — groups I'm NOT already part of
         const myIds = new Set(myGroupsCache.map(groupIdOf));
         base = allGroupsCache.filter(g => !myIds.has(groupIdOf(g)));
-        emptyMsg = 'No groups left to join.';
+        emptyMsg = isAdmin ? 'No groups found.' : 'No groups left to join.';
     }
 
     const filtered = groupSearchTerm
@@ -311,13 +319,18 @@ function renderGroupList(items, container, emptyMsg, myUserID) {
         return;
     }
 
+    const saved = sessionStorage.getItem('user');
+    const user = saved ? JSON.parse(saved) : null;
+    const isCurrentUserAdmin = user && user.userType === 'ADMIN';
+
     items.forEach(it => {
         const groupID = it.groupID !== undefined ? it.groupID : it.groupId || 0;
         if (groupID <= 0) return; // skip any virtual/default groups
         const name = it.groupName || it.group_name || `Group ${groupID}`;
         const desc = it.description || '';
         const locked = it.hasPassword === true;
-        const owned = myUserID != null && it.createdBy === myUserID;
+        const owned = myUserID != null && it.createdBy === myUserID && !isCurrentUserAdmin;
+        const adminCreated = it.createdByAdmin === true;
 
         const row = document.createElement('div');
         row.className = 'group-row-card';
@@ -326,9 +339,16 @@ function renderGroupList(items, container, emptyMsg, myUserID) {
         const lock = locked
             ? '<span class="group-lock-badge" title="Password protected"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>'
             : '';
-        const ownerBadge = owned
-            ? '<span class="group-owner-badge">Owner</span>'
-            : '';
+        const isLecturerCreated = it.createdByType === 'LECTURER' || it.createdByLecturer === true;
+        let ownerBadge = '';
+        if (owned) {
+            ownerBadge = '<span class="group-owner-badge">Owner</span>';
+        } else if (adminCreated) {
+            ownerBadge = '<span class="group-admin-badge">Admin Created</span>';
+        } else if (isLecturerCreated) {
+            const lName = it.creatorName ? escapeHtml(it.creatorName) : 'Lecturer';
+            ownerBadge = `<span class="group-admin-badge" style="background:#FFF3E8; color:#D97706; border-color:#FCD34D;">Lecturer: ${lName}</span>`;
+        }
 
         row.innerHTML =
             `<div style="flex:1; min-width:0;">
@@ -377,29 +397,57 @@ async function loadGroupDetail(groupID, section) {
         } else {
             capacityText = `👥 ${data.memberCount !== undefined ? data.memberCount : '—'} members`;
         }
+
+        let creatorBadge = '';
+        if (data.createdByAdmin) {
+            creatorBadge = `<span style="display:inline-flex; align-items:center; gap:4px; background:#EEF2F9; color:#1B2F5E; padding:2px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; border:1px solid #D0D9E8;">Created by Admin only</span>`;
+        } else if (data.createdByLecturer || data.createdByType === 'LECTURER') {
+            const lecturerName = data.creatorName ? escapeHtml(data.creatorName) : 'Lecturer';
+            creatorBadge = `<span style="display:inline-flex; align-items:center; gap:4px; background:#FFF3E8; color:#D97706; padding:2px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; border:1px solid #FCD34D;">🎓 Lecturer: ${lecturerName}</span>`;
+        }
+
         header.innerHTML = `<h3 style="margin:0 0 4px; color:#1B2F5E;">${escapeHtml(data.groupName)}</h3>
             <p style="color:#6C7D93; margin:0 0 10px; font-size:0.9rem;">${escapeHtml(data.description || 'No description.')}</p>
-            <div style="color:#A0B2D6; font-size:0.85rem; margin-bottom:18px;">${capacityText}</div>`;
+            <div style="color:#A0B2D6; font-size:0.85rem; margin-bottom:18px; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span>${capacityText}</span>
+                ${creatorBadge}
+            </div>`;
         body.appendChild(header);
 
         // Actions — all buttons share a consistent style (variants only change colour).
         const isMember = data.isMember === true;
         const isAdmin = user && user.userType === 'ADMIN';
-        const isOwner = user && data.createdBy === user.userID;
+        const isLecturer = user && user.userType === 'LECTURER';
+        const isOwner = user && data.createdBy === user.userID && !isAdmin;
         const actions = document.createElement('div');
         actions.style = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center;';
         if (isAdmin) {
-            // Admins have view-only oversight: they cannot join, leave, or create.
+            // Admins have view-only oversight: they cannot join or leave.
+            // They can, however, edit description and delete any group.
             const note = document.createElement('div');
-            note.style = 'font-size:0.82rem; color:#A0B2D6; font-weight:600;';
-            note.textContent = 'Admin view — read only';
+            note.style = 'font-size:0.82rem; color:#A0B2D6; font-weight:600; margin-right:8px;';
+            note.textContent = 'Admin view';
             actions.appendChild(note);
-        } else if (!isMember) {
-            const joinBtn = document.createElement('button');
-            joinBtn.className = 'group-action-btn gold';
-            joinBtn.textContent = 'Join Group';
-            joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
-            actions.appendChild(joinBtn);
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'group-action-btn';
+            editBtn.textContent = 'Edit Description';
+            editBtn.onclick = () => openEditGroupDescription(groupID, data.description || '');
+            actions.appendChild(editBtn);
+
+            const adminDeleteBtn = document.createElement('button');
+            adminDeleteBtn.className = 'group-action-btn danger';
+            adminDeleteBtn.textContent = 'Delete Group';
+            adminDeleteBtn.onclick = () => deleteGroup(groupID);
+            actions.appendChild(adminDeleteBtn);
+        } else if (!isMember && !isOwner) {
+            if (!isLecturer) {
+                const joinBtn = document.createElement('button');
+                joinBtn.className = 'group-action-btn gold';
+                joinBtn.textContent = 'Join Group';
+                joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
+                actions.appendChild(joinBtn);
+            }
         } else if (!isOwner) {
             // Non-owner members can leave; the owner manages/deletes instead.
             const leaveBtn = document.createElement('button');
@@ -408,14 +456,14 @@ async function loadGroupDetail(groupID, section) {
             leaveBtn.onclick = () => leaveGroup(groupID);
             actions.appendChild(leaveBtn);
         }
-        if (!isAdmin && isMember && user && user.userType === 'LECTURER') {
+        if (!isAdmin && isLecturer && (isMember || isOwner)) {
             const createBtn = document.createElement('button');
             createBtn.className = 'group-action-btn';
             createBtn.textContent = '+ Create Quiz';
             createBtn.onclick = () => openCreateTaskModal(groupID);
             actions.appendChild(createBtn);
         }
-        // Owner management controls.
+        // Owner management controls (for non-admin owners).
         if (isOwner) {
             const editBtn = document.createElement('button');
             editBtn.className = 'group-action-btn';
@@ -495,9 +543,27 @@ async function loadGroupDetail(groupID, section) {
 // Render the member leaderboard into the group detail content area.
 function renderGroupMembersSection(container, data, groupID, isOwner, user) {
     container.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Member Leaderboard</h4>';
-    const members = data.members || [];
+
+    // If created by admin or lecturer, indicate that clearly above the members list
+    if (data.createdByAdmin) {
+        const adminIndicator = document.createElement('div');
+        adminIndicator.style = 'margin-bottom:14px; padding:10px 14px; background:rgba(27, 47, 94, 0.05); border-left:3px solid #1B2F5E; border-radius:6px; font-size:0.84rem; color:#4A5568;';
+        adminIndicator.innerHTML = '<strong>Group Creator:</strong> Created by Admin only (the admin is not a participant in the game).';
+        container.appendChild(adminIndicator);
+    } else if (data.createdByLecturer || data.createdByType === 'LECTURER') {
+        const lecturerIndicator = document.createElement('div');
+        lecturerIndicator.style = 'margin-bottom:14px; padding:10px 14px; background:rgba(235, 130, 60, 0.08); border-left:3px solid #EB823C; border-radius:6px; font-size:0.84rem; color:#2D3748;';
+        lecturerIndicator.innerHTML = `<strong>Group Lecturer:</strong> Created by <strong>${escapeHtml(data.creatorName || 'Lecturer')}</strong> (lecturers oversee quizzes and tasks and do not participate in the student leaderboard).`;
+        container.appendChild(lecturerIndicator);
+    }
+
+    // Only students participate in the member leaderboard (admins and lecturers are excluded)
+    const members = (data.members || []).filter(m => m.userType === 'STUDENT');
     if (members.length === 0) {
-        container.innerHTML += '<div class="group-empty-state">No members yet.</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'group-empty-state';
+        emptyDiv.textContent = 'No student members yet.';
+        container.appendChild(emptyDiv);
         return;
     }
     members.forEach((m, i) => {
@@ -1101,6 +1167,9 @@ async function createGroup() {
             showToast('Group created successfully!', 'success');
             closeCreateGroupModal();
             refreshGroups();
+            if (user && user.userType === 'LECTURER') {
+                loadLecturerDashboardStats();
+            }
         } else {
             showToast(data.error || 'Failed to create group', 'error');
         }

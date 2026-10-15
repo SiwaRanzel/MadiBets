@@ -731,8 +731,10 @@
                 </div>
 
                 <!-- My Groups Cards -->
-                <h3 style="color: #1B2F5E; font-size: 1.15rem; font-weight: 700; margin-bottom: 18px;">My Groups —
-                    Recent Activity</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                    <h3 style="color: #1B2F5E; font-size: 1.15rem; font-weight: 700; margin: 0;">My Groups — Recent Activity</h3>
+                    <button type="button" class="btn btn-gold-cta" onclick="openCreateGroupModal()" style="padding: 7px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">+ Create Group</button>
+                </div>
                 <div id="lecturer-groups-container" style="display: flex; flex-direction: column; gap: 16px;">
 
                     <!-- Groups will be dynamically injected here via app.js -->
@@ -766,71 +768,71 @@
                 <div style="display:flex; justify-content:center; margin-top:18px;">
                     <button type="button" class="btn btn-gold-cta" id="create-group-btn" onclick="openCreateGroupModal()" style="padding:10px 20px; border-radius:8px;">Create Group</button>
                 </div>
+            </div>
 
-                <!-- Create Group Modal -->
-                <div id="create-group-modal" class="modal hidden" onclick="closeCreateGroupModal(event)">
-                    <div class="modal-content" onclick="event.stopPropagation()">
-                        <h3>Create Group</h3>
-                        <div class="form-field-group">
-                            <label>Group Name</label>
-                            <input type="text" id="new-group-name" placeholder="e.g. WRRV301" />
-                        </div>
-                        <div class="form-field-group">
-                            <label>Description</label>
-                            <textarea id="new-group-desc" rows="3" maxlength="255" placeholder="Optional description (max 255 characters)"
-                                      style="resize:none; height:80px; overflow-y:auto;"
-                                      oninput="limitGroupDescWords()"></textarea>
-                            <small id="new-group-desc-count" style="color:#6C7D93; font-size:0.8rem;">0 / 255 characters</small>
-                        </div>
-                        <div class="form-field-group">
-                            <label>Password (optional)</label>
-                            <input type="password" id="new-group-password" placeholder="Leave blank for an open group" autocomplete="new-password" />
-                            <small style="color:#6C7D93; font-size:0.8rem;">If set, members must enter this password to join.</small>
-                        </div>
-                        <div class="form-field-group">
-                            <label>Max Members (optional)</label>
-                            <input type="number" id="new-group-max-members" min="0" step="1" placeholder="Leave blank for unlimited" oninput="normalizeMaxMembers()" />
-                            <small style="color:#6C7D93; font-size:0.8rem;">Maximum members who can join (you, the owner, don't count toward this). Step below 1 to clear it (unlimited).</small>
-                        </div>
-                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
-                            <button type="button" class="btn" onclick="closeCreateGroupModal()">Cancel</button>
-                            <button type="button" class="btn btn-gold-cta" onclick="createGroup()">Create</button>
-                        </div>
+            <!-- Create Group Modal -->
+            <div id="create-group-modal" class="modal hidden" onclick="closeCreateGroupModal(event)">
+                <div class="modal-content" onclick="event.stopPropagation()">
+                    <h3>Create Group</h3>
+                    <div class="form-field-group">
+                        <label>Group Name</label>
+                        <input type="text" id="new-group-name" placeholder="e.g. WRRV301" />
+                    </div>
+                    <div class="form-field-group">
+                        <label>Description</label>
+                        <textarea id="new-group-desc" rows="3" maxlength="255" placeholder="Optional description (max 255 characters)"
+                                  style="resize:none; height:80px; overflow-y:auto;"
+                                  oninput="limitGroupDescWords()"></textarea>
+                        <small id="new-group-desc-count" style="color:#6C7D93; font-size:0.8rem;">0 / 255 characters</small>
+                    </div>
+                    <div class="form-field-group">
+                        <label>Password (optional)</label>
+                        <input type="password" id="new-group-password" placeholder="Leave blank for an open group" autocomplete="new-password" />
+                        <small style="color:#6C7D93; font-size:0.8rem;">If set, members must enter this password to join.</small>
+                    </div>
+                    <div class="form-field-group">
+                        <label>Max Members (optional)</label>
+                        <input type="number" id="new-group-max-members" min="0" step="1" placeholder="Leave blank for unlimited" oninput="normalizeMaxMembers()" />
+                        <small style="color:#6C7D93; font-size:0.8rem;">Maximum members who can join (you, the owner, don't count toward this). Step below 1 to clear it (unlimited).</small>
+                    </div>
+                    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+                        <button type="button" class="btn" onclick="closeCreateGroupModal()">Cancel</button>
+                        <button type="button" class="btn btn-gold-cta" onclick="createGroup()">Create</button>
                     </div>
                 </div>
+            </div>
 
-                <!-- Create Quiz Modal (lecturer only) -->
-                <div id="create-task-modal" class="modal hidden" onclick="closeCreateTaskModal(event)">
-                    <div class="modal-content quiz-builder-content" onclick="event.stopPropagation()">
-                        <h3>Create Quiz</h3>
-                        <div class="form-field-group">
-                            <label>Quiz Title</label>
-                            <input type="text" id="new-quiz-title" placeholder="e.g. Week 3 Revision" />
-                        </div>
-                        <p class="quiz-reward-note">Each correct answer is worth <strong>10 MadiBucks</strong>. Up to 10 questions.</p>
-                        <div id="quiz-questions-container">
-                            <!-- question builder rows injected by JS -->
-                        </div>
-                        <button type="button" class="btn quiz-add-question-btn" id="quiz-add-question-btn" onclick="addQuizQuestion()">+ Add Question</button>
-                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
-                            <button type="button" class="btn" onclick="closeCreateTaskModal()">Cancel</button>
-                            <button type="button" class="btn btn-gold-cta" onclick="createTask()">Create Quiz</button>
-                        </div>
+            <!-- Create Quiz Modal (lecturer only) -->
+            <div id="create-task-modal" class="modal hidden" onclick="closeCreateTaskModal(event)">
+                <div class="modal-content quiz-builder-content" onclick="event.stopPropagation()">
+                    <h3>Create Quiz</h3>
+                    <div class="form-field-group">
+                        <label>Quiz Title</label>
+                        <input type="text" id="new-quiz-title" placeholder="e.g. Week 3 Revision" />
+                    </div>
+                    <p class="quiz-reward-note">Each correct answer is worth <strong>10 MadiBucks</strong>. Up to 10 questions.</p>
+                    <div id="quiz-questions-container">
+                        <!-- question builder rows injected by JS -->
+                    </div>
+                    <button type="button" class="btn quiz-add-question-btn" id="quiz-add-question-btn" onclick="addQuizQuestion()">+ Add Question</button>
+                    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+                        <button type="button" class="btn" onclick="closeCreateTaskModal()">Cancel</button>
+                        <button type="button" class="btn btn-gold-cta" onclick="createTask()">Create Quiz</button>
                     </div>
                 </div>
+            </div>
 
-                <!-- Take Quiz Modal (student) -->
-                <div id="take-quiz-modal" class="modal hidden" onclick="closeTakeQuizModal(event)">
-                    <div class="modal-content quiz-take-content" onclick="event.stopPropagation()">
-                        <h3 id="take-quiz-title">Quiz</h3>
-                        <div id="take-quiz-body">
-                            <!-- questions injected by JS -->
-                        </div>
-                        <div id="take-quiz-footer" style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px; align-items:center;">
-                            <span id="take-quiz-result" style="margin-right:auto; font-weight:700; color:#1B2F5E;"></span>
-                            <button type="button" class="btn" onclick="closeTakeQuizModal()">Close</button>
-                            <button type="button" class="btn btn-gold-cta" id="take-quiz-submit-btn" onclick="submitQuiz()">Submit Quiz</button>
-                        </div>
+            <!-- Take Quiz Modal (student) -->
+            <div id="take-quiz-modal" class="modal hidden" onclick="closeTakeQuizModal(event)">
+                <div class="modal-content quiz-take-content" onclick="event.stopPropagation()">
+                    <h3 id="take-quiz-title">Quiz</h3>
+                    <div id="take-quiz-body">
+                        <!-- questions injected by JS -->
+                    </div>
+                    <div id="take-quiz-footer" style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px; align-items:center;">
+                        <span id="take-quiz-result" style="margin-right:auto; font-weight:700; color:#1B2F5E;"></span>
+                        <button type="button" class="btn" onclick="closeTakeQuizModal()">Close</button>
+                        <button type="button" class="btn btn-gold-cta" id="take-quiz-submit-btn" onclick="submitQuiz()">Submit Quiz</button>
                     </div>
                 </div>
             </div>

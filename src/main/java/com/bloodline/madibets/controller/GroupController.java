@@ -7,6 +7,7 @@ import com.bloodline.madibets.model.Group;
 import com.bloodline.madibets.model.Task;
 import com.bloodline.madibets.model.TaskQuestion;
 import com.bloodline.madibets.model.TaskOption;
+import com.bloodline.madibets.model.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,7 +36,13 @@ public class GroupController {
                 return ResponseEntity.status(409).body(Map.of("error",
                         "A group called '" + g.getGroupName() + "' already exists. Please choose another name."));
             }
-            int id = groupDAO.create(g);
+
+            // Determine whether the creator is an admin or lecturer — admins and lecturers create groups on
+            // behalf of the platform / course and must NOT be added to GroupMember as betting players.
+            String creatorType = g.getCreatedBy() > 0 ? userDAO.getUserType(g.getCreatedBy()) : null;
+            boolean isStaff = "ADMIN".equalsIgnoreCase(creatorType) || "LECTURER".equalsIgnoreCase(creatorType);
+
+            int id = isStaff ? groupDAO.createAdminGroup(g) : groupDAO.create(g);
             if (id > 0) {
                 return ResponseEntity.status(201).body(Map.of("groupID", id));
             } else {
@@ -90,7 +97,7 @@ public class GroupController {
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
 
-            // Build a richer response: group + members + memberCount + isMember
+            // Build a richer response: group + members + memberCount + isMember + creator info
             Map<String, Object> resp = new HashMap<>();
             resp.put("groupID", g.getGroupID());
             resp.put("groupName", g.getGroupName());
@@ -102,6 +109,23 @@ public class GroupController {
             resp.put("hasPassword", groupDAO.hasPassword(id));
             resp.put("maxMembers", g.getMaxMembers());
             resp.put("nonOwnerMemberCount", groupDAO.getNonOwnerMemberCount(id));
+            
+            String createdByType = g.getCreatedByType();
+            String creatorName = g.getCreatorName();
+            if ((createdByType == null || creatorName == null) && g.getCreatedBy() > 0) {
+                createdByType = userDAO.getUserType(g.getCreatedBy());
+                User creator = userDAO.findById(g.getCreatedBy());
+                if (creator != null) {
+                    creatorName = (creator.getName() + " " + (creator.getSurname() != null ? creator.getSurname() : "")).trim();
+                }
+            }
+            boolean createdByAdmin = "ADMIN".equalsIgnoreCase(createdByType) || g.isCreatedByAdmin();
+            boolean createdByLecturer = "LECTURER".equalsIgnoreCase(createdByType);
+            resp.put("createdByType", createdByType);
+            resp.put("creatorName", creatorName);
+            resp.put("createdByAdmin", createdByAdmin);
+            resp.put("createdByLecturer", createdByLecturer);
+
             if (userId != null) {
                 resp.put("isMember", groupDAO.isMember(id, userId));
             } else {
@@ -128,9 +152,10 @@ public class GroupController {
             }
             int userID = ((Number) raw).intValue();
 
-            // Admins cannot join groups (they have view-only oversight).
-            if ("ADMIN".equalsIgnoreCase(userDAO.getUserType(userID))) {
-                return ResponseEntity.status(403).body(Map.of("error", "Admins cannot join groups."));
+            // Admins and Lecturers cannot join groups (they have view-only oversight / quiz duties).
+            String userType = userDAO.getUserType(userID);
+            if ("ADMIN".equalsIgnoreCase(userType) || "LECTURER".equalsIgnoreCase(userType)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Lecturers and admins cannot join groups as betting members."));
             }
 
             // If the group is password-protected, require and verify the password.
@@ -226,7 +251,7 @@ public class GroupController {
         }
     }
 
-    /** DELETE /api/groups/{id}?userID=N — owner deletes the whole group. */
+    /** DELETE /api/groups/{id}?userID=N — owner or admin deletes the whole group. */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteGroup(@PathVariable int id, @RequestParam int userID) {
         try {
@@ -235,7 +260,10 @@ public class GroupController {
             }
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
-            if (g.getCreatedBy() != userID) {
+
+            // Admins can delete any group regardless of ownership or password.
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(userDAO.getUserType(userID));
+            if (!isAdmin && g.getCreatedBy() != userID) {
                 return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can delete this group."));
             }
             boolean deleted = groupDAO.deleteGroup(id);
@@ -321,9 +349,11 @@ public class GroupController {
             if (!"LECTURER".equalsIgnoreCase(role)) {
                 return ResponseEntity.status(403).body(Map.of("error", "Only lecturers can create tasks."));
             }
-            // Lecturer must be a member of the group to create tasks for it.
-            if (!groupDAO.isMember(id, createdBy)) {
-                return ResponseEntity.status(403).body(Map.of("error", "You must be a member of this group to create tasks."));
+            // Lecturer must be the creator or an instructor of the group to create tasks for it.
+            Group group = groupDAO.findById(id);
+            if (group == null) return ResponseEntity.notFound().build();
+            if (group.getCreatedBy() != createdBy && !groupDAO.isMember(id, createdBy)) {
+                return ResponseEntity.status(403).body(Map.of("error", "You do not have permission to create quizzes for this group."));
             }
 
             String title = body.get("title") instanceof String s ? s.trim() : null;
