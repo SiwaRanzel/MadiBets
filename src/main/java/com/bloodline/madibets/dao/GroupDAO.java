@@ -283,9 +283,9 @@ public class GroupDAO {
     }
 
     public boolean isMember(int groupID, int userID) throws SQLException {
-        String sql = "SELECT COUNT(*) AS c FROM GroupMember gm "
-                   + "JOIN User u ON gm.userID = u.userID "
-                   + "WHERE gm.groupID = ? AND gm.userID = ? AND u.userType = 'STUDENT'";
+        // Membership reflects an actual GroupMember row regardless of role —
+        // students AND lecturers can be members.
+        String sql = "SELECT COUNT(*) AS c FROM GroupMember WHERE groupID = ? AND userID = ?";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, groupID);
@@ -375,7 +375,8 @@ public class GroupDAO {
      * List members of a group with names, roles, and MadiBucks balance,
      * ranked by balance descending — this is the per-group leaderboard.
      * Members without an Account row (shouldn't normally happen) sort last
-     * with a balance of 0. Admins and Lecturers are excluded as they do not participate in game.
+     * with a balance of 0. Students and Lecturers are returned (the frontend
+     * lists lecturers separately, without a balance); admins never join groups.
      */
     public List<Map<String, Object>> findMembers(int groupID) throws SQLException {
         List<Map<String, Object>> members = new ArrayList<>();
@@ -384,7 +385,7 @@ public class GroupDAO {
                    + "FROM GroupMember gm "
                    + "JOIN User u ON gm.userID = u.userID "
                    + "LEFT JOIN Account a ON a.userID = u.userID "
-                   + "WHERE gm.groupID = ? AND u.userType = 'STUDENT' "
+                   + "WHERE gm.groupID = ? AND u.userType IN ('STUDENT', 'LECTURER') "
                    + "ORDER BY balance DESC, u.name";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {

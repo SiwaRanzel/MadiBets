@@ -222,9 +222,10 @@ function toggleSidebar() {
 // -------------------- Groups UI / API Helpers --------------------
 // Single filtered pane: My Groups / All Groups / Not Joined, with search
 // applied within the active filter.
-let myGroupsCache = [];     // groups the user belongs to
-let allGroupsCache = [];    // every group
-let groupFilter = 'mine';   // 'mine' | 'all' (all = groups I'm not part of)
+let myGroupsCache = [];       // groups the user belongs to
+let allGroupsCache = [];      // every group
+let groupFilter = 'mine';     // 'mine' | 'all'
+let allGroupsScope = 'notjoined'; // within All Groups: 'notjoined' | 'everything'
 let groupSearchTerm = '';
 
 function groupIdOf(g) {
@@ -235,10 +236,23 @@ function groupIdOf(g) {
 async function refreshGroups() {
     const saved = sessionStorage.getItem('user');
     const user = saved ? JSON.parse(saved) : null;
+    const isAdmin = user && user.userType === 'ADMIN';
 
-    // Admins are never members of groups — default to the All Groups view.
-    if (user && user.userType === 'ADMIN' && groupFilter === 'mine') {
-        setGroupFilter('all');
+    const myTabBtn = document.querySelector('#groups-filter-bar .group-tab-btn[data-filter="mine"]');
+    const allTabBtn = document.querySelector('#groups-filter-bar .group-tab-btn[data-filter="all"]');
+    const subFilter = document.getElementById('all-groups-subfilter');
+
+    if (isAdmin) {
+        // Admins see every group only — no My Groups tab, no scope sub-filter.
+        if (myTabBtn) myTabBtn.style.display = 'none';
+        if (subFilter) subFilter.style.display = 'none';
+        allGroupsScope = 'everything';
+        groupFilter = 'all';
+        if (myTabBtn) myTabBtn.classList.remove('active');
+        if (allTabBtn) allTabBtn.classList.add('active');
+    } else {
+        // Non-admins: ensure the My Groups tab is available.
+        if (myTabBtn) myTabBtn.style.display = '';
     }
 
     try {
@@ -267,6 +281,14 @@ function setGroupFilter(filter, btn) {
         const target = document.querySelector(`#groups-filter-bar .group-tab-btn[data-filter="${filter}"]`);
         if (target) target.classList.add('active');
     }
+    // The scope sub-filter only applies to the All Groups tab.
+    const sub = document.getElementById('all-groups-subfilter');
+    if (sub) sub.style.display = filter === 'all' ? 'block' : 'none';
+    applyGroupFilter();
+}
+
+function onAllGroupsScopeChange() {
+    allGroupsScope = document.getElementById('all-groups-scope')?.value || 'notjoined';
     applyGroupFilter();
 }
 
@@ -298,10 +320,17 @@ function applyGroupFilter() {
         });
         emptyMsg = isAdmin ? 'Admins are not members of any groups.'
             : (loggedIn ? 'You are not a member of any groups yet.' : 'Please log in to see your groups.');
-    } else { // 'all' — groups I'm NOT already part of
-        const myIds = new Set(myGroupsCache.map(groupIdOf));
-        base = allGroupsCache.filter(g => !myIds.has(groupIdOf(g)));
-        emptyMsg = isAdmin ? 'No groups found.' : 'No groups left to join.';
+    } else { // 'all'
+        if (allGroupsScope === 'everything') {
+            // Every group that exists.
+            base = allGroupsCache;
+            emptyMsg = 'No groups found.';
+        } else {
+            // Only groups I'm NOT already part of (default).
+            const myIds = new Set(myGroupsCache.map(groupIdOf));
+            base = allGroupsCache.filter(g => !myIds.has(groupIdOf(g)));
+            emptyMsg = isAdmin ? 'No groups found.' : 'No groups left to join.';
+        }
     }
 
     const filtered = groupSearchTerm
@@ -339,15 +368,12 @@ function renderGroupList(items, container, emptyMsg, myUserID) {
         const lock = locked
             ? '<span class="group-lock-badge" title="Password protected"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>'
             : '';
-        const isLecturerCreated = it.createdByType === 'LECTURER' || it.createdByLecturer === true;
+        // Lecturers are shown inside each group's detail view, not on the row.
         let ownerBadge = '';
         if (owned) {
             ownerBadge = '<span class="group-owner-badge">Owner</span>';
         } else if (adminCreated) {
             ownerBadge = '<span class="group-admin-badge">Admin Created</span>';
-        } else if (isLecturerCreated) {
-            const lName = it.creatorName ? escapeHtml(it.creatorName) : 'Lecturer';
-            ownerBadge = `<span class="group-admin-badge" style="background:#FFF3E8; color:#D97706; border-color:#FCD34D;">Lecturer: ${lName}</span>`;
         }
 
         row.innerHTML =
@@ -398,12 +424,11 @@ async function loadGroupDetail(groupID, section) {
             capacityText = `👥 ${data.memberCount !== undefined ? data.memberCount : '—'} members`;
         }
 
+        // Lecturers are shown in the dedicated "Lecturers" list below, not as a
+        // header badge. Admin-created groups still get a small note.
         let creatorBadge = '';
         if (data.createdByAdmin) {
             creatorBadge = `<span style="display:inline-flex; align-items:center; gap:4px; background:#EEF2F9; color:#1B2F5E; padding:2px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; border:1px solid #D0D9E8;">Created by Admin only</span>`;
-        } else if (data.createdByLecturer || data.createdByType === 'LECTURER') {
-            const lecturerName = data.creatorName ? escapeHtml(data.creatorName) : 'Lecturer';
-            creatorBadge = `<span style="display:inline-flex; align-items:center; gap:4px; background:#FFF3E8; color:#D97706; padding:2px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; border:1px solid #FCD34D;">🎓 Lecturer: ${lecturerName}</span>`;
         }
 
         header.innerHTML = `<h3 style="margin:0 0 4px; color:#1B2F5E;">${escapeHtml(data.groupName)}</h3>
@@ -441,13 +466,12 @@ async function loadGroupDetail(groupID, section) {
             adminDeleteBtn.onclick = () => deleteGroup(groupID);
             actions.appendChild(adminDeleteBtn);
         } else if (!isMember && !isOwner) {
-            if (!isLecturer) {
-                const joinBtn = document.createElement('button');
-                joinBtn.className = 'group-action-btn gold';
-                joinBtn.textContent = 'Join Group';
-                joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
-                actions.appendChild(joinBtn);
-            }
+            // Students and lecturers can join; admins are handled above.
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'group-action-btn gold';
+            joinBtn.textContent = 'Join Group';
+            joinBtn.onclick = () => joinGroup(groupID, data.hasPassword === true);
+            actions.appendChild(joinBtn);
         } else if (!isOwner) {
             // Non-owner members can leave; the owner manages/deletes instead.
             const leaveBtn = document.createElement('button');
@@ -540,33 +564,59 @@ async function loadGroupDetail(groupID, section) {
     }
 }
 
-// Render the member leaderboard into the group detail content area.
+// Render the lecturers list + student member leaderboard into the content area.
 function renderGroupMembersSection(container, data, groupID, isOwner, user) {
-    container.innerHTML = '<h4 style="margin:0 0 12px; color:#1B2F5E;">Member Leaderboard</h4>';
+    container.innerHTML = '';
 
-    // If created by admin or lecturer, indicate that clearly above the members list
-    if (data.createdByAdmin) {
-        const adminIndicator = document.createElement('div');
-        adminIndicator.style = 'margin-bottom:14px; padding:10px 14px; background:rgba(27, 47, 94, 0.05); border-left:3px solid #1B2F5E; border-radius:6px; font-size:0.84rem; color:#4A5568;';
-        adminIndicator.innerHTML = '<strong>Group Creator:</strong> Created by Admin only (the admin is not a participant in the game).';
-        container.appendChild(adminIndicator);
-    } else if (data.createdByLecturer || data.createdByType === 'LECTURER') {
-        const lecturerIndicator = document.createElement('div');
-        lecturerIndicator.style = 'margin-bottom:14px; padding:10px 14px; background:rgba(235, 130, 60, 0.08); border-left:3px solid #EB823C; border-radius:6px; font-size:0.84rem; color:#2D3748;';
-        lecturerIndicator.innerHTML = `<strong>Group Lecturer:</strong> Created by <strong>${escapeHtml(data.creatorName || 'Lecturer')}</strong> (lecturers oversee quizzes and tasks and do not participate in the student leaderboard).`;
-        container.appendChild(lecturerIndicator);
+    const isAdmin = user && user.userType === 'ADMIN';
+    const canManage = isOwner || isAdmin;   // who may remove members
+
+    const allMembers = data.members || [];
+    const lecturers = allMembers.filter(m => m.userType === 'LECTURER');
+    const students = allMembers.filter(m => m.userType === 'STUDENT');
+
+    // ── Lecturers list (no MadiBucks balance; they don't compete) ──
+    if (lecturers.length > 0) {
+        const lecHeading = document.createElement('h4');
+        lecHeading.style = 'margin:0 0 12px; color:#1B2F5E;';
+        lecHeading.textContent = 'Lecturers';
+        container.appendChild(lecHeading);
+
+        lecturers.forEach(m => {
+            const row = document.createElement('div');
+            row.className = 'group-lecturer-row';
+            const initials = ((m.name || '?')[0] + (m.surname || '?')[0]).toUpperCase();
+            row.innerHTML =
+                `<div class="group-lecturer-avatar">${escapeHtml(initials)}</div>
+                 <div class="group-lecturer-name" onclick="showUserPopup(${m.userID})">${escapeHtml((m.name || '') + ' ' + (m.surname || ''))}</div>
+                 <span class="group-leaderboard-role">${m.role === 'OWNER' ? 'Owner' : 'Lecturer'}</span>`;
+            // Owner or admin can remove non-owner lecturers (not themselves).
+            if (canManage && m.role !== 'OWNER' && m.userID !== (user ? user.userID : null)) {
+                const rm = document.createElement('button');
+                rm.textContent = '✕';
+                rm.title = 'Remove from group';
+                rm.style = 'margin-left:8px; background:none; border:none; color:#D9534F; font-weight:700; cursor:pointer; font-size:0.95rem;';
+                rm.onclick = (e) => { e.stopPropagation(); removeGroupMember(groupID, m.userID, `${m.name || ''} ${m.surname || ''}`.trim()); };
+                row.appendChild(rm);
+            }
+            container.appendChild(row);
+        });
     }
 
-    // Only students participate in the member leaderboard (admins and lecturers are excluded)
-    const members = (data.members || []).filter(m => m.userType === 'STUDENT');
-    if (members.length === 0) {
+    // ── Student member leaderboard (ranked, with balances) ──
+    const lbHeading = document.createElement('h4');
+    lbHeading.style = `margin:${lecturers.length ? '20px' : '0'} 0 12px; color:#1B2F5E;`;
+    lbHeading.textContent = 'Member Leaderboard';
+    container.appendChild(lbHeading);
+
+    if (students.length === 0) {
         const emptyDiv = document.createElement('div');
         emptyDiv.className = 'group-empty-state';
         emptyDiv.textContent = 'No student members yet.';
         container.appendChild(emptyDiv);
         return;
     }
-    members.forEach((m, i) => {
+    students.forEach((m, i) => {
         const row = document.createElement('div');
         row.className = `group-leaderboard-row ${i < 3 ? 'rank-' + (i + 1) : ''}`;
         const balance = m.balance != null ? parseFloat(m.balance).toFixed(2) : '0.00';
@@ -575,8 +625,8 @@ function renderGroupMembersSection(container, data, groupID, isOwner, user) {
              <div class="group-leaderboard-name" onclick="showUserPopup(${m.userID})">${escapeHtml((m.name || '') + ' ' + (m.surname || ''))}</div>
              <span class="group-leaderboard-role">${m.role === 'OWNER' ? 'Owner' : ''}</span>
              <span class="group-leaderboard-balance">${balance} MB</span>`;
-        // Owner can remove non-owner members (not themselves).
-        if (isOwner && m.role !== 'OWNER' && m.userID !== user.userID) {
+        // Owner or admin can remove non-owner members (not themselves).
+        if (canManage && m.role !== 'OWNER' && m.userID !== (user ? user.userID : null)) {
             const rm = document.createElement('button');
             rm.textContent = '✕';
             rm.title = 'Remove from group';
