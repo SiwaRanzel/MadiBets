@@ -152,10 +152,10 @@ public class GroupController {
             }
             int userID = ((Number) raw).intValue();
 
-            // Admins and Lecturers cannot join groups (they have view-only oversight / quiz duties).
+            // Admins cannot join groups (view-only oversight). Lecturers may join.
             String userType = userDAO.getUserType(userID);
-            if ("ADMIN".equalsIgnoreCase(userType) || "LECTURER".equalsIgnoreCase(userType)) {
-                return ResponseEntity.status(403).body(Map.of("error", "Lecturers and admins cannot join groups as betting members."));
+            if ("ADMIN".equalsIgnoreCase(userType)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Admins cannot join groups."));
             }
 
             // If the group is password-protected, require and verify the password.
@@ -170,11 +170,14 @@ public class GroupController {
                 }
             }
 
-            // Enforce the member cap (counts joining members only — excludes the owner).
-            Integer maxMembers = groupDAO.getMaxMembers(id);
-            if (maxMembers != null && !groupDAO.isMember(id, userID)
-                    && groupDAO.getNonOwnerMemberCount(id) >= maxMembers) {
-                return ResponseEntity.status(409).body(Map.of("error", "This group is full."));
+            // Enforce the member cap for STUDENTS only (lecturers oversee and don't
+            // count toward the cap). Counts joining members, excludes the owner.
+            if ("STUDENT".equalsIgnoreCase(userType)) {
+                Integer maxMembers = groupDAO.getMaxMembers(id);
+                if (maxMembers != null && !groupDAO.isMember(id, userID)
+                        && groupDAO.getNonOwnerMemberCount(id) >= maxMembers) {
+                    return ResponseEntity.status(409).body(Map.of("error", "This group is full."));
+                }
             }
 
             boolean added = groupDAO.addMember(id, userID);
@@ -236,7 +239,10 @@ public class GroupController {
 
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
-            if (g.getCreatedBy() != userID) {
+
+            // The owner, or any admin, can edit the group.
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(userDAO.getUserType(userID));
+            if (!isAdmin && g.getCreatedBy() != userID) {
                 return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can edit this group."));
             }
 
@@ -276,7 +282,7 @@ public class GroupController {
         }
     }
 
-    /** DELETE /api/groups/{id}/members/{memberId}?ownerID=N — owner removes a member. */
+    /** DELETE /api/groups/{id}/members/{memberId}?ownerID=N — owner or admin removes a member. */
     @DeleteMapping("/{id}/members/{memberId}")
     public ResponseEntity<?> removeGroupMember(@PathVariable int id, @PathVariable int memberId,
                                                @RequestParam int ownerID) {
@@ -286,11 +292,14 @@ public class GroupController {
             }
             Group g = groupDAO.findById(id);
             if (g == null) return ResponseEntity.notFound().build();
-            if (g.getCreatedBy() != ownerID) {
+
+            // The owner, or any admin, can remove members.
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(userDAO.getUserType(ownerID));
+            if (!isAdmin && g.getCreatedBy() != ownerID) {
                 return ResponseEntity.status(403).body(Map.of("error", "Only the group owner can remove members."));
             }
-            if (memberId == ownerID) {
-                return ResponseEntity.badRequest().body(Map.of("error", "The owner cannot remove themselves. Delete the group instead."));
+            if (memberId == g.getCreatedBy()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "The group owner cannot be removed. Delete the group instead."));
             }
             // removeMember refuses to delete the OWNER row, so this only kicks regular members.
             boolean removed = groupDAO.removeMember(id, memberId);

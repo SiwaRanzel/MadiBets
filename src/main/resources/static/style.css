@@ -1704,6 +1704,40 @@ body {
     border-radius: inherit;
 }
 
+/* Lecturers list inside the detail modal (no balance — they don't compete) */
+.group-lecturer-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid #EEF2F9;
+    background: rgba(235, 130, 60, 0.06);
+    margin-bottom: 8px;
+}
+.group-lecturer-name {
+    flex: 1;
+    font-weight: 600;
+    color: #1B2F5E;
+    cursor: pointer;
+}
+/* Coloured circle avatar for lecturers (consistent with member avatars). */
+.group-lecturer-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #D97706;              /* lecturer accent (amber) */
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-primary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+
 /* Member MadiBucks leaderboard inside the detail modal */
 .group-leaderboard-row {
     display: flex;
