@@ -2446,10 +2446,6 @@ function renderFriendsList(friends, userID) {
         const friendName = f.requesterID === userID ? f.addresseName : f.requesterName;
         const friendStudentNo = f.requesterID === userID ? (f.addresseStudentNo || '') : (f.requesterStudentNo || '');
         const friendId = f.requesterID === userID ? f.addresseID : f.requesterID;
-        const isOnline = Math.random() > 0.5;
-        const statusDot = isOnline
-            ? `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #28A745; margin-right: 5px;"></span><span style="color: #28A745; font-size: 0.75rem; font-weight: 600;">Online</span>`
-            : `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #D9534F; margin-right: 5px;"></span><span style="color: #D9534F; font-size: 0.75rem; font-weight: 600;">Offline</span>`;
         return `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #F8FAFC; border-radius: 12px;">
                 <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="showUserPopup(${friendId})">
@@ -2464,7 +2460,6 @@ function renderFriendsList(friends, userID) {
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 14px;">
-                    <div style="display: flex; align-items: center;">${statusDot}</div>
                     <button onclick="removeFriend(${f.friendshipID})" style="background: none; border: 1px solid #D9534F; color: #D9534F; padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Unfriend</button>
                 </div>
             </div>
