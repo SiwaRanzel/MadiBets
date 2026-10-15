@@ -37,12 +37,16 @@ public class GroupController {
                         "A group called '" + g.getGroupName() + "' already exists. Please choose another name."));
             }
 
-            // Determine whether the creator is an admin or lecturer — admins and lecturers create groups on
-            // behalf of the platform / course and must NOT be added to GroupMember as betting players.
+            // Only ADMINs create groups purely administratively — they manage the
+            // platform and must NOT be added to GroupMember. Lecturers, like
+            // students, own the groups they create and must be added as the OWNER
+            // so the group appears under their "My Groups" tab (and is correctly
+            // excluded from the "groups I'm not in" list). Lecturers are already
+            // handled separately from students in member counts and leaderboards.
             String creatorType = g.getCreatedBy() > 0 ? userDAO.getUserType(g.getCreatedBy()) : null;
-            boolean isStaff = "ADMIN".equalsIgnoreCase(creatorType) || "LECTURER".equalsIgnoreCase(creatorType);
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(creatorType);
 
-            int id = isStaff ? groupDAO.createAdminGroup(g) : groupDAO.create(g);
+            int id = isAdmin ? groupDAO.createAdminGroup(g) : groupDAO.create(g);
             if (id > 0) {
                 return ResponseEntity.status(201).body(Map.of("groupID", id));
             } else {
