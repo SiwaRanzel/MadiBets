@@ -644,10 +644,10 @@
                             <div id="propose-desc-counter" class="propose-counter">0 / 40 words</div>
                         </div>
                         <div class="form-field-group" style="margin-top: 15px;">
-                            <label>Possible outcomes (2&ndash;4) &mdash; an admin assigns the odds</label>
+                            <label>Possible outcomes (2&ndash;4, up to 30 characters each) &mdash; an admin assigns the odds</label>
                             <div id="propose-outcomes" style="display: flex; flex-direction: column; gap: 8px; max-width: 420px;">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Above 60%">
-                                <input type="text" class="propose-outcome-input" maxlength="100" placeholder="e.g. Below 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="30" placeholder="e.g. Above 60%">
+                                <input type="text" class="propose-outcome-input" maxlength="30" placeholder="e.g. Below 60%">
                             </div>
                             <button type="button" id="btn-add-outcome" class="propose-add-outcome" onclick="addOutcomeField()">
                                 + Add outcome</button>
@@ -2010,7 +2010,7 @@
 
     <div id="toast" class="toast-popup-box hidden"></div>
 
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
 </body>
 
 </html>
