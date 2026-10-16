@@ -1216,7 +1216,8 @@ async function createGroup() {
         if (resp.status === 201) {
             showToast('Group created successfully!', 'success');
             closeCreateGroupModal();
-            refreshGroups();
+            setGroupFilter('mine');
+            await refreshGroups();
             if (user && user.userType === 'LECTURER') {
                 loadLecturerDashboardStats();
             }
@@ -4673,26 +4674,36 @@ const STUDENT_FAQ = [
                 id: 'faq-add-friends',
                 q: 'How do I add friends on MadiBets?',
                 a: 'Navigate to the <strong>Friends</strong> section from the sidebar. Search for a student by name or email and send them a friend request. Once they accept, you can see each other\'s leaderboard positions and activity.'
-            },
-            {
-                id: 'faq-groups-join',
-                q: 'What are Groups and how do I join one?',
-                a: 'Groups are private communities where members can bet together and track a shared leaderboard. Browse open groups in the <strong>Groups</strong> section and click <strong>Join</strong>. Some groups require a password set by the creator. You can also create your own group and optionally restrict the number of members.'
             }
         ]
     },
     {
-        category: 'Tasks & Quizzes',
+        category: 'Groups & Quizzes',
         items: [
             {
+                id: 'faq-groups-join',
+                q: 'What are Groups and how do I join or create one?',
+                a: 'Groups allow students and lecturers to collaborate, track shared leaderboards, and take course quizzes. The <strong>Groups</strong> panel has two tabs: <strong>My Groups</strong> (groups you own or belong to, with groups you created highlighted with an <strong>Owner</strong> badge) and <strong>All Groups</strong> (where you can search or filter between <em>Groups I haven\'t joined</em> and <em>All groups</em>). Click <strong>Join</strong> on open groups or enter the password for private groups. You can also click <strong>Create Group</strong> to create your own group &mdash; you will automatically be the Owner and it will appear directly in your <strong>My Groups</strong> list.'
+            },
+            {
+                id: 'faq-groups-interaction',
+                q: 'How do members and lecturers interact inside a group?',
+                a: 'Opening a group displays its details modal with two dedicated tabs: <strong>Members</strong> and <strong>Quizzes</strong>. Under Members, instructors and co-lecturers appear at the top in the <strong>Lecturers</strong> section (marked with <em>Owner</em> or <em>Lecturer</em> badges). Below them is the <strong>Member Leaderboard</strong>, ranking student members by their MadiBucks balance. Lecturers do not participate in wagers and do not take up student member capacity.'
+            },
+            {
+                id: 'faq-groups-leave',
+                q: 'Can I leave a group or can the owner remove members?',
+                a: 'Yes. Regular members can click <strong>Leave Group</strong> in the group modal at any time. If you created the group, you are the Owner and have management controls to edit the group description (up to 200 characters), remove members, or delete the group.'
+            },
+            {
                 id: 'faq-what-are-tasks',
-                q: 'What are Tasks?',
-                a: 'Tasks are activities set by lecturers. They may include multiple-choice quizzes where students can earn MadiBucks by answering correctly. Check the <strong>Tasks</strong> panel to see tasks that are currently available to you.'
+                q: 'What are Quizzes and where do I find them?',
+                a: 'Quizzes are academic tasks created by lecturers inside course groups. Open your module group in <strong>Groups</strong> and click the <strong>Quizzes</strong> tab to view available quizzes.'
             },
             {
                 id: 'faq-complete-quiz',
                 q: 'How do I complete a quiz and earn MadiBucks?',
-                a: 'Open a task from the <strong>Tasks</strong> list and click <strong>Take Quiz</strong>. Answer all the questions and submit. Your score is calculated instantly and MadiBucks are awarded based on correct answers. Each quiz can only be completed once.'
+                a: 'Inside your module group\'s <strong>Quizzes</strong> tab, click <strong>Take Quiz</strong>. Answer the multiple-choice or true/false questions and submit. Your answers are graded automatically, and bonus MadiBucks are credited to your balance immediately to boost your leaderboard standing!'
             }
         ]
     }
@@ -4725,17 +4736,22 @@ const LECTURER_FAQ = [
             {
                 id: 'faq-lecturer-create-group',
                 q: 'How do I create a group for my class?',
-                a: 'Go to <strong>Groups</strong> from the sidebar and click <strong>Create Group</strong>. Enter a group name (such as your module code, e.g., <em>WRAP301</em>), a brief description, an optional member limit, and an optional password to restrict membership to your students.'
+                a: 'Go to <strong>Groups</strong> from the sidebar (or click <strong>+ Create Group</strong> on your Lecturer Dashboard under <em>My Groups &mdash; Recent Activity</em>). Enter your module code or group name (e.g., <em>WRAP301</em>), a description (up to 200 characters), an optional student member limit, and an optional password. Once submitted, you are automatically registered as the group <strong>Owner</strong>, and it will immediately appear under your <strong>My Groups</strong> tab and on your Dashboard.'
             },
             {
                 id: 'faq-lecturer-students-join',
-                q: 'How do students join my class group?',
-                a: 'Students browse or search for your group name in their <strong>Groups</strong> panel and click <strong>Join</strong>. If you configured a password, share it with your students during lecture or via Moodle so they can enter.'
+                q: 'How do students and fellow lecturers join my class group?',
+                a: 'Students and colleagues browse or search for your group name under the <strong>All Groups</strong> tab and click <strong>Join</strong>. If you configured a password, share it with students in class or via Moodle so only enrolled students can join. Fellow lecturers can also join your group &mdash; all lecturers appear in the dedicated <strong>Lecturers</strong> section at the top and do not count toward student member capacity.'
+            },
+            {
+                id: 'faq-lecturer-join-other-groups',
+                q: 'Can lecturers join groups created by other lecturers or students?',
+                a: 'Yes! Lecturers can browse the <strong>All Groups</strong> tab and join open groups or enter passwords for protected groups. Inside the group, you will appear in the <strong>Lecturers</strong> section (marked with a <em>Lecturer</em> badge, distinct from the <em>Owner</em>) and can participate in academic oversight or add course quizzes.'
             },
             {
                 id: 'faq-lecturer-manage-group',
-                q: 'Can I edit group details, remove members, or delete a group?',
-                a: 'Yes. In the <strong>Groups</strong> panel, click on your group under <strong>My Groups</strong>. As the owner, you can edit the group description (up to 100 words), remove specific members, or permanently delete the group and its quizzes.'
+                q: 'What controls do I have as a group Owner?',
+                a: 'Click on your group under <strong>My Groups</strong>. As the Owner, you can edit the group description (up to 200 characters), remove individual members (students or non-owner lecturers), create quizzes for the group via <strong>+ Create Quiz</strong>, or delete the group and its quizzes entirely.'
             }
         ]
     },
@@ -4745,17 +4761,12 @@ const LECTURER_FAQ = [
             {
                 id: 'faq-lecturer-create-quiz',
                 q: 'How do I create a quiz task for my students?',
-                a: 'Open your group from the <strong>Groups</strong> panel and click <strong>Create Quiz</strong>. Enter the quiz title, description, reward amount in MadiBucks, and define multiple-choice questions with answer choices and indicate the correct answer.'
+                a: 'Open your group from the <strong>Groups</strong> panel and click <strong>+ Create Quiz</strong> (or open the <strong>Quizzes</strong> tab). Enter the quiz title, description, and reward in MadiBucks. Add 1 to 10 questions (Multiple Choice up to 4 options, or True/False with 2 options) and designate the correct answer option.'
             },
             {
                 id: 'faq-lecturer-rewards',
                 q: 'How are MadiBucks awarded to students who complete quizzes?',
-                a: 'When students take your quiz, their answers are graded automatically. Once completed, the designated MadiBucks reward is credited directly to each student\'s balance, boosting their platform ranking.'
-            },
-            {
-                id: 'faq-lecturer-reveal-results',
-                q: 'When do students see their quiz results and answers?',
-                a: 'You control when results are released. In the group quiz list, click <strong>Reveal Results</strong> when you are ready for students to see the correct answers and their individual scores.'
+                a: 'When students take your quiz, their responses are evaluated automatically and the designated MadiBucks reward is deposited into each student\'s account balance, driving their position on both the group leaderboard and campus-wide rankings.'
             }
         ]
     },
@@ -4833,8 +4844,8 @@ function updateHelpFaqCard() {
     } else {
         container.innerHTML = `
             <a href="#" class="help-faq-link" onclick="openFaqModal('faq-place-bet'); return false;">How do I place a bet on MadiBets?</a>
-            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-what-are-madibucks'); return false;">What are MadiBucks and how do I earn them?</a>
-            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-deadline-passes'); return false;">How does bet grading work?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-groups-join'); return false;">What are Groups and how do I join or create one?</a>
+            <a href="#" class="help-faq-link" onclick="openFaqModal('faq-complete-quiz'); return false;">How do I complete a quiz and earn MadiBucks?</a>
         `;
     }
 }
@@ -4947,15 +4958,17 @@ const STUDENT_GUIDE = [
     {
         id: 'sg-groups-tasks', label: 'Groups & Quizzes',
         title: 'Groups and Quizzes',
-        intro: 'Collaborate with fellow students in groups, compete on group leaderboards, and take quizzes created by your lecturers.',
+        intro: 'Collaborate with fellow students, join module groups, compete on group leaderboards, and take quizzes created by your lecturers.',
         steps: [
-            { title: 'Browse and join groups', body: 'Click <strong>Groups</strong> in the sidebar. Explore available groups in the right column. Click <strong>Join</strong> on open groups or enter the password for protected class groups.' },
-            { title: 'Create your own group', body: 'Click <strong>Create Group</strong>. Enter a unique name, an optional description (up to 100 words), an optional maximum member count, and an optional password to keep it private.' },
-            { title: 'View group members & leaderboards', body: 'Click any group under <strong>My Groups</strong> to view its member list and see who leads the group in total MadiBucks.' },
-            { title: 'Take quizzes to earn MadiBucks', body: 'In academic groups managed by lecturers, open the group details to view assigned quizzes. Click <strong>Take Quiz</strong>, answer the questions, and submit to earn bonus MadiBucks.' },
-            { title: 'Group management', body: 'If you created the group, you can update its description, remove members, or delete the group from the group details modal.' },
+            { title: 'Navigate My Groups & All Groups', body: 'Click <strong>Groups</strong> in the sidebar. The <strong>My Groups</strong> tab displays groups you belong to or own (marked with an <strong>Owner</strong> badge). The <strong>All Groups</strong> tab allows you to explore all available university groups.' },
+            { title: 'Search & filter groups', body: 'Use the search bar at the top to filter groups by name in real time. In <strong>All Groups</strong>, use the scope dropdown to toggle between <em>Groups I haven\'t joined</em> (default) and <em>All groups</em>.' },
+            { title: 'Join a group', body: 'Click on any group in the list. For open groups, click <strong>Join Group</strong>. For private course groups, enter the password provided by your lecturer or group owner.' },
+            { title: 'Create your own group', body: 'Click <strong>Create Group</strong>. Enter a unique name, an optional description (up to 200 characters), an optional maximum member count, and an optional password. You are automatically set as Owner and will see your group immediately in <strong>My Groups</strong>.' },
+            { title: 'View members & leaderboard', body: 'Click any group under <strong>My Groups</strong> to open its details modal. Lecturers and instructors are displayed in the dedicated <strong>Lecturers</strong> section at the top. Below, the <strong>Member Leaderboard</strong> ranks student members by total MadiBucks.' },
+            { title: 'Take quizzes for MadiBucks', body: 'In academic groups managed by lecturers, click the <strong>Quizzes</strong> tab inside the group details modal. Click <strong>Take Quiz</strong> on any active quiz, answer the questions, and submit to earn instant MadiBucks rewards!' },
+            { title: 'Leave or manage a group', body: 'Regular members can click <strong>Leave Group</strong> in the group modal at any time. If you created the group, you have owner controls to edit the description, remove members, or delete the group.' },
         ],
-        tip: '💡 <strong>Tip:</strong> Join your module\'s study group &mdash; completing lecturer quizzes is one of the best ways to earn extra MadiBucks without risking wagers!'
+        tip: '💡 <strong>Tip:</strong> Join your module\'s class group &mdash; completing lecturer quizzes is one of the best ways to earn extra MadiBucks without risking wagers!'
     },
     {
         id: 'sg-social', label: 'Leaderboard',
@@ -5027,24 +5040,27 @@ const LECTURER_GUIDE = [
         title: 'Managing Course & Class Groups',
         intro: 'Create module-specific communities where your students can interact, track course leaderboards, and take quizzes.',
         steps: [
-            { title: 'View your groups', body: 'Click <strong>Groups</strong> in the sidebar. The left column lists <strong>My Groups</strong> (groups you created or joined); the right column displays all university groups.' },
-            { title: 'Create a module group', body: 'Click <strong>Create Group</strong>. Enter a unique group name (e.g., your module code such as <em>WRAP301</em>), a description (up to 100 words), an optional maximum member count, and a password.' },
-            { title: 'Distribute group credentials', body: 'Share the group name and password with your students in class or post them on Moodle so only enrolled students can join.' },
-            { title: 'Inspect group members', body: 'Click your group under <strong>My Groups</strong> to view all enrolled students and their individual MadiBucks rankings within your course.' },
-            { title: 'Owner controls', body: 'As the group owner, you can edit the group description, remove individual members, or permanently delete the group and its quizzes.' },
+            { title: 'View your groups', body: 'Click <strong>Groups</strong> in the sidebar, or view your groups directly on your <strong>Dashboard</strong> under <em>My Groups &mdash; Recent Activity</em>. The <strong>My Groups</strong> tab lists groups you own or have joined (with an <strong>Owner</strong> badge for groups you created).' },
+            { title: 'Explore all campus groups', body: 'Switch to the <strong>All Groups</strong> tab to view university-wide groups. Use the real-time search bar or the scope dropdown (<em>Groups I haven\'t joined</em> / <em>All groups</em>) to locate specific groups.' },
+            { title: 'Create a module group', body: 'Click <strong>Create Group</strong>. Enter a unique name (such as your module code, e.g., <em>WRAP301</em>), a description (up to 200 characters), an optional student capacity limit, and a password.' },
+            { title: 'Automatic group ownership', body: 'When you create a group, you are automatically set as the <strong>Owner</strong>. The group immediately appears in your <strong>My Groups</strong> tab and on your Lecturer Dashboard with full management access.' },
+            { title: 'Distribute group credentials', body: 'Share the group name and password with your students in class or post them on Moodle so only enrolled students join.' },
+            { title: 'Inspect group members & roles', body: 'Click your group under <strong>My Groups</strong>. Instructors are clearly listed in the dedicated <strong>Lecturers</strong> section at the top (with <em>Owner</em> or <em>Lecturer</em> badges). Below is the <strong>Member Leaderboard</strong> displaying student balances and rankings. (Lecturers do not compete and do not count toward student capacity limits).' },
+            { title: 'Join other groups', body: 'Lecturers can also join other academic or department groups from the <strong>All Groups</strong> tab to collaborate with colleagues.' },
+            { title: 'Owner controls', body: 'As group Owner, you can edit the description, remove members (students or non-owner lecturers), create quizzes, or delete the group.' },
         ],
         tip: '💡 <strong>Tip:</strong> Password-protecting your class group ensures only students currently registered for your module can join and access your quizzes.'
     },
     {
         id: 'lg-quizzes', label: 'Quizzes',
         title: 'Creating Quizzes & Rewarding Students',
-        intro: 'Design multiple-choice quiz tasks to test student knowledge and incentivize participation with MadiBucks rewards.',
+        intro: 'Design multiple-choice and true/false quiz tasks to test student knowledge and incentivize participation with MadiBucks rewards.',
         steps: [
-            { title: 'Open group quiz manager', body: 'Click on your module group under <strong>My Groups</strong> in the Groups panel to open the group modal.' },
-            { title: 'Create a new quiz', body: 'Click <strong>Create Quiz</strong>. Enter a title, description, and the reward amount in MadiBucks (e.g. 50 or 100 MadiBucks).' },
-            { title: 'Add multiple-choice questions', body: 'Add question prompts with multiple answer choices and designate the correct answer option.' },
-            { title: 'Automatic grading & payouts', body: 'When students take your quiz, MadiBets automatically evaluates their responses and grants the reward directly to their balance.' },
-            { title: 'Reveal results to students', body: 'You control when quiz solutions become visible. In the group quiz list, click <strong>Reveal Results</strong> when you are ready for students to view correct answers and performance.' },
+            { title: 'Open group quiz manager', body: 'Click on your module group under <strong>My Groups</strong> in the Groups panel to open the group modal, then switch to the <strong>Quizzes</strong> tab or click <strong>+ Create Quiz</strong>.' },
+            { title: 'Create a new quiz', body: 'Click <strong>+ Create Quiz</strong>. Enter a quiz title, description, and reward amount in MadiBucks (e.g. 50 or 100 MadiBucks).' },
+            { title: 'Add questions & options', body: 'Add between 1 and 10 questions. Choose <strong>Multiple Choice</strong> (up to 4 options) or <strong>True/False</strong> (2 options), supply option text, and designate exactly one correct answer per question.' },
+            { title: 'Automatic grading & payouts', body: 'When students take your quiz, MadiBets evaluates responses automatically and credits the MadiBucks reward directly to their account balance.' },
+            { title: 'Monitor engagement', body: 'Track quiz completion rates and observe student movement up the group\'s Member Leaderboard and overall campus rankings.' },
         ],
         tip: '💡 <strong>Tip:</strong> Quizzes are a fantastic way to boost lecture attendance and reward students for completing pre-class readings or tutorial prep.'
     },

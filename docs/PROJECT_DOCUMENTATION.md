@@ -561,7 +561,7 @@ The frontend is a **single-page application** (SPA) served as static files from 
 | **Friend List** | View accepted friends, remove friends. |
 | **Leaderboard** | Top 50 students by balance, wins, or total bets. User's own rank and stats. |
 | **Bet History** | User's past wagers with outcomes (YES/NO/PENDING/CANCELLED). |
-| **Groups** | Create groups, search/join groups, virtual "Overall" and "My Friends" groups. |
+| **Groups** | Module and peer groups with tabbed My Groups / All Groups views, Lecturer and Member Leaderboard roles, capacity caps, password protection, and group quizzes. |
 | **Support Queries** | Submit queries, admin reviews and resolves them. |
 | **Admin Dashboard** | Live metrics from 8 database queries. |
 | **Lecturer Dashboard** | Groups created, student counts, activity stats. |

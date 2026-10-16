@@ -17,6 +17,27 @@ public class GroupDAO {
 
     static {
         purgeAdminMemberships();
+        syncLecturerOwnerMemberships();
+    }
+
+    /**
+     * Ensure lecturers who created groups are registered in GroupMember as OWNER.
+     */
+    public static void syncLecturerOwnerMemberships() {
+        String sql = "INSERT INTO GroupMember (groupID, userID, role) "
+                   + "SELECT g.groupID, g.createdBy, 'OWNER' "
+                   + "FROM `Group` g "
+                   + "JOIN User u ON g.createdBy = u.userID "
+                   + "WHERE u.userType = 'LECTURER' "
+                   + "AND NOT EXISTS ("
+                   + "    SELECT 1 FROM GroupMember gm WHERE gm.groupID = g.groupID AND gm.userID = g.createdBy"
+                   + ")";
+        try (Connection con = DatabaseConnection.getConnection();
+             Statement st = con.createStatement()) {
+            st.executeUpdate(sql);
+        } catch (Exception ignore) {
+            // DB might not be reachable at class init time
+        }
     }
 
     /**
@@ -217,19 +238,23 @@ public class GroupDAO {
 
     /** Find groups a user belongs to. */
     public List<Group> findByUser(int userID) throws SQLException {
+        syncLecturerOwnerMemberships();
         List<Group> results = new ArrayList<>();
-        String sql = "SELECT g.groupID, g.groupName, g.description, g.maxMembers, g.createdBy, g.createdDate, "
+        String sql = "SELECT DISTINCT g.groupID, g.groupName, g.description, g.maxMembers, g.createdBy, g.createdDate, "
                    + "(g.password IS NOT NULL) AS hasPassword, "
                    + "(u.userType = 'ADMIN') AS createdByAdmin, "
                    + "u.userType AS createdByType, "
                    + "TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.surname, ''))) AS creatorName "
                    + "FROM `Group` g "
-                   + "JOIN GroupMember m ON g.groupID = m.groupID "
+                   + "LEFT JOIN GroupMember m ON g.groupID = m.groupID AND m.userID = ? "
                    + "LEFT JOIN User u ON g.createdBy = u.userID "
-                   + "WHERE m.userID = ?";
+                   + "WHERE m.userID = ? OR (g.createdBy = ? AND (u.userType != 'ADMIN' OR u.userType IS NULL)) "
+                   + "ORDER BY g.groupName";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, userID);
+            ps.setInt(2, userID);
+            ps.setInt(3, userID);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     results.add(map(rs));
@@ -284,12 +309,16 @@ public class GroupDAO {
 
     public boolean isMember(int groupID, int userID) throws SQLException {
         // Membership reflects an actual GroupMember row regardless of role —
-        // students AND lecturers can be members.
-        String sql = "SELECT COUNT(*) AS c FROM GroupMember WHERE groupID = ? AND userID = ?";
+        // students AND lecturers can be members. Group owners/creators (non-admin) are also members.
+        String sql = "SELECT COUNT(*) AS c FROM `Group` g "
+                   + "LEFT JOIN GroupMember gm ON g.groupID = gm.groupID AND gm.userID = ? "
+                   + "LEFT JOIN User u ON g.createdBy = u.userID "
+                   + "WHERE g.groupID = ? AND (gm.userID IS NOT NULL OR (g.createdBy = ? AND u.userType != 'ADMIN'))";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, groupID);
-            ps.setInt(2, userID);
+            ps.setInt(1, userID);
+            ps.setInt(2, groupID);
+            ps.setInt(3, userID);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() && rs.getInt("c") > 0;
             }
