@@ -37,9 +37,12 @@ public class GroupController {
                         "A group called '" + g.getGroupName() + "' already exists. Please choose another name."));
             }
 
-            // Determine whether the creator is an admin — admins create groups on
-            // behalf of the platform and must NOT be added to GroupMember.
-            // Lecturers and students create groups they own and participate in as owners/members.
+            // Only ADMINs create groups purely administratively — they manage the
+            // platform and must NOT be added to GroupMember. Lecturers, like
+            // students, own the groups they create and must be added as the OWNER
+            // so the group appears under their "My Groups" tab (and is correctly
+            // excluded from the "groups I'm not in" list). Lecturers are already
+            // handled separately from students in member counts and leaderboards.
             String creatorType = g.getCreatedBy() > 0 ? userDAO.getUserType(g.getCreatedBy()) : null;
             boolean isAdmin = "ADMIN".equalsIgnoreCase(creatorType);
 
